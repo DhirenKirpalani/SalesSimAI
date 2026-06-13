@@ -1,7 +1,6 @@
 import { HeroSection } from "@/components/landing/HeroSection";
 import { FeaturesSection } from "@/components/landing/FeaturesSection";
 import { ShowcaseSection } from "@/components/landing/ShowcaseSection";
-import { CallPreviewSection } from "@/components/landing/CallPreviewSection";
 import { FAQSection } from "@/components/landing/FAQSection";
 import { Footer } from "@/components/landing/Footer";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -15,7 +14,6 @@ export default function Home() {
       <HeroSection />
       <FeaturesSection />
       <ShowcaseSection />
-      <CallPreviewSection />
       <FAQSection />
       <Footer />
     </div>

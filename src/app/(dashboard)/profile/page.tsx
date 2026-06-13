@@ -1,16 +1,73 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { mockUsers } from "@/lib/data/mockData";
 import { useThemeStore } from "@/stores/useThemeStore";
-import { Moon, Bell, Mail, Shield, User } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { Moon, Bell, Mail, Shield, User, Loader2 } from "lucide-react";
+
+interface Profile {
+  full_name: string | null;
+  email: string;
+  role: string;
+  company: string | null;
+}
 
 export default function ProfilePage() {
-  const user = mockUsers[0];
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
   const { darkMode, toggleDarkMode } = useThemeStore();
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    async function loadProfile() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name, email, role, company")
+        .eq("id", user.id)
+        .single();
+
+      if (data) {
+        setProfile(data);
+      } else {
+        // Fallback to auth metadata if profile row missing
+        setProfile({
+          full_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
+          email: user.email || "",
+          role: "Sales Rep",
+          company: user.user_metadata?.company || null,
+        });
+      }
+      setLoading(false);
+    }
+
+    loadProfile();
+  }, []);
+
+  const initials = (profile?.full_name || profile?.email || "U")
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -32,26 +89,23 @@ export default function ProfilePage() {
           <div className="flex items-center gap-4">
             <Avatar className="h-16 w-16 border">
               <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
-                {user.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")}
+                {initials}
               </AvatarFallback>
             </Avatar>
             <div>
-              <p className="font-semibold text-lg">{user.name}</p>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
+              <p className="font-semibold text-lg">{profile?.full_name || profile?.email}</p>
+              <p className="text-sm text-muted-foreground">{profile?.email}</p>
             </div>
           </div>
           <Separator />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="flex items-center gap-2 text-muted-foreground">
               <User className="w-4 h-4" />
-              <span>Role: {user.role}</span>
+              <span>Role: {profile?.role || "Sales Rep"}</span>
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
               <Shield className="w-4 h-4" />
-              <span>Organization: {user.organization}</span>
+              <span>Organization: {profile?.company || "—"}</span>
             </div>
           </div>
         </CardContent>
