@@ -2,9 +2,10 @@
 
 import { motion, useScroll, useTransform, useMotionValue, useSpring } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Play } from "lucide-react";
+import { ArrowRight, Play, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { useRef, useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 // Cinematic particle system
 const particles = Array.from({ length: 40 }, (_, i) => ({
@@ -41,6 +42,7 @@ function useMouseParallax() {
 
 export function HeroSection() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end start"],
@@ -55,6 +57,13 @@ export function HeroSection() {
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsLoggedIn(!!user);
+    });
+  }, []);
 
   return (
     <section
@@ -202,35 +211,55 @@ export function HeroSection() {
           transition={{ delay: 1.3, duration: 0.8, ease: "easeOut" }}
           className="mt-14 flex flex-col sm:flex-row items-center justify-center gap-4"
         >
-          <Link href="/signup">
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.97 }}
-              transition={{ type: "spring", stiffness: 400, damping: 17 }}
-            >
-              <Button
-                size="lg"
-                className="rounded-xl gap-2 text-sm px-10 py-7 shadow-xl shadow-primary/25 hover:shadow-primary/40 transition-shadow"
+          {isLoggedIn ? (
+            <Link href="/dashboard">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
               >
-                Start Free Trial
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </motion.div>
-          </Link>
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.97 }}
-            transition={{ type: "spring", stiffness: 400, damping: 17 }}
-          >
-            <Button
-              size="lg"
-              variant="outline"
-              className="rounded-xl gap-2 text-sm px-10 py-7 border-2 hover:bg-muted/50"
-            >
-              <Play className="w-4 h-4" />
-              Watch Demo
-            </Button>
-          </motion.div>
+                <Button
+                  size="lg"
+                  className="rounded-xl gap-2 text-sm px-10 py-7 shadow-xl shadow-primary/25 hover:shadow-primary/40 transition-shadow"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  Go to Dashboard
+                </Button>
+              </motion.div>
+            </Link>
+          ) : (
+            <>
+              <Link href="/signup">
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                >
+                  <Button
+                    size="lg"
+                    className="rounded-xl gap-2 text-sm px-10 py-7 shadow-xl shadow-primary/25 hover:shadow-primary/40 transition-shadow"
+                  >
+                    Start Free Trial
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </motion.div>
+              </Link>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+              >
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="rounded-xl gap-2 text-sm px-10 py-7 border-2 hover:bg-muted/50"
+                >
+                  <Play className="w-4 h-4" />
+                  Watch Demo
+                </Button>
+              </motion.div>
+            </>
+          )}
         </motion.div>
 
         {/* Bottom stats row with stagger */}
