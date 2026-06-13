@@ -1,17 +1,83 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Zap, ArrowLeft } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Zap } from "lucide-react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+
+const signupSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Please enter a valid email"),
+  company: z.string().optional(),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+type SignupForm = z.infer<typeof signupSchema>;
 
 export default function SignupPage() {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<SignupForm>({
+    resolver: zodResolver(signupSchema),
+  });
+
+  const onSubmit = async (data: SignupForm) => {
+    setLoading(true);
+    setError(null);
+
+    const supabase = createClient();
+    const { error: signUpError } = await supabase.auth.signUp({
+      email: data.email,
+      password: data.password,
+      options: {
+        data: {
+          full_name: data.name,
+          company: data.company || null,
+        },
+      },
+    });
+
+    if (signUpError) {
+      setError(signUpError.message);
+      setLoading(false);
+      return;
+    }
+
+    router.push("/dashboard");
+    router.refresh();
+  };
+
+  const signInWithGoogle = async () => {
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      setError(error.message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4 relative overflow-hidden">
-      {/* Background elements */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-primary/[0.03] rounded-full blur-[120px]" />
         <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-primary/[0.04] rounded-full blur-[100px]" />
@@ -38,33 +104,66 @@ export default function SignupPage() {
 
         <Card className="rounded-2xl border bg-card/80 backdrop-blur-sm shadow-lg">
           <CardContent className="p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="firstName" className="text-xs font-medium">First name</Label>
-                <Input id="firstName" placeholder="John" className="rounded-xl h-10" />
+                <Label htmlFor="name" className="text-xs font-medium">Name *</Label>
+                <Input
+                  id="name"
+                  placeholder="John Doe"
+                  className="rounded-xl h-10"
+                  {...register("name")}
+                />
+                {errors.name && (
+                  <p className="text-xs text-destructive">{errors.name.message}</p>
+                )}
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="lastName" className="text-xs font-medium">Last name</Label>
-                <Input id="lastName" placeholder="Doe" className="rounded-xl h-10" />
+                <Label htmlFor="email" className="text-xs font-medium">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="john@company.com"
+                  className="rounded-xl h-10"
+                  {...register("email")}
+                />
+                {errors.email && (
+                  <p className="text-xs text-destructive">{errors.email.message}</p>
+                )}
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-xs font-medium">Work email</Label>
-              <Input id="email" type="email" placeholder="john@company.com" className="rounded-xl h-10" />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="company" className="text-xs font-medium">Company (optional)</Label>
+                <Input
+                  id="company"
+                  placeholder="Acme Inc"
+                  className="rounded-xl h-10"
+                  {...register("company")}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="company" className="text-xs font-medium">Company</Label>
-              <Input id="company" placeholder="Acme Inc" className="rounded-xl h-10" />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-xs font-medium">Password *</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Create a password"
+                  className="rounded-xl h-10"
+                  {...register("password")}
+                />
+                {errors.password && (
+                  <p className="text-xs text-destructive">{errors.password.message}</p>
+                )}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-xs font-medium">Password</Label>
-              <Input id="password" type="password" placeholder="Create a password" className="rounded-xl h-10" />
-            </div>
+              {error && (
+                <p className="text-xs text-destructive text-center">{error}</p>
+              )}
 
-            <Button className="w-full rounded-xl h-10 mt-2">Create Account</Button>
+              <Button type="submit" className="w-full rounded-xl h-10 mt-2" disabled={loading}>
+                {loading ? "Creating account..." : "Create Account"}
+              </Button>
+            </form>
 
             <div className="relative py-2">
               <div className="absolute inset-0 flex items-center">
@@ -75,7 +174,12 @@ export default function SignupPage() {
               </div>
             </div>
 
-            <Button variant="outline" className="w-full rounded-xl h-10">
+            <Button
+              variant="outline"
+              className="w-full rounded-xl h-10"
+              onClick={signInWithGoogle}
+              type="button"
+            >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
