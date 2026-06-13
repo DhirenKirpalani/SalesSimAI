@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Bell,
@@ -20,6 +21,7 @@ import {
   MessageCircle,
   Calendar,
   Info,
+  LogOut,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -27,6 +29,13 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { useThemeStore } from "@/stores/useThemeStore";
@@ -96,6 +105,7 @@ const notificationIcon = (type: Notification["type"]) => {
 };
 
 export function TopNavbar() {
+  const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -103,6 +113,13 @@ export function TopNavbar() {
   const [initials, setInitials] = useState("U");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>(sampleNotifications);
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -253,11 +270,24 @@ export function TopNavbar() {
         </SheetContent>
       </Sheet>
 
-      <Link href="/profile">
-        <Avatar className="h-8 w-8 border cursor-pointer">
-          <AvatarFallback className="text-xs bg-primary/10 text-primary">{initials}</AvatarFallback>
-        </Avatar>
-      </Link>
+      <DropdownMenu>
+        <DropdownMenuTrigger>
+          <Avatar className="h-8 w-8 border cursor-pointer">
+            <AvatarFallback className="text-xs bg-primary/10 text-primary">{initials}</AvatarFallback>
+          </Avatar>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" sideOffset={8}>
+          <DropdownMenuItem onClick={() => router.push("/profile")}>
+            <User className="mr-2 h-4 w-4" />
+            Profile
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={handleLogout}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Log out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </header>
   );
 }
