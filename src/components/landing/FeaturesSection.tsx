@@ -8,39 +8,39 @@ import { useRef } from "react";
 const features = [
   {
     icon: Video,
-    title: "AI Video Simulations",
+    title: "Fintech Buyer Simulations",
     description:
-      "Practice with lifelike AI buyers in real-time video calls. Face objections, negotiations, and tough questions just like on a real Zoom call.",
+      "Practice with AI buyers modeled on real fintech CFOs, compliance officers, and procurement leads. Face the exact objections your reps hear on live calls.",
   },
   {
     icon: Mic,
     title: "Voice-Powered Roleplay",
     description:
-      "Speak naturally to AI buyers powered by ElevenLabs and OpenAI. The conversation flows in real-time with tone, urgency, and personality.",
+      "Speak naturally to AI buyers powered by ElevenLabs and OpenAI. Practice regulatory pushback, API integration concerns, and pricing negotiations in real time.",
   },
   {
     icon: BarChart3,
     title: "Performance Analytics",
     description:
-      "Track simulations completed, average scores, best performances, and training time. Visualize trends and score distributions over time.",
+      "Track rep readiness across deal stages, win-rate lift, objection-handling scores, and time-to-close improvements. Spot coaching gaps before they cost you deals.",
   },
   {
     icon: Shield,
     title: "Enterprise Security",
     description:
-      "SOC 2 Type II certified with SSO, role-based access, and full audit trails. Your call data and recordings are encrypted and secure.",
+      "SOC 2 Type II certified with SSO, role-based access, and full audit trails. Built to meet the security standards your fintech buyers demand.",
   },
   {
     icon: Sparkles,
     title: "AI Coaching & Feedback",
     description:
-      "Get instant, actionable feedback after every simulation. Identify weak points, improve objection handling, and close more deals.",
+      "Get instant, actionable feedback after every simulation. Sharpen compliance talk tracks, pricing pivots, and competitive differentiation for fintech deals.",
   },
   {
     icon: Users,
-    title: "Team Dashboard",
+    title: "Sales Leader Dashboard",
     description:
-      "Managers get real-time visibility into team activity, scores, skill breakdowns, and coaching recommendations for every rep.",
+      "Sales leaders get real-time visibility into team readiness, deal-win probability scores, and skill breakdowns tailored to B2B fintech selling motions.",
   },
 ];
 
@@ -82,10 +82,10 @@ export function FeaturesSection() {
             Features
           </motion.span>
           <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-            Everything you need to close more deals
+            Built for the complexity of fintech sales
           </h2>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            A complete training platform built for modern revenue teams who want to win more competitive deals.
+            From regulatory objections to multi-stakeholder deals, give your reps the reps they need to win in B2B fintech.
           </p>
         </motion.div>
 

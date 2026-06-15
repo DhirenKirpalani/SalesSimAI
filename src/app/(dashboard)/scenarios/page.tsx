@@ -35,7 +35,7 @@ export default function ScenariosPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Scenario Library</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Choose a scenario to practice with a realistic AI buyer.
+          Practice with AI buyers modeled on real fintech stakeholders — CFOs, risk officers, compliance leads, and more.
         </p>
       </div>
 

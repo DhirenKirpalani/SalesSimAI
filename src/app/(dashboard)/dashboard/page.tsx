@@ -36,7 +36,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Welcome back. Here is how your training is progressing.
+            Track team readiness, deal-win probability, and rep performance across fintech selling motions.
           </p>
         </div>
         <Link href="/scenarios">

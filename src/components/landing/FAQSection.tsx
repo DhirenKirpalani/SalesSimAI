@@ -10,29 +10,29 @@ import {
 
 const faqs = [
   {
-    question: "How realistic are the AI buyer personas?",
+    question: "How realistic are the fintech buyer personas?",
     answer:
-      "Our AI buyers are built from thousands of real sales call transcripts and are designed to mirror specific personality types, industries, and objection patterns. They adapt in real-time based on your responses.",
+      "Our AI buyers are trained on thousands of real fintech sales calls. They mirror the exact objections, negotiation tactics, and compliance questions your reps face from CFOs, risk officers, and procurement leads in live deals.",
   },
   {
-    question: "Can I create custom scenarios for my product?",
+    question: "Can I create custom scenarios for our fintech product?",
     answer:
-      "Yes. Growth and Enterprise plans allow you to create custom scenarios with your own buyer personas, product details, and competitive dynamics. Enterprise customers also get help from our team to build scenarios.",
+      "Yes. Growth and Enterprise plans let you build custom scenarios tailored to your specific buyer personas, regulatory context, and competitive landscape. Enterprise customers get white-glove scenario setup from our team.",
   },
   {
-    question: "Is there a mobile app?",
+    question: "How do sales leaders track team readiness?",
     answer:
-      "SalesSim AI is fully responsive and works great on mobile browsers. A native iOS and Android app is on the roadmap for Q3 2024.",
+      "The Sales Leader Dashboard shows win-rate lift, objection-handling scores, deal-stage readiness, and coaching gaps in real time. Leaders can identify which reps need help before deals are on the line.",
   },
   {
-    question: "How is my data secured?",
+    question: "How is our sales data secured?",
     answer:
-      "We are SOC 2 Type II certified and GDPR compliant. All data is encrypted at rest and in transit. Enterprise plans include SSO, SCIM provisioning, and audit logs.",
+      "We are SOC 2 Type II certified and GDPR compliant. All call recordings and simulation data are encrypted at rest and in transit. Enterprise plans include SSO, SCIM provisioning, and full audit trails.",
   },
   {
-    question: "Can managers track team progress?",
+    question: "What types of fintech buyers can reps practice with?",
     answer:
-      "Absolutely. The admin dashboard gives managers real-time visibility into team activity, scores, skill breakdowns, and coaching recommendations.",
+      "Reps can practice with AI buyers modeled on CFOs, Chief Risk Officers, compliance leads, procurement teams, and technical buyers. Each persona has realistic pain points, goals, and objection patterns specific to B2B fintech.",
   },
 ];
 
@@ -57,7 +57,7 @@ export function FAQSection() {
             Frequently asked questions
           </h2>
           <p className="mt-6 text-lg text-muted-foreground">
-            Everything you need to know about SalesSim AI.
+            Everything sales leaders need to know about SalesSim AI.
           </p>
         </motion.div>
 

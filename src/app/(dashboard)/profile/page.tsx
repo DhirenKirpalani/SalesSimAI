@@ -5,9 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { createClient } from "@/lib/supabase/client";
-import { Moon, Bell, Mail, Shield, User, Loader2 } from "lucide-react";
+import { Moon, Bell, Mail, Shield, User, Loader2, Check, AlertCircle } from "lucide-react";
 
 interface Profile {
   full_name: string | null;
@@ -19,6 +22,8 @@ interface Profile {
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const { darkMode, toggleDarkMode } = useThemeStore();
 
   useEffect(() => {
@@ -40,11 +45,10 @@ export default function ProfilePage() {
       if (data) {
         setProfile(data);
       } else {
-        // Fallback to auth metadata if profile row missing
         setProfile({
           full_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
           email: user.email || "",
-          role: "Sales Rep",
+          role: "user",
           company: user.user_metadata?.company || null,
         });
       }
@@ -53,6 +57,39 @@ export default function ProfilePage() {
 
     loadProfile();
   }, []);
+
+  const handleSave = async () => {
+    if (!profile) return;
+    setSaving(true);
+    setStatus("idle");
+
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setSaving(false);
+      setStatus("error");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: profile.full_name,
+        company: profile.company,
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      setStatus("error");
+    } else {
+      setStatus("success");
+      // Also update auth metadata so navbar initials stay in sync
+      await supabase.auth.updateUser({
+        data: { full_name: profile.full_name, company: profile.company },
+      });
+    }
+    setSaving(false);
+  };
 
   const initials = (profile?.full_name || profile?.email || "U")
     .split(" ")
@@ -78,7 +115,7 @@ export default function ProfilePage() {
         </p>
       </div>
 
-      {/* Profile Info */}
+      {/* Profile Info — Editable */}
       <Card className="rounded-2xl border bg-card shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -98,15 +135,65 @@ export default function ProfilePage() {
             </div>
           </div>
           <Separator />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <User className="w-4 h-4" />
-              <span>Role: {profile?.role || "Sales Rep"}</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="full_name" className="text-xs font-medium">Full Name</Label>
+              <Input
+                id="full_name"
+                value={profile?.full_name || ""}
+                onChange={(e) => setProfile((p) => p ? { ...p, full_name: e.target.value } : p)}
+                placeholder="Your name"
+                className="rounded-xl"
+              />
             </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Shield className="w-4 h-4" />
-              <span>Organization: {profile?.company || "—"}</span>
+            <div className="space-y-2">
+              <Label htmlFor="company" className="text-xs font-medium">Company</Label>
+              <Input
+                id="company"
+                value={profile?.company || ""}
+                onChange={(e) => setProfile((p) => p ? { ...p, company: e.target.value } : p)}
+                placeholder="Your organization"
+                className="rounded-xl"
+              />
             </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-medium flex items-center gap-1">
+                <User className="w-3 h-3" /> Role
+              </Label>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border bg-muted/30 text-sm text-muted-foreground">
+                <span className="capitalize">{profile?.role || "user"}</span>
+                <span className="text-[10px] text-muted-foreground/60">(managed by admin)</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-medium flex items-center gap-1">
+                <Mail className="w-3 h-3" /> Email
+              </Label>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border bg-muted/30 text-sm text-muted-foreground">
+                {profile?.email}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 pt-1">
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-xl gap-2"
+              size="sm"
+            >
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              Save Changes
+            </Button>
+            {status === "success" && (
+              <span className="text-xs text-emerald-500 flex items-center gap-1">
+                <Check className="w-3 h-3" /> Saved successfully
+              </span>
+            )}
+            {status === "error" && (
+              <span className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> Failed to save
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>

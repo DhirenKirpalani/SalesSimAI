@@ -12,18 +12,19 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const data = [
-  { subject: "Discovery", A: 78, fullMark: 100 },
-  { subject: "Qualification", A: 85, fullMark: 100 },
-  { subject: "Communication", A: 88, fullMark: 100 },
-  { subject: "Objection Handling", A: 80, fullMark: 100 },
-  { subject: "Closing", A: 75, fullMark: 100 },
+  { subject: "Metrics", A: 90, fullMark: 100 },
+  { subject: "Economic Buyer", A: 65, fullMark: 100 },
+  { subject: "Decision Criteria", A: 88, fullMark: 100 },
+  { subject: "Decision Process", A: 70, fullMark: 100 },
+  { subject: "Identify Pain", A: 85, fullMark: 100 },
+  { subject: "Champion", A: 75, fullMark: 100 },
 ];
 
 export function RadarScoreChart() {
   return (
     <Card className="rounded-2xl border bg-card shadow-sm">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">Score Breakdown</CardTitle>
+        <CardTitle className="text-sm font-medium text-muted-foreground">MEDDIC Breakdown</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-72 w-full">

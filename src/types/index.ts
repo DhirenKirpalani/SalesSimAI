@@ -51,11 +51,12 @@ export interface Message {
 }
 
 export interface AnalysisBreakdown {
-  discovery: number;
-  qualification: number;
-  communication: number;
-  objectionHandling: number;
-  closing: number;
+  metrics: number;
+  economicBuyer: number;
+  decisionCriteria: number;
+  decisionProcess: number;
+  identifyPain: number;
+  champion: number;
 }
 
 export interface SessionAnalysis {

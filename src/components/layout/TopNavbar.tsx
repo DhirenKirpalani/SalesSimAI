@@ -40,14 +40,14 @@ import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { createClient } from "@/lib/supabase/client";
+import { useRole } from "@/hooks/useRole";
 
-const mobileNavItems = [
+const baseMobileNavItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Scenarios", href: "/scenarios", icon: Library },
   { label: "Simulations", href: "/simulation", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
   { label: "Profile", href: "/profile", icon: User },
-  { label: "Admin", href: "/admin", icon: ShieldCheck },
 ];
 
 type Notification = {
@@ -113,6 +113,12 @@ export function TopNavbar() {
   const [initials, setInitials] = useState("U");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>(sampleNotifications);
+
+  const { isAdmin } = useRole();
+
+  const mobileNavItems = isAdmin
+    ? [...baseMobileNavItems, { label: "Admin", href: "/admin", icon: ShieldCheck }]
+    : baseMobileNavItems;
 
   const handleLogout = async () => {
     const supabase = createClient();

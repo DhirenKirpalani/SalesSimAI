@@ -18,7 +18,7 @@ const particles = Array.from({ length: 40 }, (_, i) => ({
   opacity: Math.random() * 0.5 + 0.1,
 }));
 
-const titleWords = ["Practice", "Sales", "Conversations", "with", "AI", "Buyers"];
+const titleWords = ["Close", "Fintech", "Deals", "with", "AI", "Buyers"];
 
 function useMouseParallax() {
   const x = useMotionValue(0);
@@ -160,7 +160,7 @@ export function HeroSection() {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
           </span>
-          AI-Powered Sales Training Platform
+          Built for Fintech Revenue Teams
         </motion.div>
 
         {/* Dramatic title reveal */}
@@ -200,7 +200,7 @@ export function HeroSection() {
             transition={{ delay: 1.0, duration: 0.8, ease: "easeOut" }}
             className="text-lg sm:text-xl text-muted-foreground leading-relaxed"
           >
-            Practice real-time voice and video calls with lifelike AI buyers. Built with HeyGen, ElevenLabs, and OpenAI for the most realistic sales training on earth.
+            Practice real-time voice and video calls with AI buyers modeled on fintech CFOs, compliance officers, and procurement teams. Built for sales leaders who need their reps ready for complex B2B deals.
           </motion.p>
         </motion.div>
 
@@ -270,9 +270,9 @@ export function HeroSection() {
           className="mt-20 flex items-center justify-center gap-8 sm:gap-16"
         >
           {[
-            { value: "500+", label: "Teams" },
+            { value: "200+", label: "Fintech Teams" },
             { value: "50K+", label: "Simulations" },
-            { value: "94%", label: "Satisfaction" },
+            { value: "94%", label: "Win Rate Lift" },
           ].map((stat, i) => (
             <motion.div
               key={stat.label}
