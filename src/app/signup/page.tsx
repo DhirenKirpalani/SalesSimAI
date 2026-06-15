@@ -17,7 +17,6 @@ import { createClient } from "@/lib/supabase/client";
 const signupSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Please enter a valid email"),
-  company: z.string().optional(),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -49,7 +48,6 @@ export default function SignupPage() {
       options: {
         data: {
           full_name: data.name,
-          company: data.company || null,
         },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
@@ -163,16 +161,6 @@ export default function SignupPage() {
                 {errors.email && (
                   <p className="text-xs text-destructive">{errors.email.message}</p>
                 )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="company" className="text-xs font-medium">Company (optional)</Label>
-                <Input
-                  id="company"
-                  placeholder="Acme Inc"
-                  className="rounded-xl h-10"
-                  {...register("company")}
-                />
               </div>
 
               <div className="space-y-2">

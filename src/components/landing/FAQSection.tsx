@@ -38,7 +38,7 @@ const faqs = [
 
 export function FAQSection() {
   return (
-    <section className="py-32 bg-background relative overflow-hidden">
+    <section id="faq" className="py-32 bg-background relative overflow-hidden">
       {/* Background glow */}
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-primary/[0.02] rounded-full blur-[150px] pointer-events-none" />
 
