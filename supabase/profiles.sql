@@ -21,6 +21,7 @@ create table if not exists public.profiles (
   email text not null,
   role public.app_role not null default 'user',
   company text,
+  position text,
   created_at timestamptz not null default now()
 );
 
@@ -57,13 +58,14 @@ returns trigger
 set search_path = ''
 as $$
 begin
-  insert into public.profiles (id, full_name, email, role, company)
+  insert into public.profiles (id, full_name, email, role, company, position)
   values (
     new.id,
     new.raw_user_meta_data ->> 'full_name',
     new.email,
     'user',
-    new.raw_user_meta_data ->> 'company'
+    new.raw_user_meta_data ->> 'company',
+    new.raw_user_meta_data ->> 'position'
   );
   return new;
 end;

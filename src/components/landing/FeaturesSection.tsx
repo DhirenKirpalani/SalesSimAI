@@ -55,7 +55,7 @@ export function FeaturesSection() {
   const titleOpacity = useTransform(scrollYProgress, [0, 0.2], [0, 1]);
 
   return (
-    <section ref={sectionRef} className="py-32 bg-background relative overflow-hidden">
+    <section id="features" ref={sectionRef} className="py-32 bg-background relative overflow-hidden">
       {/* Subtle background gradient shift */}
       <motion.div
         style={{ opacity: useTransform(scrollYProgress, [0, 0.5], [0, 0.5]) }}

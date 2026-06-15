@@ -147,7 +147,7 @@ export function HeroSection() {
       {/* Content with parallax */}
       <motion.div
         style={{ opacity: contentOpacity, scale: contentScale, y: contentY }}
-        className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center z-10"
+        className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-20 text-center z-10"
       >
         {/* Glowing eyebrow */}
         <motion.div
@@ -164,7 +164,7 @@ export function HeroSection() {
         </motion.div>
 
         {/* Dramatic title reveal */}
-        <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight leading-[1.05] max-w-5xl mx-auto">
+        <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight leading-[1.15] max-w-5xl mx-auto">
           {titleWords.map((word, i) => (
             <motion.span
               key={i}

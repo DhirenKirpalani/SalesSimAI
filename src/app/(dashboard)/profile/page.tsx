@@ -10,13 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { createClient } from "@/lib/supabase/client";
-import { Moon, Bell, Mail, Shield, User, Loader2, Check, AlertCircle } from "lucide-react";
+import { Moon, Bell, Mail, Shield, User, Loader2, Check, AlertCircle, Briefcase } from "lucide-react";
 
 interface Profile {
   full_name: string | null;
   email: string;
   role: string;
   company: string | null;
+  position: string | null;
 }
 
 export default function ProfilePage() {
@@ -38,7 +39,7 @@ export default function ProfilePage() {
 
       const { data } = await supabase
         .from("profiles")
-        .select("full_name, email, role, company")
+        .select("full_name, email, role, company, position")
         .eq("id", user.id)
         .single();
 
@@ -50,6 +51,7 @@ export default function ProfilePage() {
           email: user.email || "",
           role: "user",
           company: user.user_metadata?.company || null,
+          position: user.user_metadata?.position || null,
         });
       }
       setLoading(false);
@@ -76,6 +78,7 @@ export default function ProfilePage() {
       .update({
         full_name: profile.full_name,
         company: profile.company,
+        position: profile.position,
       })
       .eq("id", user.id);
 
@@ -85,7 +88,7 @@ export default function ProfilePage() {
       setStatus("success");
       // Also update auth metadata so navbar initials stay in sync
       await supabase.auth.updateUser({
-        data: { full_name: profile.full_name, company: profile.company },
+        data: { full_name: profile.full_name, company: profile.company, position: profile.position },
       });
     }
     setSaving(false);
@@ -153,6 +156,18 @@ export default function ProfilePage() {
                 value={profile?.company || ""}
                 onChange={(e) => setProfile((p) => p ? { ...p, company: e.target.value } : p)}
                 placeholder="Your organization"
+                className="rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="position" className="text-xs font-medium flex items-center gap-1">
+                <Briefcase className="w-3 h-3" /> Position
+              </Label>
+              <Input
+                id="position"
+                value={profile?.position || ""}
+                onChange={(e) => setProfile((p) => p ? { ...p, position: e.target.value } : p)}
+                placeholder="e.g. CFO, Head of Sales"
                 className="rounded-xl"
               />
             </div>

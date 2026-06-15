@@ -26,5 +26,12 @@ alter table public.profiles
 alter table public.profiles
   alter column role set default 'user';
 
--- Step 4: Promote a specific user to admin (update email as needed)
+-- Step 6: Add position column if missing
+do $$ begin
+  alter table public.profiles add column position text;
+exception
+  when duplicate_column then null;
+end $$;
+
+-- Step 7: Promote a specific user to admin (update email as needed)
 -- update public.profiles set role = 'admin' where email = 'admin@example.com';

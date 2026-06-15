@@ -41,7 +41,7 @@ export function ShowcaseSection() {
   const card2Y = useTransform(scrollYProgress, [0, 1], [180, -60]);
 
   return (
-    <section ref={sectionRef} className="py-32 bg-muted/30 relative overflow-hidden">
+    <section id="showcase" ref={sectionRef} className="py-32 bg-muted/30 relative overflow-hidden">
       {/* Large ambient glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] bg-primary/[0.03] rounded-full blur-[200px] pointer-events-none" />
 
