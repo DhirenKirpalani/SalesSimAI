@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Zap } from "lucide-react";
+import { Zap, Eye, EyeOff, Mail, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -27,6 +27,8 @@ export default function SignupPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const {
     register,
@@ -41,7 +43,7 @@ export default function SignupPage() {
     setError(null);
 
     const supabase = createClient();
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
@@ -49,6 +51,7 @@ export default function SignupPage() {
           full_name: data.name,
           company: data.company || null,
         },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
@@ -58,6 +61,14 @@ export default function SignupPage() {
       return;
     }
 
+    // If no session, email confirmation is required
+    if (!signUpData.session) {
+      setEmailSent(true);
+      setLoading(false);
+      return;
+    }
+
+    // Auto-confirmed (no email verification required)
     router.push("/dashboard");
     router.refresh();
   };
@@ -104,6 +115,28 @@ export default function SignupPage() {
 
         <Card className="rounded-2xl border bg-card/80 backdrop-blur-sm shadow-lg">
           <CardContent className="p-6 space-y-4">
+            {emailSent ? (
+              <div className="text-center space-y-4 py-6">
+                <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Mail className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold">Check your email</h2>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    We sent a confirmation link to your email. Click it to verify your account, then come back to sign in.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => router.push("/login")}
+                  className="w-full rounded-xl h-10 gap-2"
+                  type="button"
+                >
+                  Go to Sign In
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+            <>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-xs font-medium">Name *</Label>
@@ -144,13 +177,22 @@ export default function SignupPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-xs font-medium">Password *</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Create a password"
-                  className="rounded-xl h-10"
-                  {...register("password")}
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Create a password"
+                    className="rounded-xl h-10 pr-10"
+                    {...register("password")}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
                 {errors.password && (
                   <p className="text-xs text-destructive">{errors.password.message}</p>
                 )}
@@ -200,6 +242,8 @@ export default function SignupPage() {
               </svg>
               Google
             </Button>
+            </>
+            )}
           </CardContent>
         </Card>
 

@@ -11,11 +11,14 @@ export default function AuthCallbackPage() {
     const supabase = createClient();
     const hash = window.location.hash;
     const search = window.location.search;
+    const type = new URLSearchParams(search).get("type");
 
     if (hash || search.includes("code=")) {
       supabase.auth.getSession().then(({ data }) => {
         if (data.session) {
           router.push("/dashboard");
+        } else if (type === "signup" || type === "email_change") {
+          router.push("/login?confirmed=true");
         } else {
           router.push("/login?error=callback");
         }
