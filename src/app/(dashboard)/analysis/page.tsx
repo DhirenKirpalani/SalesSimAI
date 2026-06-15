@@ -23,7 +23,7 @@ export default function AnalysisPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Session Analysis</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Review your performance breakdown and coaching recommendations.
+          Review your MEDDIC qualification scores and coaching recommendations.
         </p>
       </div>
 
@@ -40,11 +40,12 @@ export default function AnalysisPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <RadarScoreChart />
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 content-start">
-          <ScoreCard label="Discovery" score={analysis.breakdown.discovery} />
-          <ScoreCard label="Qualification" score={analysis.breakdown.qualification} />
-          <ScoreCard label="Communication" score={analysis.breakdown.communication} />
-          <ScoreCard label="Objection Handling" score={analysis.breakdown.objectionHandling} />
-          <ScoreCard label="Closing" score={analysis.breakdown.closing} />
+          <ScoreCard label="Metrics" score={analysis.breakdown.metrics} />
+          <ScoreCard label="Economic Buyer" score={analysis.breakdown.economicBuyer} />
+          <ScoreCard label="Decision Criteria" score={analysis.breakdown.decisionCriteria} />
+          <ScoreCard label="Decision Process" score={analysis.breakdown.decisionProcess} />
+          <ScoreCard label="Identify Pain" score={analysis.breakdown.identifyPain} />
+          <ScoreCard label="Champion" score={analysis.breakdown.champion} />
         </div>
       </div>
 

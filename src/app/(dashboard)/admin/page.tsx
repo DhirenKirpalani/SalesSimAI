@@ -1,6 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRole } from "@/hooks/useRole";
+import { Loader2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -42,6 +46,24 @@ const orgData = [
 ];
 
 export default function AdminPage() {
+  const router = useRouter();
+  const { isAdmin, loading } = useRole();
+
+  useEffect(() => {
+    if (!loading && !isAdmin) {
+      router.push("/dashboard");
+    }
+  }, [loading, isAdmin, router]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) return null;
   return (
     <div className="space-y-6">
       <div>

@@ -9,11 +9,17 @@ create extension if not exists "uuid-ossp";
 -- --------------------------------------------------------
 -- 1. Create profiles table (extends auth.users)
 -- --------------------------------------------------------
+do $$ begin
+  create type public.app_role as enum ('admin', 'user');
+exception
+  when duplicate_object then null;
+end $$;
+
 create table if not exists public.profiles (
   id uuid primary key references auth.users on delete cascade,
   full_name text,
   email text not null,
-  role text not null default 'Sales Rep',
+  role public.app_role not null default 'user',
   company text,
   created_at timestamptz not null default now()
 );
@@ -34,6 +40,15 @@ drop policy if exists "Users can update own profile" on public.profiles;
 create policy "Users can update own profile"
   on public.profiles for update using (auth.uid() = id);
 
+drop policy if exists "Admins can view all profiles" on public.profiles;
+create policy "Admins can view all profiles"
+  on public.profiles for select using (
+    exists (
+      select 1 from public.profiles
+      where id = auth.uid() and role = 'admin'
+    )
+  );
+
 -- --------------------------------------------------------
 -- 4. Function: Auto-create profile on new user signup
 -- --------------------------------------------------------
@@ -42,11 +57,12 @@ returns trigger
 set search_path = ''
 as $$
 begin
-  insert into public.profiles (id, full_name, email, company)
+  insert into public.profiles (id, full_name, email, role, company)
   values (
     new.id,
     new.raw_user_meta_data ->> 'full_name',
     new.email,
+    'user',
     new.raw_user_meta_data ->> 'company'
   );
   return new;
