@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,6 +74,8 @@ interface FormState {
   contextNote: string;
 }
 
+const LS_KEY = "salesSimAI_createScenario";
+
 const INITIAL: FormState = {
   sellerCompany: "",
   sellerProduct: "",
@@ -92,12 +94,38 @@ const INITIAL: FormState = {
   contextNote: "",
 };
 
+function loadFromStorage(): { step: number; form: FormState } | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return { step: parsed.step ?? 1, form: { ...INITIAL, ...parsed.form } };
+  } catch {
+    return null;
+  }
+}
+
 export default function CreateScenarioPage() {
   const router = useRouter();
+
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormState>(INITIAL);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Load persisted state on mount
+  useEffect(() => {
+    const stored = loadFromStorage();
+    if (stored) {
+      setStep(stored.step);
+      setForm(stored.form);
+    }
+  }, []);
+
+  // Persist state whenever step or form changes
+  useEffect(() => {
+    localStorage.setItem(LS_KEY, JSON.stringify({ step, form }));
+  }, [step, form]);
 
   const set = (field: keyof FormState, value: string | boolean | number) =>
     setForm((f) => ({ ...f, [field]: value }));
@@ -148,6 +176,7 @@ export default function CreateScenarioPage() {
 
     const { error: dbErr } = await supabase.from("custom_scenarios").insert(payload);
     if (dbErr) { setError(dbErr.message); setSaving(false); return; }
+    localStorage.removeItem(LS_KEY);
     router.push("/scenarios");
   };
 
