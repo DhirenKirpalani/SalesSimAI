@@ -85,3 +85,28 @@ export interface StatMetric {
   change?: number;
   icon?: string;
 }
+
+export interface CustomPersona {
+  name: string;
+  jobTitle: string;
+  company: string;
+  industry: string;
+  personality: string;
+  painPoints: string[];
+}
+
+export interface CustomScenario {
+  id: string;
+  user_id: string;
+  seller_company: string;
+  seller_product: string;
+  seller_description: string;
+  preset_persona_id: string | null;
+  custom_persona: CustomPersona | null;
+  scenario_type: string;
+  difficulty: "Beginner" | "Intermediate" | "Advanced" | "Expert";
+  duration: number;
+  context_note: string | null;
+  name: string;
+  created_at: string;
+}
