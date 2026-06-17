@@ -11,22 +11,9 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const data = [
-  { date: "Jun 1", score: 72 },
-  { date: "Jun 2", score: 78 },
-  { date: "Jun 3", score: 75 },
-  { date: "Jun 4", score: 82 },
-  { date: "Jun 5", score: 88 },
-  { date: "Jun 6", score: 85 },
-  { date: "Jun 7", score: 91 },
-  { date: "Jun 8", score: 89 },
-  { date: "Jun 9", score: 93 },
-  { date: "Jun 10", score: 90 },
-  { date: "Jun 11", score: 95 },
-  { date: "Jun 12", score: 92 },
-];
+interface ChartPoint { date: string; score: number; }
 
-export function PerformanceChart() {
+export function PerformanceChart({ data }: { data: ChartPoint[] }) {
   return (
     <Card className="rounded-2xl border bg-card shadow-sm">
       <CardHeader className="pb-2">
@@ -62,7 +49,7 @@ export function PerformanceChart() {
                   background: "var(--color-card)",
                   fontSize: 12,
                 }}
-                formatter={(value) => [`Score: ${value}`, ""]}
+                formatter={(value) => [`Trust: ${value}`, ""]}
               />
               <Area
                 type="monotone"

@@ -11,16 +11,9 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const data = [
-  { subject: "Metrics", A: 90, fullMark: 100 },
-  { subject: "Economic Buyer", A: 65, fullMark: 100 },
-  { subject: "Decision Criteria", A: 88, fullMark: 100 },
-  { subject: "Decision Process", A: 70, fullMark: 100 },
-  { subject: "Identify Pain", A: 85, fullMark: 100 },
-  { subject: "Champion", A: 75, fullMark: 100 },
-];
+interface RadarPoint { subject: string; A: number; fullMark: number; }
 
-export function RadarScoreChart() {
+export function RadarScoreChart({ data }: { data: RadarPoint[] }) {
   return (
     <Card className="rounded-2xl border bg-card shadow-sm">
       <CardHeader className="pb-2">

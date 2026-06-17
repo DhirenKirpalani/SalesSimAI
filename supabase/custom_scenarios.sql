@@ -48,3 +48,4 @@ create policy "Users can update own custom scenarios"
 drop policy if exists "Users can delete own custom scenarios" on public.custom_scenarios;
 create policy "Users can delete own custom scenarios"
   on public.custom_scenarios for delete using (auth.uid() = user_id);
+
