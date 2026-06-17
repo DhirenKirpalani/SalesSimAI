@@ -64,6 +64,16 @@ export const mockPersonas: BuyerPersona[] = [
     painPoints: ["Low lead-to-close conversion", "Long compliance review cycles", "Quota attainment gaps in enterprise accounts"],
     goals: ["Increase enterprise pipeline by 30%", "Shorten sales cycle to under 60 days", "Hit 110% quota this quarter"],
   },
+  {
+    id: "p6",
+    name: "Daniel Lim",
+    jobTitle: "Financial Controller",
+    company: "BloomCommerce",
+    industry: "E-commerce / Consumer Brands",
+    personality: "Analytical, reserved, Big-4 background, asks for data before committing. Skeptical of sales pitches. Will share information when asked directly but does not volunteer unprompted.",
+    painPoints: ["Finance processes are manual and error-prone across SEA subsidiaries", "Lack of real-time visibility into team spend", "Audit prep takes weeks due to fragmented expense records", "Reconciling multi-currency reimbursements is painful", "Current tools don't integrate with Xero"],
+    goals: ["Automate expense reporting and approvals", "Reduce month-end close time by 50%", "Gain real-time spend visibility for the CFO", "Pass the next audit with zero findings", "Consolidate finance tools into one platform"],
+  },
 ];
 
 export const mockScenarios: Scenario[] = [
@@ -166,6 +176,16 @@ export const mockScenarios: Scenario[] = [
     persona: mockPersonas[4],
     description: "Re-engage a former champion who left a fintech and now has budget authority at a new lending startup.",
     tags: ["Win-Back", "Champion", "Relationship"],
+  },
+  {
+    id: "s11",
+    name: "BloomCommerce First Discovery",
+    industry: "E-commerce",
+    difficulty: "Intermediate",
+    duration: 25,
+    persona: mockPersonas[5],
+    description: "Run a first discovery call with Daniel Lim, Financial Controller at BloomCommerce. You met at the SEA Finance Summit — he mentioned finance is 'a bit messy' and agreed to hear more. He hasn't shared any documents and is coming in to listen.",
+    tags: ["Discovery", "Mid-Market", "Case Study"],
   },
 ];
 

@@ -3,15 +3,9 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const data = [
-  { range: "50-59", count: 2 },
-  { range: "60-69", count: 3 },
-  { range: "70-79", count: 5 },
-  { range: "80-89", count: 6 },
-  { range: "90-99", count: 4 },
-];
+interface DistPoint { range: string; count: number; }
 
-export function ScoreDistributionChart() {
+export function ScoreDistributionChart({ data }: { data: DistPoint[] }) {
   return (
     <Card className="rounded-2xl border bg-card shadow-sm">
       <CardHeader className="pb-2">

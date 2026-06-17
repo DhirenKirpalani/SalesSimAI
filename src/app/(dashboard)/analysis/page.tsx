@@ -1,10 +1,14 @@
 "use client";
 
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { ScoreCard } from "@/components/cards/ScoreCard";
 import { RadarScoreChart } from "@/components/charts/RadarScoreChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { mockAnalysis } from "@/lib/data/mockData";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   ThumbsUp,
   ThumbsDown,
@@ -12,50 +16,267 @@ import {
   AlertTriangle,
   Sparkles,
   CheckCircle2,
+  Loader2,
+  Inbox,
+  ArrowRight,
+  Clock,
+  TrendingUp,
+  ChevronLeft,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
-export default function AnalysisPage() {
-  const analysis = mockAnalysis;
+interface Analysis {
+  overall_score: number;
+  breakdown: {
+    metrics: number;
+    economic_buyer: number;
+    decision_criteria: number;
+    decision_process: number;
+    identify_pain: number;
+    champion: number;
+  };
+  strengths: string[];
+  weaknesses: string[];
+  missed_opportunities: string[];
+  coaching_recommendations: string[];
+}
 
+interface SessionSummary {
+  id: string;
+  scenario_id: string;
+  scenario_table: string;
+  status: string;
+  state: { trust_level: number; stage: string };
+  started_at: string;
+  ended_at: string | null;
+  analysis?: Analysis;
+  scenario_name?: string;
+}
+
+function AnalysisContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const sessionId = searchParams.get("session");
+
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [currentSession, setCurrentSession] = useState<SessionSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadSessions = useCallback(async () => {
+    setLoading(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+
+    const { data: raw } = await supabase
+      .from("simulation_sessions")
+      .select("*")
+      .eq("user_id", user.id)
+      .neq("status", "active")
+      .order("started_at", { ascending: false });
+
+    if (!raw?.length) { setSessions([]); setLoading(false); return; }
+
+    const byTable: Record<string, string[]> = {};
+    for (const s of raw) (byTable[s.scenario_table] ??= []).push(s.scenario_id);
+    const nameMap: Record<string, string> = {};
+    for (const [table, ids] of Object.entries(byTable)) {
+      const { data: sc } = await supabase.from(table).select("id, name").in("id", ids);
+      for (const row of sc ?? []) nameMap[row.id] = row.name;
+    }
+
+    const enriched = raw.map((s) => ({ ...s, scenario_name: nameMap[s.scenario_id] ?? "Unknown" }));
+    setSessions(enriched);
+    setLoading(false);
+  }, []);
+
+  const loadAnalysis = useCallback(async (sid: string) => {
+    setLoading(true);
+    setError(null);
+    const supabase = createClient();
+
+    const { data: session } = await supabase
+      .from("simulation_sessions")
+      .select("*")
+      .eq("id", sid)
+      .single();
+
+    if (!session) { setError("Session not found"); setLoading(false); return; }
+
+    if (session.analysis) {
+      setAnalysis(session.analysis as Analysis);
+      setCurrentSession(session);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(false);
+    setGenerating(true);
+    const res = await fetch("/api/simulation/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: sid }),
+    });
+
+    if (!res.ok) {
+      setError("Failed to generate analysis. Make sure the session has messages.");
+      setGenerating(false);
+      return;
+    }
+
+    const data = await res.json();
+    setAnalysis(data.analysis);
+    setCurrentSession(session);
+    setGenerating(false);
+  }, []);
+
+  useEffect(() => {
+    if (sessionId) {
+      loadAnalysis(sessionId);
+    } else {
+      loadSessions();
+    }
+  }, [sessionId, loadAnalysis, loadSessions]);
+
+  const radarData = analysis
+    ? [
+        { subject: "Metrics", A: analysis.breakdown.metrics, fullMark: 100 },
+        { subject: "Economic Buyer", A: analysis.breakdown.economic_buyer, fullMark: 100 },
+        { subject: "Decision Criteria", A: analysis.breakdown.decision_criteria, fullMark: 100 },
+        { subject: "Decision Process", A: analysis.breakdown.decision_process, fullMark: 100 },
+        { subject: "Identify Pain", A: analysis.breakdown.identify_pain, fullMark: 100 },
+        { subject: "Champion", A: analysis.breakdown.champion, fullMark: 100 },
+      ]
+    : [];
+
+  if (loading || generating) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+        <Loader2 className="w-6 h-6 animate-spin" />
+        <p className="text-sm">{generating ? "Generating AI analysis…" : "Loading…"}</p>
+      </div>
+    );
+  }
+
+  // Session list view
+  if (!sessionId) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Analysis</h1>
+          <p className="text-sm text-muted-foreground mt-1">Select a completed session to view your AI-generated MEDDIC analysis.</p>
+        </div>
+
+        {sessions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
+              <Inbox className="w-7 h-7 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="font-medium text-sm">No completed sessions yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Finish a simulation to unlock analysis</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => router.push("/scenarios")} className="gap-1.5 rounded-xl">
+              Browse Scenarios
+            </Button>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {sessions.map((s) => (
+              <div
+                key={s.id}
+                className="group flex items-center gap-4 rounded-2xl border bg-card px-5 py-4 hover:shadow-sm hover:border-primary/30 transition-all cursor-pointer"
+                onClick={() => router.push(`/analysis?session=${s.id}`)}
+              >
+                <div className="hidden sm:flex flex-col items-center gap-1 w-12 shrink-0">
+                  <div className={cn(
+                    "text-lg font-bold tabular-nums leading-none",
+                    s.state.trust_level >= 70 ? "text-emerald-500" :
+                    s.state.trust_level >= 40 ? "text-amber-500" : "text-red-400"
+                  )}>{s.state.trust_level}</div>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wide">Trust</p>
+                </div>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium text-sm truncate">{s.scenario_name}</p>
+                    {s.analysis && (
+                      <Badge variant="secondary" className="text-[10px] bg-violet-500/10 text-violet-600 border-violet-500/20">Analysed</Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                    <span className="flex items-center gap-1 capitalize"><TrendingUp className="w-3 h-3" />{s.state.stage}</span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {new Date(s.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
+                  </div>
+                </div>
+                <Button size="sm" variant="ghost" className="shrink-0 gap-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
+                  {s.analysis ? "View" : "Analyse"} <ArrowRight className="w-3 h-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
+        <p className="text-sm font-medium text-red-500">{error}</p>
+        <Button variant="outline" size="sm" onClick={() => router.push("/analysis")} className="rounded-xl gap-1">
+          <ChevronLeft className="w-3.5 h-3.5" /> Back
+        </Button>
+      </div>
+    );
+  }
+
+  if (!analysis) return null;
+
+  // Analysis detail view
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Session Analysis</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Review your MEDDIC qualification scores and coaching recommendations.
-        </p>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" onClick={() => router.push("/analysis")} className="rounded-xl gap-1 text-muted-foreground">
+          <ChevronLeft className="w-3.5 h-3.5" /> All Sessions
+        </Button>
+        {currentSession && (
+          <h1 className="text-lg font-semibold truncate">{(currentSession as SessionSummary & { scenario_name?: string }).scenario_name ?? "Session Analysis"}</h1>
+        )}
       </div>
 
-      {/* Overall Score */}
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.4 }}
         className="flex justify-center"
       >
-        <ScoreCard label="Overall Score" score={analysis.overallScore} size="lg" />
+        <ScoreCard label="Overall Score" score={analysis.overall_score} size="lg" />
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <RadarScoreChart />
+        <RadarScoreChart data={radarData} />
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 content-start">
           <ScoreCard label="Metrics" score={analysis.breakdown.metrics} />
-          <ScoreCard label="Economic Buyer" score={analysis.breakdown.economicBuyer} />
-          <ScoreCard label="Decision Criteria" score={analysis.breakdown.decisionCriteria} />
-          <ScoreCard label="Decision Process" score={analysis.breakdown.decisionProcess} />
-          <ScoreCard label="Identify Pain" score={analysis.breakdown.identifyPain} />
+          <ScoreCard label="Economic Buyer" score={analysis.breakdown.economic_buyer} />
+          <ScoreCard label="Decision Criteria" score={analysis.breakdown.decision_criteria} />
+          <ScoreCard label="Decision Process" score={analysis.breakdown.decision_process} />
+          <ScoreCard label="Identify Pain" score={analysis.breakdown.identify_pain} />
           <ScoreCard label="Champion" score={analysis.breakdown.champion} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Strengths */}
         <Card className="rounded-2xl border bg-card shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <ThumbsUp className="w-4 h-4 text-emerald-500" />
-              Strengths
+              <ThumbsUp className="w-4 h-4 text-emerald-500" /> Strengths
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -68,12 +289,10 @@ export default function AnalysisPage() {
           </CardContent>
         </Card>
 
-        {/* Weaknesses */}
         <Card className="rounded-2xl border bg-card shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <ThumbsDown className="w-4 h-4 text-red-500" />
-              Weaknesses
+              <ThumbsDown className="w-4 h-4 text-red-500" /> Weaknesses
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -86,40 +305,32 @@ export default function AnalysisPage() {
           </CardContent>
         </Card>
 
-        {/* Missed Opportunities */}
         <Card className="rounded-2xl border bg-card shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Lightbulb className="w-4 h-4 text-amber-500" />
-              Missed Opportunities
+              <Lightbulb className="w-4 h-4 text-amber-500" /> Missed Opportunities
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {analysis.missedOpportunities.map((m, i) => (
+            {analysis.missed_opportunities.map((m, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
-                <Badge variant="outline" className="text-[10px] shrink-0 mt-0.5">
-                  {i + 1}
-                </Badge>
+                <Badge variant="outline" className="text-[10px] shrink-0 mt-0.5">{i + 1}</Badge>
                 <span>{m}</span>
               </div>
             ))}
           </CardContent>
         </Card>
 
-        {/* Coaching Recommendations */}
         <Card className="rounded-2xl border bg-card shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              Coaching Recommendations
+              <Sparkles className="w-4 h-4 text-primary" /> Coaching Recommendations
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {analysis.coachingRecommendations.map((c, i) => (
+            {analysis.coaching_recommendations.map((c, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
-                <Badge variant="secondary" className="text-[10px] shrink-0 mt-0.5">
-                  Tip
-                </Badge>
+                <Badge variant="secondary" className="text-[10px] shrink-0 mt-0.5">Tip</Badge>
                 <span>{c}</span>
               </div>
             ))}
@@ -127,5 +338,17 @@ export default function AnalysisPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function AnalysisPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <AnalysisContent />
+    </Suspense>
   );
 }
