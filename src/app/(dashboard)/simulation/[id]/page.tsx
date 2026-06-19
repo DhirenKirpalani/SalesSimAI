@@ -236,6 +236,9 @@ export default function SimulationCallPage() {
     if (!text.trim() || !session || sending) return;
     setSending(true);
     setInput("");
+    // Stop mic immediately — prevent avatar speech from being picked up as user input
+    recognitionRef.current?.stop();
+    setIsListening(false);
 
     const userMsg: SimulationMessage = {
       id: crypto.randomUUID(),
@@ -247,31 +250,54 @@ export default function SimulationCallPage() {
     setMessages((prev) => [...prev, userMsg]);
 
     try {
-      const res = await fetch("/api/simulation/turn", {
+      const res = await fetch("/api/simulation/turn/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId: session.id, message: text.trim() }),
       });
+      if (!res.ok || !res.body) throw new Error(await res.text());
 
-      if (!res.ok) throw new Error(await res.text());
-      const { buyer_response, new_state, buyer_message } = await res.json();
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let buyerMsgContent = "";
 
-      setState(new_state);
-      setMessages((prev) => [
-        ...prev.filter((m) => m.id !== userMsg.id),
-        userMsg,
-        buyer_message ?? {
-          id: crypto.randomUUID(),
-          session_id: session.id,
-          role: "buyer",
-          content: buyer_response.message,
-          emotion: buyer_response.emotion,
-          intent: buyer_response.intent,
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
 
-      await heygen.speak(buyer_response.message);
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.type === "sentence") {
+              // Enqueue immediately — TTS starts on first sentence while rest is generating
+              if (avatarEnabled && heygen.status === "connected") {
+                heygen.speakQueued(event.text);
+              }
+            } else if (event.type === "done") {
+              buyerMsgContent = event.buyerMessage ?? "";
+              setState(event.state);
+              setMessages((prev) => [
+                ...prev.filter((m) => m.id !== userMsg.id),
+                userMsg,
+                {
+                  id: crypto.randomUUID(),
+                  session_id: session.id,
+                  role: "buyer",
+                  content: buyerMsgContent,
+                  emotion: event.emotion,
+                  intent: event.intent,
+                  created_at: new Date().toISOString(),
+                },
+              ]);
+            }
+          } catch { /* skip malformed */ }
+        }
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[sendMessage]", err);
@@ -280,9 +306,16 @@ export default function SimulationCallPage() {
     } finally {
       setSending(false);
       heygen.sendListening(false);
-      // Auto-restart mic after buyer responds if continuous mode is on
+      // Auto-restart mic only after avatar finishes speaking (heygen.status returns to "connected")
       if (autoMicRef.current) {
-        setTimeout(() => { if (autoMicRef.current) startRecognition(); }, 400);
+        const waitForIdle = () => {
+          if (heygen.status !== "speaking") {
+            setTimeout(() => { if (autoMicRef.current) startRecognition(); }, 300);
+          } else {
+            setTimeout(waitForIdle, 200);
+          }
+        };
+        waitForIdle();
       }
     }
   }, [session, sending, heygen, avatarEnabled, startRecognition]);
