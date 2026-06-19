@@ -36,7 +36,7 @@ export async function POST() {
           display_name: name,
           model_name: "gpt-4o",
           secret_id: secretId,
-          base_url: `${appUrl}/api/simulation/llm/test-session`,
+          base_url: `${appUrl}/api/heygen-test/llm`,
         });
         console.log("[heygen-test] LLM config:", llmConfigId);
       } catch (e) {
