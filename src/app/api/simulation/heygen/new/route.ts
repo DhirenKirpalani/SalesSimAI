@@ -65,11 +65,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // TEST: skip custom LLM config — use LiveAvatar's built-in LLM to confirm agent events fire.
-    // If agent.speak_started appears without a custom LLM, then the LLM config is the broken piece.
-    const llmConfigId: string | undefined = undefined;
-    const llmError: string | undefined = undefined;
-    console.log("[heygen/new] Skipping custom LLM config — using LiveAvatar built-in LLM for test");
+    // LLM config: use our proxy (only works when APP_URL is publicly reachable, i.e. production).
+    // On localhost LiveAvatar's servers cannot call localhost:3000, so we skip.
+    let llmConfigId: string | undefined;
+    let llmError: string | undefined;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (appUrl && sessionId && process.env.OPENAI_API_KEY) {
+      const uniqueName = `SalesSim-${Date.now()}`;
+      try {
+        console.log("[heygen/new] Creating LLM secret + config for prod proxy...");
+        const secretId = await createLiveAvatarSecret(process.env.OPENAI_API_KEY, uniqueName);
+        llmConfigId = await createLLMConfig({
+          display_name: uniqueName,
+          model_name: "gpt-4o",
+          secret_id: secretId,
+          base_url: `${appUrl}/api/simulation/llm/${sessionId}`,
+        });
+        console.log("[heygen/new] LLM config created:", llmConfigId);
+      } catch (e) {
+        llmError = e instanceof Error ? e.message : String(e);
+        console.error("[heygen/new] LLM config creation FAILED:", llmError);
+      }
+    } else {
+      llmError = appUrl ? "OPENAI_API_KEY missing" : "No APP_URL — skipping LLM config (localhost)";
+      console.log("[heygen/new]", llmError);
+    }
 
     const liveSession = await createSessionToken({
       mode: "FULL",
