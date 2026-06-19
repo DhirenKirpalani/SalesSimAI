@@ -105,7 +105,7 @@ export default function SimulationCallPage() {
   const localStreamRef = useRef<MediaStream | null>(null);
 
   const heygen = useHeyGen({
-    onConnected: () => console.log("HeyGen connected"),
+    onConnected: () => { console.log("HeyGen connected"); setIsListening(true); },
     onDisconnected: () => console.log("HeyGen disconnected"),
     onError: (err) => {
       console.warn("HeyGen error:", err);
@@ -273,12 +273,7 @@ export default function SimulationCallPage() {
           if (!line.startsWith("data: ")) continue;
           try {
             const event = JSON.parse(line.slice(6));
-            if (event.type === "sentence") {
-              // Enqueue immediately — TTS starts on first sentence while rest is generating
-              if (avatarEnabled && heygen.status === "connected") {
-                heygen.speakQueued(event.text);
-              }
-            } else if (event.type === "done") {
+            if (event.type === "done") {
               buyerMsgContent = event.buyerMessage ?? "";
               setState(event.state);
               setMessages((prev) => [
@@ -452,6 +447,18 @@ export default function SimulationCallPage() {
                 <p className="text-white/50 text-sm">Connecting avatar…</p>
               </div>
             )}
+            {heygen.audioBlocked && heygenStatus === "connected" && (
+              <button
+                onClick={() => heygen.startAudio()}
+                className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 backdrop-blur-sm cursor-pointer z-20"
+              >
+                <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-2xl">
+                  <svg className="w-8 h-8 text-black" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+                </div>
+                <p className="text-white font-semibold text-lg">Tap to enable audio</p>
+                <p className="text-white/60 text-sm">Browser blocked autoplay</p>
+              </button>
+            )}
           </>
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-neutral-900">
@@ -561,39 +568,25 @@ export default function SimulationCallPage() {
               <MoreHorizontal className="w-5 h-5" />
             </button>
             {responseMode === "voice" ? (
-              heygen.avatarMode === "FULL" ? (
-                // FULL mode: hold-to-speak PTT (LiveAvatar handles STT + TTS)
-                <button
-                  onMouseDown={() => { heygen.pttStart(); setIsListening(true); setIsMuted(false); }}
-                  onMouseUp={() => { heygen.pttStop(); setIsListening(false); }}
-                  onTouchStart={() => { heygen.pttStart(); setIsListening(true); setIsMuted(false); }}
-                  onTouchEnd={() => { heygen.pttStop(); setIsListening(false); }}
-                  disabled={isPaused}
-                  className={cn(
-                    "w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-200 select-none",
-                    isListening ? "bg-white scale-110 ring-2 ring-white/60 ring-offset-2 ring-offset-transparent shadow-white/40" : "bg-white hover:bg-white/90 shadow-white/20",
-                    isPaused && "opacity-40 cursor-not-allowed"
-                  )}
-                >
-                  <Mic className="w-6 h-6 text-black" />
-                </button>
-              ) : (
-                // LITE mode: toggle continuous mic
-                <button
-                  onClick={toggleMic}
-                  disabled={sending || isPaused}
-                  className={cn(
-                    "w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-200",
-                    isMuted ? "bg-white/20 hover:bg-white/30" : "bg-white hover:bg-white/90 shadow-white/20",
-                    isListening && !isMuted && "ring-2 ring-white/60 ring-offset-2 ring-offset-transparent scale-105",
-                    (sending || isPaused) && "opacity-40 cursor-not-allowed"
-                  )}
-                >
-                  {isMuted
-                    ? <MicOff className="w-6 h-6 text-white/60" />
-                    : <Mic className="w-6 h-6 text-black" />}
-                </button>
-              )
+              // CONVERSATIONAL mode: tap to mute/unmute — LiveAvatar uses VAD to detect turns
+              <button
+                onClick={() => {
+                  if (isListening) { heygen.pttStop(); setIsListening(false); }
+                  else { heygen.pttStart(); setIsListening(true); }
+                }}
+                disabled={isPaused}
+                className={cn(
+                  "w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-200",
+                  isListening
+                    ? "bg-white hover:bg-white/90 shadow-white/20"
+                    : "bg-red-500 hover:bg-red-600 shadow-red-500/30",
+                  isPaused && "opacity-40 cursor-not-allowed"
+                )}
+              >
+                {isListening
+                  ? <Mic className="w-6 h-6 text-black" />
+                  : <MicOff className="w-6 h-6 text-white" />}
+              </button>
             ) : (
               <div className="flex items-center gap-2 bg-white/10 rounded-full px-3 py-2 w-56">
                 <input

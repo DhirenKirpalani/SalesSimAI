@@ -63,7 +63,7 @@ export async function createLiveAvatarSecret(
   const res = await fetch(`${LIVEAVATAR_BASE}/v1/secrets`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({ secret_type: "LLM_API_KEY", secret_value, secret_name }),
+    body: JSON.stringify({ secret_type: "OPENAI_API_KEY", secret_value, secret_name }),
   });
   const json = await handleResponse(res, "create secret");
   return json.data.id as string;
@@ -77,7 +77,7 @@ export async function createLLMConfig(opts: {
   secret_id: string;
   base_url: string;
 }): Promise<string> {
-  const res = await fetch(`${LIVEAVATAR_BASE}/v1/llm_configurations`, {
+  const res = await fetch(`${LIVEAVATAR_BASE}/v1/llm-configurations`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify(opts),
@@ -88,7 +88,7 @@ export async function createLLMConfig(opts: {
 
 export async function deleteLLMConfig(config_id: string): Promise<void> {
   try {
-    await fetch(`${LIVEAVATAR_BASE}/v1/llm_configurations/${config_id}`, {
+    await fetch(`${LIVEAVATAR_BASE}/v1/llm-configurations/${config_id}`, {
       method: "DELETE",
       headers: headers(),
     });

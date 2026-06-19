@@ -3,13 +3,6 @@
 import { useRef, useState, useCallback, useMemo } from "react";
 import { HeyGenConnectionStatus } from "@/types/simulation";
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary);
-}
-
 
 interface UseHeyGenOptions {
   onConnected?: () => void;
@@ -20,18 +13,17 @@ interface UseHeyGenOptions {
 export function useHeyGen(options: UseHeyGenOptions = {}) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const roomRef = useRef<any>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pendingVideoTrackRef = useRef<any>(null);
   const heygenSessionIdRef = useRef<string | null>(null);
-  const speakQueueRef = useRef<string[]>([]);
-  const speakingRef = useRef(false);
+  const llmConfigIdRef = useRef<string | null>(null);
+  const initializingRef = useRef(false);
+  const audioElementsRef = useRef<HTMLAudioElement[]>([]);
 
   const [status, setStatus] = useState<HeyGenConnectionStatus>("idle");
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [avatarMode, setAvatarMode] = useState<"LITE" | "FULL">("LITE");
-  const wsReadyRef = useRef(false);  // true once ws sends session.state_updated=connected
+  const [audioBlocked, setAudioBlocked] = useState(false);
   let _eventId = 0;
   const nextEventId = () => `ev_${++_eventId}_${Date.now()}`;
 
@@ -42,6 +34,11 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
     scenarioId?: string,
     scenarioTable?: string,
   ) => {
+    if (initializingRef.current) {
+      console.warn("[useHeyGen] initialize already in progress — skipping duplicate call");
+      return;
+    }
+    initializingRef.current = true;
     try {
       setStatus("connecting");
       console.log("[useHeyGen] Step 1: requesting session token…", { simulationSessionId, avatarId, voiceId, scenarioId, scenarioTable });
@@ -66,10 +63,10 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
       }
       const newJson = await newRes.json();
       console.log("[useHeyGen] Step 1 OK:", newJson);
-      const { session_id, session_token, mode } = newJson;
-      if (mode) setAvatarMode(mode as "LITE" | "FULL");
+      const { session_id, session_token, llm_config_id } = newJson;
 
       heygenSessionIdRef.current = session_id;
+      if (llm_config_id) llmConfigIdRef.current = llm_config_id;
       setSessionId(session_id);
 
       console.log("[useHeyGen] Step 2: starting session…");
@@ -103,27 +100,147 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
       });
       roomRef.current = room;
 
+      // ── Track events ───────────────────────────────────────────────────────
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      room.on(RoomEvent.TrackSubscribed, (track: any) => {
-        console.log("[useHeyGen] TrackSubscribed:", track.kind);
+      room.on(RoomEvent.TrackSubscribed, (track: any, pub: any, participant: any) => {
+        console.log("%c[useHeyGen] 🎬 TrackSubscribed", "color:#0af", {
+          kind: track.kind,
+          sid: track.sid,
+          participant: participant?.identity,
+          muted: track.isMuted,
+          enabled: pub?.isEnabled,
+        });
         if (track.kind === Track.Kind.Video) {
           if (videoRef.current) {
             track.attach(videoRef.current);
-            console.log("[useHeyGen] Video attached to ref");
+            console.log("[useHeyGen] ✅ Video attached to ref");
           } else {
             pendingVideoTrackRef.current = track;
-            console.log("[useHeyGen] Video pending (ref not ready)");
+            console.log("[useHeyGen] ⏳ Video pending (ref not ready)");
           }
         } else if (track.kind === Track.Kind.Audio) {
           const audioEl = track.attach() as HTMLAudioElement;
-          audioEl.play().catch(() => {});
+          audioEl.volume = 1.0;
+          audioEl.muted = false;
+          audioEl.autoplay = true;
           document.body.appendChild(audioEl);
-          console.log("[useHeyGen] Audio attached");
+          audioElementsRef.current.push(audioEl);
+          console.log("[useHeyGen] 🔊 Audio element created:", {
+            paused: audioEl.paused,
+            muted: audioEl.muted,
+            volume: audioEl.volume,
+            autoplay: audioEl.autoplay,
+            readyState: audioEl.readyState,
+            participant: participant?.identity,
+          });
+          // Monitor actual audio level on the avatar (heygen) track to prove sound is flowing
+          try {
+            const ms: MediaStream | undefined = track.mediaStream;
+            if (ms) {
+              const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+              const ctx = new Ctx();
+              const src = ctx.createMediaStreamSource(ms);
+              const analyser = ctx.createAnalyser();
+              analyser.fftSize = 512;
+              src.connect(analyser);
+              const buf = new Uint8Array(analyser.frequencyBinCount);
+              const who = participant?.identity ?? "?";
+              let lastLog = 0;
+              const tick = () => {
+                analyser.getByteTimeDomainData(buf);
+                let sum = 0;
+                for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+                const rms = Math.sqrt(sum / buf.length);
+                const now = Date.now();
+                if (rms > 0.01 && now - lastLog > 1000) {
+                  lastLog = now;
+                  console.log(`%c[useHeyGen] 🔊 AUDIO LEVEL ${who}: ${(rms * 100).toFixed(1)}%`, "color:#0ff;font-weight:bold");
+                }
+                if (audioElementsRef.current.includes(audioEl)) requestAnimationFrame(tick);
+              };
+              requestAnimationFrame(tick);
+            }
+          } catch (e) {
+            console.warn("[useHeyGen] audio level monitor failed:", e);
+          }
+          const ensurePlaying = () => {
+            if (audioEl.paused) {
+              audioEl.play()
+                .then(() => console.log("%c[useHeyGen] ✅ audio (re)play succeeded", "color:lime"))
+                .catch((e) => console.warn("[useHeyGen] audio play failed:", e.name));
+            }
+          };
+          audioEl.addEventListener("pause", ensurePlaying);
+          audioEl.addEventListener("suspend", ensurePlaying);
+          audioEl.addEventListener("canplay", ensurePlaying);
+          audioEl.play()
+            .then(() => console.log("%c[useHeyGen] ✅ audio.play() succeeded", "color:lime"))
+            .catch((err) => {
+              console.error("%c[useHeyGen] ❌ audio.play() BLOCKED:", "color:red", err.name, err.message);
+              const retry = () => {
+                audioEl.play()
+                  .then(() => console.log("%c[useHeyGen] ✅ audio.play() retry succeeded", "color:lime"))
+                  .catch((e2) => console.error("[useHeyGen] retry failed:", e2));
+                document.removeEventListener("click", retry);
+                document.removeEventListener("mousedown", retry);
+              };
+              document.addEventListener("click", retry, { once: true });
+              document.addEventListener("mousedown", retry, { once: true });
+            });
         }
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      room.on(RoomEvent.TrackUnsubscribed, (track: any, _pub: any, participant: any) => {
+        console.log("[useHeyGen] TrackUnsubscribed:", track.kind, participant?.identity);
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      room.on(RoomEvent.TrackMuted, (pub: any, participant: any) => {
+        console.log("[useHeyGen] TrackMuted:", pub?.kind, participant?.identity);
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      room.on(RoomEvent.TrackUnmuted, (pub: any, participant: any) => {
+        console.log("[useHeyGen] TrackUnmuted:", pub?.kind, participant?.identity);
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      room.on(RoomEvent.ParticipantConnected, (p: any) => {
+        console.log("[useHeyGen] 👤 ParticipantConnected:", p.identity, "tracks:", p.trackPublications?.size);
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      room.on(RoomEvent.DataReceived, (data: Uint8Array, participant: any) => {
+        try {
+          const text = new TextDecoder().decode(data);
+          let eventType = "";
+          try { eventType = JSON.parse(text).event_type ?? ""; } catch { /* not json */ }
+          if (eventType.startsWith("agent.")) {
+            // Avatar response events — highlight prominently
+            console.log("%c[useHeyGen] 🤖 AGENT EVENT: " + eventType, "color:#0f0;font-weight:bold;font-size:14px", text.slice(0, 300));
+          } else {
+            console.log("%c[useHeyGen] 📦 DataReceived from", "color:#fa0", participant?.identity, text.slice(0, 200));
+          }
+        } catch { /* binary */ }
+      });
+
       room.on(RoomEvent.Connected, () => {
-        console.log("[useHeyGen] LiveKit room connected");
+        console.log("%c[useHeyGen] ✅ LiveKit room connected", "color:lime");
+        room.remoteParticipants.forEach((p: any) => {
+          console.log("[useHeyGen] existing participant:", p.identity, "tracks:", [...p.trackPublications.values()].map((t: any) => t.kind));
+        });
+        // Check autoplay status immediately
+        if (!room.canPlaybackAudio) {
+          console.warn("%c[useHeyGen] ⚠️ Audio playback BLOCKED by browser", "color:orange");
+          setAudioBlocked(true);
+        }
+      });
+
+      room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+        const blocked = !room.canPlaybackAudio;
+        console.log("%c[useHeyGen] AudioPlaybackStatusChanged — blocked:", blocked ? "color:red" : "color:lime", blocked);
+        setAudioBlocked(blocked);
       });
 
       room.on(RoomEvent.Disconnected, () => {
@@ -132,140 +249,112 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
         options.onDisconnected?.();
       });
 
-      room.on(RoomEvent.ConnectionStateChanged, (state) => {
+      room.on(RoomEvent.ConnectionStateChanged, (state: string) => {
         console.log("[useHeyGen] LiveKit state:", state);
       });
 
       await room.connect(livekit_url, livekit_client_token);
-      console.log("[useHeyGen] LiveKit connect() resolved");
+      console.log("%c[useHeyGen] LiveKit connect() resolved", "color:lime", {
+        participants: room.remoteParticipants.size,
+        localId: room.localParticipant?.identity,
+      });
       setStatus("connected");
       options.onConnected?.();
 
-      // Step 4: connect to ws_url — LiveAvatar expects agent.speak {audio: base64}
-      if (ws_url) {
-        console.log("[useHeyGen] Step 4: opening ws_url…", ws_url);
-        const ws = new WebSocket(ws_url);
-        wsRef.current = ws;
-        wsReadyRef.current = false;
-        ws.onopen = () => console.log("[useHeyGen] WebSocket open (waiting for session.state_updated)");
-        ws.onmessage = (evt) => {
-          console.log("[useHeyGen] WS message:", String(evt.data).slice(0, 200));
-          try {
-            const msg = JSON.parse(String(evt.data));
-            if (msg.type === "session.state_updated" && msg.state === "connected") {
-              wsReadyRef.current = true;
-              console.log("[useHeyGen] ✅ WS session connected — agent.speak ready");
-            }
-          } catch { /* non-JSON frame */ }
-        };
-        ws.onclose = () => { wsRef.current = null; wsReadyRef.current = false; console.log("[useHeyGen] WebSocket closed"); };
-        ws.onerror = (e) => console.warn("[useHeyGen] ws error:", e);
-      } else {
-        console.warn("[useHeyGen] No ws_url returned — avatar lip-sync unavailable");
+      // CONVERSATIONAL mode: enable mic so LiveAvatar hears the user via VAD
+      try {
+        await room.localParticipant.setMicrophoneEnabled(true);
+        console.log("%c[useHeyGen] ✅ mic enabled on connect", "color:lime");
+      } catch (e) {
+        console.warn("[useHeyGen] mic enable on connect failed:", e);
+      }
+      // Attempt to start audio immediately (succeeds if user triggered initialization)
+      try {
+        await room.startAudio();
+        console.log("%c[useHeyGen] ✅ room.startAudio() succeeded", "color:lime");
+        setAudioBlocked(false);
+        // Replay all audio elements now that AudioContext is confirmed running
+        for (const el of audioElementsRef.current) {
+          if (el.paused) {
+            el.play().catch(() => {});
+          }
+        }
+      } catch {
+        console.warn("%c[useHeyGen] ⚠️ room.startAudio() blocked — waiting for user gesture", "color:orange");
+        setAudioBlocked(true);
       }
 
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[useHeyGen] init error:", msg);
       setStatus("error");
+      initializingRef.current = false;
       options.onError?.(msg);
     }
   }, [options]);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const speakOpenAI = useCallback(async (text: string): Promise<void> => {
-    console.log("[useHeyGen:TTS] fetching PCM for:", text.slice(0, 60));
+  const sendListening = useCallback((_listening: boolean) => {}, []);
+
+  const startAudio = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return;
     try {
-      const res = await fetch("/api/simulation/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voice: "onyx" }),
-      });
-      if (!res.ok) throw new Error(`TTS ${res.status}: ${await res.text()}`);
-
-      const pcmBuffer = await res.arrayBuffer();
-      console.log("[useHeyGen:TTS] PCM bytes:", pcmBuffer.byteLength);
-
-      // ── Send PCM chunks via agent.speak → LiveAvatar lip-sync ─────────────
-      const ws = wsRef.current;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        const CHUNK = 48000; // 1 s at 24 kHz 16-bit mono
-        const bytes = new Uint8Array(pcmBuffer);
-        let chunkCount = 0;
-        for (let offset = 0; offset < bytes.length; offset += CHUNK) {
-          const slice = bytes.slice(offset, offset + CHUNK);
-          const b64 = arrayBufferToBase64(slice.buffer);
-          ws.send(JSON.stringify({ type: "agent.speak", audio: b64 }));
-          chunkCount++;
-        }
-        const eid = nextEventId();
-        ws.send(JSON.stringify({ type: "agent.speak_end", event_id: eid }));
-        console.log(`[useHeyGen:TTS] ✅ ${chunkCount} chunk(s) + agent.speak_end (${eid})`);
-
-        // Wait for avatar to finish speaking before returning — prevents mic from
-        // picking up avatar audio (echo loop). PCM: 24 kHz × 16-bit = 48000 bytes/sec.
-        const playbackMs = Math.ceil((pcmBuffer.byteLength / 48000) * 1000) + 600;
-        console.log(`[useHeyGen:TTS] waiting ${playbackMs}ms for playback to finish`);
-        await new Promise((r) => setTimeout(r, playbackMs));
-      } else {
-        console.warn("[useHeyGen:TTS] WS not open — readyState:", ws?.readyState ?? "none");
-      }
-
-      // Local playback intentionally removed — LiveAvatar echoes the audio back
-      // through the LiveKit room audio track. Playing locally would cause double audio.
-    } catch (err) {
-      console.error("[useHeyGen:TTS] failed, browser TTS fallback:", err);
-      if (typeof window !== "undefined" && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.resume();
-        const utt = new SpeechSynthesisUtterance(text);
-        utt.rate = 0.95;
-        const preferred = window.speechSynthesis.getVoices().find((v) => v.lang.startsWith("en") && v.name.includes("Google"));
-        if (preferred) utt.voice = preferred;
-        window.speechSynthesis.speak(utt);
-      }
+      await room.startAudio();
+      setAudioBlocked(false);
+      console.log("%c[useHeyGen] ✅ audio unlocked via startAudio()", "color:lime");
+    } catch (e) {
+      console.error("[useHeyGen] startAudio failed:", e);
     }
   }, []);
 
-  const sendListening = useCallback((listening: boolean) => {
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      const type = listening ? "agent.start_listening" : "agent.stop_listening";
-      ws.send(JSON.stringify({ type, event_id: nextEventId() }));
-      console.log("[useHeyGen] sent:", type);
+  // In CONVERSATIONAL mode: pttStart = unmute mic, pttStop = mute mic
+  const pttStart = useCallback(async () => {
+    const room = roomRef.current;
+    if (room) room.startAudio().then(() => setAudioBlocked(false)).catch(() => {});
+    console.log("%c[useHeyGen] 🎙️ mic ON", "color:lime;font-weight:bold");
+    try {
+      await room?.localParticipant?.setMicrophoneEnabled(true);
+      console.log("[useHeyGen] mic unmuted");
+    } catch (e) {
+      console.warn("[useHeyGen] mic unmute failed:", e);
     }
   }, []);
 
-  const pttStart = useCallback(() => {
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "user.start_push_to_talk", event_id: nextEventId() }));
-      console.log("[useHeyGen] PTT start");
+  const pttStop = useCallback(async () => {
+    const room = roomRef.current;
+    console.log("%c[useHeyGen] � mic OFF", "color:orange;font-weight:bold");
+    try {
+      await room?.localParticipant?.setMicrophoneEnabled(false);
+      console.log("[useHeyGen] mic muted");
+    } catch (e) {
+      console.warn("[useHeyGen] mic mute failed:", e);
     }
   }, []);
 
-  const pttStop = useCallback(() => {
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "user.stop_push_to_talk", event_id: nextEventId() }));
-      console.log("[useHeyGen] PTT stop");
-    }
+  const speak = useCallback((_text: string) => {
+    // FULL mode: LiveAvatar handles speech via PTT pipeline. speak() is a no-op.
+    console.log("[useHeyGen:speak] FULL mode — avatar speaks via LiveAvatar natively");
   }, []);
-
-  const speak = useCallback(async (text: string) => {
-    console.log("[useHeyGen:speak] ▶", text.slice(0, 80));
-    setStatus("speaking");
-    // speakOpenAI sends PCM via agent.speak to ws_url (lip-sync) and plays WAV locally
-    await speakOpenAI(text);
-    setStatus("connected");
-  }, [speakOpenAI]);
 
   const stop = useCallback(async () => {
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    initializingRef.current = false;
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
-    wsRef.current?.close();
-    wsRef.current = null;
+    if (llmConfigIdRef.current) {
+      fetch("/api/simulation/heygen/new", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ llm_config_id: llmConfigIdRef.current }),
+      }).catch(() => {});
+      llmConfigIdRef.current = null;
+    }
+
+    for (const el of audioElementsRef.current) {
+      el.pause();
+      el.srcObject = null;
+      el.remove();
+    }
+    audioElementsRef.current = [];
 
     if (roomRef.current) {
       await roomRef.current.disconnect();
@@ -297,36 +386,17 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
     }
   }, []);
 
-  // Drain the sentence queue — plays each sentence in order, waiting for playback
-  const drainQueue = useCallback(async () => {
-    if (speakingRef.current) return;
-    speakingRef.current = true;
-    setStatus("speaking");
-    while (speakQueueRef.current.length > 0) {
-      const sentence = speakQueueRef.current.shift()!;
-      await speakOpenAI(sentence);
-    }
-    speakingRef.current = false;
-    setStatus("connected");
-  }, [speakOpenAI]);
-
-  // Enqueue a sentence and trigger drain (for low-latency streaming pipeline)
-  const speakQueued = useCallback((text: string) => {
-    speakQueueRef.current.push(text);
-    drainQueue();
-  }, [drainQueue]);
-
   return useMemo(() => ({
     status,
     sessionId,
-    avatarMode,
+    audioBlocked,
+    startAudio,
     initialize,
     speak,
-    speakQueued,
     stop,
     attachVideo,
     sendListening,
     pttStart,
     pttStop,
-  }), [status, sessionId, avatarMode, initialize, speak, speakQueued, stop, attachVideo, sendListening, pttStart, pttStop]);
+  }), [status, sessionId, audioBlocked, startAudio, initialize, speak, stop, attachVideo, sendListening, pttStart, pttStop]);
 }
