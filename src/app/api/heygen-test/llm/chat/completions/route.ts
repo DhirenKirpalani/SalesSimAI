@@ -51,7 +51,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No user message" }, { status: 400 });
     }
 
+    // Use system message from LiveAvatar (set from our context/persona prompt) if present
+    const incomingSystem = messages.find((m) => m.role === "system");
+    const systemContent = incomingSystem?.content?.trim() || SYSTEM_PROMPT;
     console.log("[heygen-test/llm] user:", lastUser.content.slice(0, 80));
+    console.log("[heygen-test/llm] system source:", incomingSystem ? "LiveAvatar context" : "fallback generic");
 
     const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -63,8 +67,8 @@ export async function POST(req: NextRequest) {
         model: "gpt-4o",
         stream: false,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          ...messages.filter((m) => m.role === "user" || m.role === "assistant").slice(-6),
+          { role: "system", content: systemContent },
+          ...messages.filter((m) => m.role === "user" || m.role === "assistant").slice(-10),
         ],
       }),
     });

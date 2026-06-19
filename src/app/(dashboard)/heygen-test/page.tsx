@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Room, RoomEvent, Track } from "livekit-client";
 
 type Status = "idle" | "connecting" | "connected" | "error";
@@ -10,9 +11,14 @@ interface SessionInfo {
   livekit_url: string;
   livekit_client_token: string;
   llm_config_id: string | null;
+  scenario_name: string;
 }
 
 export default function HeyGenTestPage() {
+  const searchParams = useSearchParams();
+  const scenarioId = searchParams.get("scenarioId") ?? undefined;
+  const scenarioTable = searchParams.get("scenarioTable") ?? undefined;
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const roomRef = useRef<Room | null>(null);
   const sessionRef = useRef<SessionInfo | null>(null);
@@ -35,13 +41,18 @@ export default function HeyGenTestPage() {
     addLog("Starting LiveAvatar session…");
 
     try {
-      const res = await fetch("/api/heygen-test", { method: "POST" });
+      const res = await fetch("/api/heygen-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenarioId, scenarioTable }),
+      });
       const json = await res.json();
       if (!res.ok || json.error) throw new Error(json.error ?? "Session start failed");
 
       const info: SessionInfo = json;
       sessionRef.current = info;
       addLog(`✅ Session: ${info.session_id}`);
+      if (info.scenario_name && info.scenario_name !== "LiveAvatar Test") addLog(`📋 Scenario: ${info.scenario_name}`);
       addLog(info.llm_config_id ? `✅ LLM config: ${info.llm_config_id}` : "⚠️ No LLM config (localhost — avatar won't respond)");
 
       const room = new Room();
@@ -213,7 +224,10 @@ export default function HeyGenTestPage() {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-6 flex flex-col gap-5">
       <div className="flex items-center justify-between">
+        <div>
         <h1 className="text-2xl font-bold">LiveAvatar Test</h1>
+        {scenarioId && <p className="text-sm text-gray-400 mt-0.5">Scenario: {sessionRef.current?.scenario_name ?? scenarioId}</p>}
+      </div>
         <span className={`text-xs px-3 py-1 rounded-full font-medium ${
           status === "connected" ? "bg-green-700" :
           status === "connecting" ? "bg-yellow-700" :
