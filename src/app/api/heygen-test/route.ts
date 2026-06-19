@@ -41,65 +41,105 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const { scenarioId, scenarioTable } = body as { scenarioId?: string; scenarioTable?: string };
 
+    console.log("[heygen-test] ── START ──────────────────────────────────────────");
+    console.log("[heygen-test] scenarioId:", scenarioId ?? "(none)");
+    console.log("[heygen-test] scenarioTable:", scenarioTable ?? "(none)");
+
     let personaPrompt = "You are a friendly assistant. Answer questions naturally and concisely.";
     let openingText = "Hi there! I'm your LiveAvatar test. Go ahead and talk to me.";
     let scenarioName = "LiveAvatar Test";
 
     if (scenarioId && scenarioTable) {
+      console.log("[heygen-test] Looking up scenario from Supabase…");
       try {
         const supabase = serviceSupabase();
-        const { data: scenario } = await supabase
+        const { data: scenario, error: scenarioError } = await supabase
           .from(scenarioTable)
           .select("*")
           .eq("id", scenarioId)
           .single();
 
-        if (scenario) {
+        if (scenarioError) {
+          console.error("[heygen-test] ❌ Supabase error:", scenarioError.message);
+        } else if (!scenario) {
+          console.warn("[heygen-test] ⚠️  Scenario not found — id:", scenarioId, "table:", scenarioTable);
+        } else {
           scenarioName = scenario.name ?? scenarioName;
+          console.log("[heygen-test] ✅ Scenario found:", scenarioName);
+          console.log("[heygen-test] seller_company:", scenario.seller_company);
+          console.log("[heygen-test] seller_product:", scenario.seller_product);
+          console.log("[heygen-test] scenario_type:", scenario.scenario_type);
+          console.log("[heygen-test] has custom_persona:", !!scenario.custom_persona);
+          console.log("[heygen-test] preset_persona_id:", scenario.preset_persona_id ?? "(none)");
+
           let persona: CustomPersona | null = scenario.custom_persona as CustomPersona ?? null;
           if (!persona && scenario.preset_persona_id) {
             const preset = mockPersonas.find((p) => p.id === scenario.preset_persona_id);
-            if (preset) persona = { name: preset.name, jobTitle: preset.jobTitle, company: preset.company, industry: preset.industry, personality: preset.personality, painPoints: preset.painPoints, goals: preset.goals };
+            if (preset) {
+              persona = { name: preset.name, jobTitle: preset.jobTitle, company: preset.company, industry: preset.industry, personality: preset.personality, painPoints: preset.painPoints, goals: preset.goals };
+              console.log("[heygen-test] Resolved preset persona:", preset.name, "-", preset.jobTitle);
+            } else {
+              console.warn("[heygen-test] ⚠️  preset_persona_id not found in mockPersonas:", scenario.preset_persona_id);
+            }
+          } else if (persona) {
+            console.log("[heygen-test] Using custom_persona:", persona.name, "-", persona.jobTitle, "at", persona.company);
+          } else {
+            console.warn("[heygen-test] ⚠️  No persona found — using fallback");
           }
+
           personaPrompt = buildPersonaPrompt(scenario as CustomScenario, persona);
           openingText = `Hi, I'm ${persona?.name ?? "Alex"}. Thanks for reaching out — go ahead.`;
-          console.log("[heygen-test] scenario:", scenarioName, "persona:", persona?.name);
+
+          console.log("[heygen-test] ── PERSONA PROMPT ──────────────────────────");
+          console.log(personaPrompt);
+          console.log("[heygen-test] ── OPENING TEXT ────────────────────────────");
+          console.log(openingText);
+          console.log("[heygen-test] ──────────────────────────────────────────────");
         }
       } catch (e) {
-        console.warn("[heygen-test] scenario lookup failed:", e);
+        console.error("[heygen-test] ❌ scenario lookup threw:", e);
       }
+    } else {
+      console.log("[heygen-test] No scenarioId/scenarioTable — using generic prompt");
     }
 
     let contextId: string | undefined;
+    console.log("[heygen-test] Creating LiveAvatar context…");
     try {
       contextId = await createLiveAvatarContext({
         name: `Test-${Date.now()}`,
         prompt: personaPrompt,
         opening_text: openingText,
       });
+      console.log("[heygen-test] ✅ Context created:", contextId);
     } catch (e) {
-      console.warn("[heygen-test] context creation failed:", e);
+      console.error("[heygen-test] ❌ Context creation failed:", e);
     }
 
     let llmConfigId: string | undefined;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL;
     const openaiKey = process.env.OPENAI_API_KEY;
+    console.log("[heygen-test] NEXT_PUBLIC_APP_URL:", appUrl ?? "(not set — localhost, LLM will be skipped)");
     if (appUrl && openaiKey) {
-      const name = `Test-${Date.now()}`;
+      const llmName = `Test-${Date.now()}`;
+      const llmEndpoint = `${appUrl}/api/heygen-test/llm`;
+      console.log("[heygen-test] LLM base_url:", llmEndpoint);
+      console.log("[heygen-test] LiveAvatar will call:", llmEndpoint + "/chat/completions");
       try {
-        const secretId = await createLiveAvatarSecret(openaiKey, name);
+        const secretId = await createLiveAvatarSecret(openaiKey, llmName);
+        console.log("[heygen-test] ✅ Secret created:", secretId);
         llmConfigId = await createLLMConfig({
-          display_name: name,
+          display_name: llmName,
           model_name: "gpt-4o",
           secret_id: secretId,
-          base_url: `${appUrl}/api/heygen-test/llm`,
+          base_url: llmEndpoint,
         });
-        console.log("[heygen-test] LLM config:", llmConfigId);
+        console.log("[heygen-test] ✅ LLM config created:", llmConfigId);
       } catch (e) {
-        console.warn("[heygen-test] LLM config failed:", e);
+        console.error("[heygen-test] ❌ LLM config failed:", e);
       }
     } else {
-      console.log("[heygen-test] No APP_URL — skipping LLM config (localhost)");
+      console.warn("[heygen-test] ⚠️  No APP_URL or OPENAI_API_KEY — skipping LLM config. Avatar will NOT respond.");
     }
 
     const token = await createSessionToken({
@@ -113,10 +153,16 @@ export async function POST(req: NextRequest) {
       llm_configuration_id: llmConfigId,
     });
 
-    console.log("[heygen-test] session token created:", token.session_id);
+    console.log("[heygen-test] ── SESSION TOKEN ───────────────────────────────");
+    console.log("[heygen-test] session_id:", token.session_id);
+    console.log("[heygen-test] context_id:", contextId ?? "(none — persona NOT passed)");
+    console.log("[heygen-test] llm_config_id:", llmConfigId ?? "(none — avatar will NOT respond)");
+    console.log("[heygen-test] mode: FULL, interactivity: CONVERSATIONAL");
+    console.log("[heygen-test] ────────────────────────────────────────────────");
 
     const session = await startSession(token.session_token);
-    console.log("[heygen-test] session started:", session.session_id);
+    console.log("[heygen-test] ✅ Session started:", session.session_id);
+    console.log("[heygen-test] livekit_url:", session.livekit_url);
 
     return NextResponse.json({
       session_id: session.session_id,
