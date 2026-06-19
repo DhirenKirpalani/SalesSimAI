@@ -20,6 +20,8 @@ export async function POST(req: NextRequest) {
     console.log("[heygen/connect] Starting LiveAvatar session…");
     const payload = await startSession(session_token);
     console.log("[heygen/connect] Session started, keys:", Object.keys(payload));
+    console.log("[heygen/connect] ws_url:", payload.ws_url ?? "NOT RETURNED");
+    console.log("[heygen/connect] session_id:", payload.session_id);
 
     return NextResponse.json(payload);
   } catch (err) {

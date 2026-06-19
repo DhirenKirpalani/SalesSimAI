@@ -9,7 +9,6 @@ import { CustomScenario } from "@/types";
 import { SimulationSession, SimulationMessage, SimulationState } from "@/types/simulation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
@@ -18,22 +17,23 @@ import {
   Square,
   Timer,
   Loader2,
-  SendHorizontal,
   Radio,
   TrendingUp,
   Brain,
   AlertCircle,
-  Video,
   VideoOff,
   Pencil,
   User,
-  ChevronRight,
   CheckCircle2,
   BarChart3,
   X,
   Pause,
   Play,
   Lock,
+  MoreHorizontal,
+  BarChart2,
+  Keyboard,
+  SendHorizontal,
 } from "lucide-react";
 
 const AVATAR_ID = process.env.NEXT_PUBLIC_LIVEAVATAR_AVATAR_ID ?? "";
@@ -88,9 +88,14 @@ export default function SimulationCallPage() {
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedBeforePause, setElapsedBeforePause] = useState(0);
   const [isListening, setIsListening] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [hasSpoken, setHasSpoken] = useState(false);
 
   const [selfCamEnabled, setSelfCamEnabled] = useState(false);
+  const [showPersonaPanel, setShowPersonaPanel] = useState(false);
+  const [showNotesPanel, setShowNotesPanel] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [responseMode, setResponseMode] = useState<"voice" | "text">("voice");
   const scrollRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
@@ -214,13 +219,14 @@ export default function SimulationCallPage() {
       }
     };
 
-    recognition.onend = () => setIsListening(false);
-    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => { setIsListening(false); heygen.sendListening(false); };
+    recognition.onerror = () => { setIsListening(false); heygen.sendListening(false); };
 
     recognitionRef.current = recognition;
     recognition.start();
     setIsListening(true);
-  }, []);
+    heygen.sendListening(true);
+  }, [heygen]);
 
   // Keep a stable ref to sendMessage to avoid stale closures in recognition callbacks
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -265,9 +271,7 @@ export default function SimulationCallPage() {
         },
       ]);
 
-      if (avatarEnabled && heygenStatus === "connected") {
-        await heygen.speak(buyer_response.message);
-      }
+      await heygen.speak(buyer_response.message);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[sendMessage]", err);
@@ -275,6 +279,7 @@ export default function SimulationCallPage() {
       setTimeout(() => setSendError(null), 5000);
     } finally {
       setSending(false);
+      heygen.sendListening(false);
       // Auto-restart mic after buyer responds if continuous mode is on
       if (autoMicRef.current) {
         setTimeout(() => { if (autoMicRef.current) startRecognition(); }, 400);
@@ -285,6 +290,41 @@ export default function SimulationCallPage() {
   // Keep ref in sync so recognition callbacks always call the latest sendMessage
   useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
 
+  // Auto-start continuous mic in voice mode once the session is ready
+  useEffect(() => {
+    if (!session || responseMode !== "voice") return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!SR) return;
+    if (!autoMicRef.current) {
+      autoMicRef.current = true;
+      setTimeout(() => startRecognition(), 800);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
+  // Pre-warm browser TTS voices on mount so getVoices() is populated when needed
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const load = () => window.speechSynthesis.getVoices();
+    load();
+    window.speechSynthesis.addEventListener("voiceschanged", load);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", load);
+  }, []);
+
+  const switchResponseMode = useCallback((mode: "voice" | "text") => {
+    setResponseMode(mode);
+    if (mode === "text") {
+      autoMicRef.current = false;
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    } else {
+      autoMicRef.current = true;
+      setTimeout(() => startRecognition(), 200);
+    }
+  }, [startRecognition]);
+
   const toggleMic = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
@@ -292,13 +332,13 @@ export default function SimulationCallPage() {
     if (!SR) { alert("Speech recognition is not supported. Please use Chrome."); return; }
 
     if (autoMicRef.current) {
-      // Turn off continuous mode
       autoMicRef.current = false;
       recognitionRef.current?.stop();
       setIsListening(false);
+      setIsMuted(true);
     } else {
-      // Turn on continuous mode
       autoMicRef.current = true;
+      setIsMuted(false);
       startRecognition();
     }
   }, [startRecognition]);
@@ -309,6 +349,7 @@ export default function SimulationCallPage() {
     autoMicRef.current = false;
     recognitionRef.current?.stop();
     setIsListening(false);
+    window.speechSynthesis?.cancel();
     if (timerRef.current) clearInterval(timerRef.current);
   }, [elapsed]);
 
@@ -362,113 +403,274 @@ export default function SimulationCallPage() {
     return null;
   })();
 
-  return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] -m-4 lg:-m-6 overflow-hidden bg-neutral-950">
+  const lastMessage = messages[messages.length - 1] ?? null;
 
-      {/* Top Bar */}
-      <div className="flex items-center justify-between px-4 lg:px-6 py-3 border-b border-white/10 bg-neutral-900/80 backdrop-blur shrink-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge className="gap-1 text-[10px] bg-emerald-500/15 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/15">
-            <Radio className="w-3 h-3 animate-pulse" />
-            Live
-          </Badge>
-          {state && (
-            <Badge variant="outline" className="text-[10px] capitalize border-white/10 text-white/60">{state.stage}</Badge>
-          )}
-          {scenario && (
-            <span className="text-xs text-white/40 hidden sm:flex items-center gap-1 truncate max-w-[240px]">
-              <ChevronRight className="w-3 h-3" />
-              {scenario.name}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className={cn(
-              "flex items-center gap-1.5 text-sm font-mono font-medium tabular-nums",
-              isPaused ? "text-amber-400" : "text-white/80"
-            )}>
-              <Timer className={cn("w-4 h-4", isPaused ? "text-amber-400" : "text-white/40")} />
-              {formatTimer(elapsed)}
-            </div>
-            {isPaused && (
-              <Badge className="text-[10px] bg-amber-500/15 text-amber-400 border-amber-500/20 border font-medium">
-                <Pause className="w-2.5 h-2.5 mr-0.5" /> Paused
-              </Badge>
+  return (
+    <div className="relative h-[calc(100vh-4rem)] -m-4 lg:-m-6 overflow-hidden bg-black">
+
+      {/* ── Full-screen video ── */}
+      <div className="absolute inset-0">
+        {avatarEnabled ? (
+          <>
+            <video ref={heygenAttachVideo} autoPlay playsInline className="w-full h-full object-cover" />
+            {(heygenStatus === "idle" || heygenStatus === "connecting") && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70">
+                <Loader2 className="w-7 h-7 text-white/50 animate-spin" />
+                <p className="text-white/50 text-sm">Connecting avatar…</p>
+              </div>
             )}
+          </>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-neutral-900">
+            <VideoOff className="w-10 h-10 text-neutral-600" />
+            <p className="text-neutral-500 text-sm">Video off</p>
           </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="gap-1 text-xs rounded-lg text-white/60 hover:text-white hover:bg-white/10"
-            onClick={() => setAvatarEnabled(!avatarEnabled)}
-          >
-            {avatarEnabled ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{avatarEnabled ? "Video on" : "Video off"}</span>
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className={cn(
-              "gap-1 text-xs rounded-lg",
-              selfCamEnabled
-                ? "text-violet-400 bg-violet-500/10 hover:bg-violet-500/20 hover:text-violet-300"
-                : "text-white/60 hover:text-white hover:bg-white/10"
-            )}
-            onClick={toggleSelfCam}
-          >
-            <User className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{selfCamEnabled ? "Cam on" : "Cam off"}</span>
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className={cn(
-              "gap-1 text-xs rounded-lg",
-              isPaused
-                ? "bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 hover:text-amber-300"
-                : "text-white/60 hover:text-white hover:bg-white/10"
-            )}
-            onClick={isPaused ? resumeSession : pauseSession}
-          >
-            {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
-            {isPaused ? "Resume" : "Pause"}
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            className="gap-1 text-xs rounded-lg"
-            onClick={() => setShowEndModal(true)}
-          >
-            <Square className="w-3.5 h-3.5" />
-            End
-          </Button>
+        )}
+      </div>
+
+      {/* ── Bottom gradient scrim ── */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/5 to-transparent pointer-events-none" />
+
+      {/* ── Top-left: Timer ── */}
+      <div className="absolute top-4 left-5 z-30">
+        <div className={cn(
+          "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-mono font-semibold backdrop-blur-sm border",
+          isPaused ? "bg-amber-500/20 text-amber-300 border-amber-500/30" : "bg-white/10 text-white border-white/10"
+        )}>
+          <Timer className="w-3.5 h-3.5" />
+          {formatTimer(elapsed)}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
+      {/* ── Top-right: Live badge ── */}
+      <div className="absolute top-4 right-5 z-30 flex items-center gap-2">
+        <Badge className="gap-1 text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30 backdrop-blur-sm">
+          <Radio className="w-2.5 h-2.5 animate-pulse" />
+          Live
+        </Badge>
+        {state && (
+          <Badge variant="outline" className="text-[10px] capitalize border-white/15 text-white/50 bg-black/30 backdrop-blur-sm">{state.stage}</Badge>
+        )}
+      </div>
 
-        {/* Left Panel: Buyer Info */}
-        <div className="hidden lg:flex flex-col w-64 xl:w-72 border-r border-white/10 bg-neutral-900/60 overflow-y-auto">
-          <div className="p-4 space-y-5">
+      {/* ── Self-view PiP ── */}
+      {selfCamEnabled && (
+        <div className="absolute top-14 right-5 z-30 w-28 sm:w-32 aspect-video rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl bg-black">
+          <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
+          <p className="absolute bottom-1 left-2 text-[9px] text-white/60 font-medium drop-shadow">You</p>
+        </div>
+      )}
+
+      {/* ── Caption ── */}
+      <div className="absolute bottom-28 left-0 right-0 z-30 px-8 text-center pointer-events-none">
+        {sending ? (
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/50 backdrop-blur-sm text-white/50 text-sm">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            Thinking…
+          </div>
+        ) : lastMessage ? (
+          <div className="space-y-0.5">
+            <p className="text-white/40 text-xs font-medium">
+              {lastMessage.role === "buyer" && persona ? persona.name : "You"}
+            </p>
+            <p className="text-white/90 text-base leading-snug drop-shadow-lg max-w-2xl mx-auto line-clamp-2">
+              {lastMessage.content}
+            </p>
+          </div>
+        ) : (
+          <p className="text-white/30 text-sm">{isPaused ? "Session paused" : "Say hello to begin"}</p>
+        )}
+      </div>
+
+      {/* ── Bottom controls ── */}
+      <div className="absolute bottom-7 left-0 right-0 z-30 flex items-center justify-center">
+        {/* Notes */}
+        <button
+          onClick={() => { setShowNotesPanel((v) => !v); setShowPersonaPanel(false); }}
+          className={cn(
+            "absolute left-8 w-12 h-12 rounded-full backdrop-blur-sm border flex items-center justify-center transition-all",
+            showNotesPanel ? "bg-violet-600 border-violet-500 text-white" : "bg-white/10 border-white/15 text-white/70 hover:bg-white/20 hover:text-white"
+          )}
+        >
+          <Pencil className="w-5 h-5" />
+        </button>
+
+        {/* Centre pill */}
+        <div className="flex flex-col items-center gap-3">
+          {/* Voice / Text mode toggle */}
+          <div className="flex items-center gap-1 bg-black/40 backdrop-blur-sm border border-white/10 rounded-full p-1">
+            <button
+              onClick={() => switchResponseMode("voice")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+                responseMode === "voice" ? "bg-white text-black shadow" : "text-white/50 hover:text-white"
+              )}
+            >
+              <Mic className="w-3.5 h-3.5" /> Voice
+            </button>
+            <button
+              onClick={() => switchResponseMode("text")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+                responseMode === "text" ? "bg-white text-black shadow" : "text-white/50 hover:text-white"
+              )}
+            >
+              <Keyboard className="w-3.5 h-3.5" /> Text
+            </button>
+          </div>
+
+          {/* Main controls */}
+          <div className="flex items-center gap-3 bg-black/50 backdrop-blur-md border border-white/10 rounded-full px-5 py-3 shadow-2xl">
+            <button
+              onClick={() => setShowMoreMenu((v) => !v)}
+              className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition-all"
+            >
+              <MoreHorizontal className="w-5 h-5" />
+            </button>
+            {responseMode === "voice" ? (
+              heygen.avatarMode === "FULL" ? (
+                // FULL mode: hold-to-speak PTT (LiveAvatar handles STT + TTS)
+                <button
+                  onMouseDown={() => { heygen.pttStart(); setIsListening(true); setIsMuted(false); }}
+                  onMouseUp={() => { heygen.pttStop(); setIsListening(false); }}
+                  onTouchStart={() => { heygen.pttStart(); setIsListening(true); setIsMuted(false); }}
+                  onTouchEnd={() => { heygen.pttStop(); setIsListening(false); }}
+                  disabled={isPaused}
+                  className={cn(
+                    "w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-200 select-none",
+                    isListening ? "bg-white scale-110 ring-2 ring-white/60 ring-offset-2 ring-offset-transparent shadow-white/40" : "bg-white hover:bg-white/90 shadow-white/20",
+                    isPaused && "opacity-40 cursor-not-allowed"
+                  )}
+                >
+                  <Mic className="w-6 h-6 text-black" />
+                </button>
+              ) : (
+                // LITE mode: toggle continuous mic
+                <button
+                  onClick={toggleMic}
+                  disabled={sending || isPaused}
+                  className={cn(
+                    "w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-200",
+                    isMuted ? "bg-white/20 hover:bg-white/30" : "bg-white hover:bg-white/90 shadow-white/20",
+                    isListening && !isMuted && "ring-2 ring-white/60 ring-offset-2 ring-offset-transparent scale-105",
+                    (sending || isPaused) && "opacity-40 cursor-not-allowed"
+                  )}
+                >
+                  {isMuted
+                    ? <MicOff className="w-6 h-6 text-white/60" />
+                    : <Mic className="w-6 h-6 text-black" />}
+                </button>
+              )
+            ) : (
+              <div className="flex items-center gap-2 bg-white/10 rounded-full px-3 py-2 w-56">
+                <input
+                  type="text"
+                  className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/30"
+                  placeholder="Type your reply…"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
+                  disabled={sending || isPaused}
+                  autoFocus
+                />
+                <button
+                  onClick={() => sendMessage(input)}
+                  disabled={sending || !input.trim() || isPaused}
+                  className="w-8 h-8 rounded-full bg-violet-600 hover:bg-violet-500 disabled:opacity-40 flex items-center justify-center shrink-0 transition-all"
+                >
+                  {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin text-white" /> : <SendHorizontal className="w-3.5 h-3.5 text-white" />}
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => setShowEndModal(true)}
+              className="w-11 h-11 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center text-white shadow-xl shadow-red-500/30 transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <button
+          onClick={() => { setShowPersonaPanel((v) => !v); setShowNotesPanel(false); }}
+          className={cn(
+            "absolute right-8 w-12 h-12 rounded-full backdrop-blur-sm border flex items-center justify-center transition-all",
+            showPersonaPanel ? "bg-violet-600 border-violet-500 text-white" : "bg-white/10 border-white/15 text-white/70 hover:bg-white/20 hover:text-white"
+          )}
+        >
+          <BarChart2 className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* ── Listening hint ── */}
+      {isListening && (
+        <div className="absolute bottom-[7.5rem] left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/20 backdrop-blur-sm pointer-events-none">
+          <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+          <span className="text-red-400 text-[11px]">Listening — click mic to stop</span>
+        </div>
+      )}
+
+      {/* ── More menu ── */}
+      {showMoreMenu && (
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-40 bg-neutral-900/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl p-2 min-w-[190px] animate-in fade-in zoom-in-95 duration-150">
+          <button onClick={() => { isPaused ? resumeSession() : pauseSession(); setShowMoreMenu(false); }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/80 hover:bg-white/10 hover:text-white transition-colors">
+            {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+            {isPaused ? "Resume session" : "Pause session"}
+          </button>
+          <button onClick={() => { toggleSelfCam(); setShowMoreMenu(false); }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/80 hover:bg-white/10 hover:text-white transition-colors">
+            <User className="w-4 h-4" />
+            {selfCamEnabled ? "Turn camera off" : "Turn camera on"}
+          </button>
+        </div>
+      )}
+
+      {/* ── Pause overlay ── */}
+      {isPaused && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none">
+          <div className="text-center space-y-2">
+            <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center mx-auto">
+              <Pause className="w-8 h-8 text-white/80" />
+            </div>
+            <p className="text-white text-sm font-semibold">Session Paused</p>
+            <p className="text-white/40 text-xs">Timer is stopped</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Error toast ── */}
+      {sendError && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-xs backdrop-blur-sm">
+          {sendError}
+        </div>
+      )}
+
+      {/* ── Persona slide-out (right) ── */}
+      {showPersonaPanel && (
+        <div className="absolute inset-y-0 right-0 z-40 w-80 bg-neutral-950/95 backdrop-blur-md border-l border-white/10 flex flex-col animate-in slide-in-from-right duration-200">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+            <p className="text-sm font-semibold text-white">Buyer Intel</p>
+            <button onClick={() => setShowPersonaPanel(false)} className="text-white/40 hover:text-white transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
             {persona ? (
               <>
-                {/* Avatar placeholder + name */}
-                <div className="flex items-center gap-3 pt-1">
+                <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center shrink-0">
                     <User className="w-5 h-5 text-white" />
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm text-white truncate">{persona.name}</p>
-                    <p className="text-[11px] text-white/50 truncate">{persona.jobTitle}</p>
-                    <p className="text-[11px] text-white/40 truncate">{persona.company} · {persona.industry}</p>
+                  <div>
+                    <p className="font-semibold text-sm text-white">{persona.name}</p>
+                    <p className="text-[11px] text-white/50">{persona.jobTitle}</p>
+                    <p className="text-[11px] text-white/30">{persona.company}</p>
                   </div>
                 </div>
-
                 {state && (
                   <div className="space-y-4">
-                    {/* Trust */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between text-[11px] text-white/50">
                         <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Trust</span>
@@ -476,297 +678,61 @@ export default function SimulationCallPage() {
                       </div>
                       <TrustBar value={state.trust_level} />
                     </div>
-
-                    {/* Mood */}
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-white/50 flex items-center gap-1">
-                        <Brain className="w-3 h-3" /> Mood
-                      </span>
+                      <span className="text-[11px] text-white/50 flex items-center gap-1"><Brain className="w-3 h-3" /> Mood</span>
                       <MoodDot mood={state.buyer_mood} />
                     </div>
-
-                    {/* Facts */}
                     <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <p className="text-[10px] font-medium text-white/30 uppercase tracking-wider">Facts Discovered</p>
-                        <p className="text-[9px] text-white/20">AI-tracked</p>
-                      </div>
+                      <p className="text-[10px] font-medium text-white/30 uppercase tracking-wider">Facts Discovered</p>
                       <div className="rounded-xl border border-white/10 bg-white/5 divide-y divide-white/5">
                         {Object.entries(state.facts_discovered).map(([k, v]) => (
                           <div key={k} className="flex items-center justify-between px-3 py-2 text-[11px]">
                             <span className={cn("capitalize", v ? "text-white/70" : "text-white/30")}>{k.replace(/_/g, " ")}</span>
-                            {v ? (
-                              <span className="text-emerald-400 font-semibold text-[10px] flex items-center gap-0.5">
-                                <CheckCircle2 className="w-3 h-3" />
-                              </span>
-                            ) : (
-                              <Lock className="w-2.5 h-2.5 text-white/15" />
-                            )}
+                            {v ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <Lock className="w-2.5 h-2.5 text-white/15" />}
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
                 )}
-
-                {/* Personality */}
-                <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-1.5">
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-1">
                   <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">Personality</p>
                   <p className="text-[11px] text-white/50 leading-relaxed">{persona.personality}</p>
                 </div>
               </>
-            ) : (
-              <div className="flex items-center justify-center h-24 text-white/20 text-xs">No persona</div>
-            )}
+            ) : <p className="text-white/20 text-xs">No persona data</p>}
           </div>
         </div>
+      )}
 
-        {/* Center: Video + Chat */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-
-          {/* Avatar Video — large, centered */}
-          <div className="relative w-full bg-black shrink-0" style={{ maxHeight: "55%" }}>
-            <div className="aspect-video w-full max-h-full mx-auto relative overflow-hidden">
-              {avatarEnabled ? (
-                <>
-                  <video
-                    ref={heygenAttachVideo}
-                    autoPlay
-                    playsInline
-                    className="w-full h-full object-cover"
-                  />
-                  {(heygenStatus === "idle" || heygenStatus === "connecting") && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-neutral-950/80 backdrop-blur-sm">
-                      <Loader2 className="w-6 h-6 text-white/40 animate-spin" />
-                      <p className="text-white/40 text-xs">Connecting avatar…</p>
-                      <p className="text-white/20 text-[10px]">You can start typing while this loads</p>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-neutral-900">
-                  <div className="w-16 h-16 rounded-full bg-neutral-800 flex items-center justify-center">
-                    <VideoOff className="w-7 h-7 text-neutral-600" />
-                  </div>
-                  <p className="text-neutral-500 text-sm">Video off</p>
-                  {heygenStatus === "error" && (
-                    <p className="text-red-400/60 text-[10px] max-w-[200px] text-center leading-relaxed">
-                      Avatar connection failed.<br />Check console for details.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
-
-              {/* Self-view PiP */}
-              {selfCamEnabled && (
-                <div className="absolute bottom-3 right-3 z-30 w-28 sm:w-36 aspect-video rounded-xl overflow-hidden border-2 border-white/20 shadow-xl bg-black">
-                  <video
-                    ref={localVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover scale-x-[-1]"
-                  />
-                  <div className="absolute bottom-1 left-1.5">
-                    <p className="text-[9px] text-white/70 font-medium drop-shadow">You</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Pause overlay */}
-              {isPaused && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center">
-                      <Pause className="w-8 h-8 text-white/80" />
-                    </div>
-                    <div className="text-center space-y-1">
-                      <p className="text-white text-sm font-semibold">Session Paused</p>
-                      <p className="text-white/40 text-xs">Take your time. The timer is stopped.</p>
-                      <p className="text-white/60 text-xs font-mono mt-1">{formatTimer(elapsed)}</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      className="rounded-xl gap-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30"
-                      onClick={resumeSession}
-                    >
-                      <Play className="w-4 h-4" />
-                      Resume Session
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Bottom-left: buyer name */}
-              {persona && (
-                <div className="absolute bottom-3 left-4 flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center shrink-0">
-                    <User className="w-3.5 h-3.5 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-white text-xs font-semibold leading-none">{persona.name}</p>
-                    <p className="text-white/60 text-[10px] leading-none mt-0.5">{persona.jobTitle}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Bottom-right: status */}
-              <div className="absolute bottom-3 right-4 flex items-center gap-1.5">
-                {hasSpoken && !isListening && !isPaused && (
-                  <div className="flex items-center gap-1 rounded-full bg-red-500/80 px-2 py-0.5 backdrop-blur-sm">
-                    <MicOff className="w-2.5 h-2.5 text-white" />
-                    <span className="text-[9px] font-medium text-white">Muted</span>
-                  </div>
-                )}
-                <Badge className={cn(
-                  "text-[10px] border-0 font-medium",
-                  heygenStatus === "speaking"
-                    ? "bg-emerald-500/20 text-emerald-300"
-                    : heygenStatus === "connected"
-                    ? "bg-white/10 text-white/60"
-                    : heygenStatus === "connecting"
-                    ? "bg-amber-500/20 text-amber-300"
-                    : "bg-white/10 text-white/40"
-                )}>
-                  {heygenStatus === "speaking" ? "● Speaking" : heygenStatus === "connected" ? "● Ready" : heygenStatus === "connecting" ? "● Connecting…" : heygenStatus}
-                </Badge>
+      {/* ── Notes slide-out (left) ── */}
+      {showNotesPanel && (
+        <div className="absolute inset-y-0 left-0 z-40 w-80 bg-neutral-950/95 backdrop-blur-md border-r border-white/10 flex flex-col animate-in slide-in-from-left duration-200">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+            <div className="flex items-center gap-2">
+              <Pencil className="w-4 h-4 text-white/40" />
+              <p className="text-sm font-semibold text-white">Notes</p>
+            </div>
+            <button onClick={() => setShowNotesPanel(false)} className="text-white/40 hover:text-white transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex-1 flex flex-col p-5 gap-4 overflow-y-auto">
+            <Textarea
+              className="flex-1 min-h-[200px] resize-none rounded-xl text-xs bg-white/5 border-white/10 text-white/70 placeholder:text-white/20 focus-visible:ring-violet-500/50"
+              placeholder="Jot down objections, pain points, key moments..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+            {scenario?.context_note && (
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">Call Brief</p>
+                <p className="text-[11px] text-white/45 leading-relaxed">{scenario.context_note}</p>
               </div>
-            </div>
-          </div>
-
-          {/* Transcript */}
-          <ScrollArea className="flex-1 bg-neutral-950" ref={scrollRef}>
-            <div className="space-y-3 max-w-2xl mx-auto px-4 py-4">
-              {messages.length === 0 && (
-                <div className="text-center py-10 space-y-1">
-                  <p className="text-white/40 text-sm">The call has started. Say hello to begin.</p>
-                  {persona && (
-                    <p className="text-white/25 text-xs">You&apos;re speaking with {persona.name}, {persona.jobTitle} at {persona.company}.</p>
-                  )}
-                </div>
-              )}
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={cn(
-                    "flex flex-col gap-1",
-                    msg.role === "user" ? "items-end" : "items-start"
-                  )}
-                >
-                  <div className="flex items-center gap-1.5 text-[10px] text-white/30 px-1">
-                    {msg.role === "buyer" && persona && <span className="font-medium">{persona.name}</span>}
-                    {msg.role === "user" && <span className="font-medium">You</span>}
-                    {msg.emotion && (
-                      <Badge variant="outline" className="text-[10px] py-0 h-4 border-white/10 text-white/30">{msg.emotion}</Badge>
-                    )}
-                  </div>
-                  <div
-                    className={cn(
-                      "rounded-2xl px-4 py-2.5 text-sm max-w-[80%] leading-relaxed",
-                      msg.role === "user"
-                        ? "bg-violet-600 text-white rounded-br-sm"
-                        : "bg-neutral-800 text-white/85 rounded-bl-sm"
-                    )}
-                  >
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
-              {sending && (
-                <div className="flex items-start">
-                  <div className="bg-neutral-800 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white/40" />
-                    <span className="text-xs text-white/40">thinking…</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-
-          {/* Input */}
-          <div className="border-t border-white/10 p-3 bg-neutral-900/80 backdrop-blur shrink-0">
-            <div className="flex items-end gap-2 max-w-2xl mx-auto">
-              <Button
-                size="icon"
-                variant={isListening ? "destructive" : "ghost"}
-                className={cn(
-                  "rounded-full shrink-0 h-10 w-10",
-                  !isListening && "text-white/50 hover:text-white hover:bg-white/10"
-                )}
-                onClick={toggleMic}
-                disabled={sending || isPaused}
-              >
-                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-              </Button>
-              <Textarea
-                className="flex-1 min-h-[40px] max-h-[100px] resize-none rounded-xl text-sm py-2.5 bg-neutral-800 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-violet-500/50"
-                placeholder={isPaused ? "Session paused — click Resume to continue" : "Type your message or use the mic…"}
-                value={input}
-                onChange={(e) => { setInput(e.target.value); setSendError(null); }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage(input);
-                  }
-                }}
-                disabled={sending || isPaused}
-                rows={1}
-              />
-              <Button
-                size="icon"
-                className="rounded-full shrink-0 h-10 w-10 bg-violet-600 hover:bg-violet-500"
-                onClick={() => sendMessage(input)}
-                disabled={sending || !input.trim() || isPaused}
-              >
-                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <SendHorizontal className="w-4 h-4" />}
-              </Button>
-            </div>
-            {isPaused && (
-              <p className="text-center text-xs text-amber-400 mt-2 flex items-center justify-center gap-1">
-                <Pause className="w-3 h-3" />
-                Session paused — timer and microphone are off
-              </p>
-            )}
-            {isListening && !isPaused && (
-              <p className="text-center text-xs text-red-400 mt-2 flex items-center justify-center gap-1">
-                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse inline-block" />
-                Microphone active — speak to the avatar
-              </p>
-            )}
-            {sendError && (
-              <p className="text-center text-xs text-red-400 mt-2">
-                {sendError}
-              </p>
             )}
           </div>
         </div>
-
-        {/* Right Panel: Notes + Brief */}
-        <div className="hidden xl:flex flex-col w-64 xl:w-72 border-l border-white/10 bg-neutral-900/60 p-4 gap-4 overflow-y-auto">
-          <div className="flex items-center gap-2 text-[10px] font-medium text-white/30 uppercase tracking-wider">
-            <Pencil className="w-3.5 h-3.5" />
-            Notes
-          </div>
-          <Textarea
-            className="flex-1 min-h-[140px] resize-none rounded-xl text-sm bg-neutral-800 border-white/10 text-white/80 placeholder:text-white/25 focus-visible:ring-violet-500/50"
-            placeholder="Jot down objections, pain points, key moments…"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-          {scenario?.context_note && (
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-white/30">Call Brief</p>
-              <p className="text-[11px] text-white/45 leading-relaxed line-clamp-12">
-                {scenario.context_note}
-              </p>
-            </div>
-          )}
-        </div>
-
-      </div>
+      )}
 
       {/* End Session Modal */}
       {showEndModal && (
