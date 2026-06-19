@@ -22,6 +22,8 @@ import {
   Clock,
   TrendingUp,
   ChevronLeft,
+  MessageSquare,
+  AlertCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -122,7 +124,12 @@ function AnalysisContent() {
     });
 
     if (!res.ok) {
-      setError("Failed to generate analysis. Make sure the session has messages.");
+      let errMsg = "Failed to generate analysis.";
+      try {
+        const errData = await res.json();
+        if (errData.error) errMsg = errData.error;
+      } catch { /* ignore */ }
+      setError(errMsg);
       setGenerating(false);
       return;
     }
@@ -227,11 +234,29 @@ function AnalysisContent() {
 
   // Error state
   if (error) {
+    const noMessages = error.toLowerCase().includes("no messages");
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
-        <p className="text-sm font-medium text-red-500">{error}</p>
-        <Button variant="outline" size="sm" onClick={() => router.push("/analysis")} className="rounded-xl gap-1">
-          <ChevronLeft className="w-3.5 h-3.5" /> Back
+      <div className="flex flex-col items-center justify-center h-64 gap-4 text-center max-w-sm mx-auto">
+        <div className={cn(
+          "w-14 h-14 rounded-2xl flex items-center justify-center",
+          noMessages ? "bg-amber-500/10" : "bg-red-500/10"
+        )}>
+          {noMessages
+            ? <MessageSquare className="w-6 h-6 text-amber-500" />
+            : <AlertCircle className="w-6 h-6 text-red-500" />}
+        </div>
+        <div className="space-y-1">
+          <p className="text-sm font-semibold">
+            {noMessages ? "No conversation to analyse" : "Analysis failed"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {noMessages
+              ? "This session ended before any messages were exchanged. Start a simulation, have a conversation with the buyer, then end it to get your coaching report."
+              : error}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => router.push("/simulation")} className="rounded-xl gap-1">
+          {noMessages ? "Start a Simulation" : "Back to Analysis"}
         </Button>
       </div>
     );

@@ -1,11 +1,18 @@
 import { CustomPersona } from "@/types";
 import { SimulationState, BuyerResponse, SimulationMessage } from "@/types/simulation";
 
+interface SellerInfo {
+  name?: string;
+  position?: string;
+  company?: string;
+}
+
 function buildSystemPrompt(
   persona: CustomPersona,
   contextNote: string,
   sellerDescription: string,
-  state: SimulationState
+  state: SimulationState,
+  seller?: SellerInfo
 ): string {
   const discoveredFacts = Object.entries(state.facts_discovered)
     .filter(([, v]) => v)
@@ -32,6 +39,12 @@ Company: ${persona.company}
 Industry: ${persona.industry}
 Personality: ${persona.personality}
 Pain Points: ${persona.painPoints?.join(", ") || "unspecified"}
+Your Goals: ${persona.goals?.join(", ") || "not specified — prioritise cost control and risk reduction"}
+
+THE SALESPERSON:
+${seller?.name ? `Name: ${seller.name}` : "Name: unknown"}
+${seller?.position ? `Position: ${seller.position}` : ""}
+${seller?.company ? `Company: ${seller.company}` : ""}
 
 WHAT THE SALESPERSON IS SELLING:
 ${sellerDescription}
@@ -67,7 +80,8 @@ RESPONSE FORMAT — return ONLY valid JSON, no extra text:
 }`;
 }
 
-function buildFallbackResponse(userMessage: string): BuyerResponse {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function buildFallbackResponse(_userMessage: string): BuyerResponse {
   const fallbacks = [
     "Can you clarify what you mean by that?",
     "I'm not sure I follow. Can you be more specific?",
@@ -87,12 +101,13 @@ export async function processTurn(
   sellerDescription: string,
   state: SimulationState,
   recentMessages: SimulationMessage[],
-  userMessage: string
+  userMessage: string,
+  seller?: SellerInfo
 ): Promise<BuyerResponse> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
 
-  const systemPrompt = buildSystemPrompt(persona, contextNote, sellerDescription, state);
+  const systemPrompt = buildSystemPrompt(persona, contextNote, sellerDescription, state, seller);
 
   const chatHistory = recentMessages.slice(-20).map((m) => ({
     role: m.role === "user" ? ("user" as const) : ("assistant" as const),

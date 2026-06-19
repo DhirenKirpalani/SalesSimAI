@@ -38,7 +38,8 @@ interface SimSession {
 }
 
 function formatDuration(start: string, end: string | null): string {
-  const ms = (end ? new Date(end) : new Date()).getTime() - new Date(start).getTime();
+  if (!end) return "—";
+  const ms = new Date(end).getTime() - new Date(start).getTime();
   const mins = Math.floor(ms / 60000);
   if (mins < 1) return "< 1 min";
   if (mins < 60) return `${mins} min`;
