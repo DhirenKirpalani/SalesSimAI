@@ -28,6 +28,7 @@ function HeyGenTestInner() {
   const [error, setError] = useState<string | null>(null);
   const [micOn, setMicOn] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+  const [resolvedScenarioName, setResolvedScenarioName] = useState<string | null>(null);
 
   const addLog = useCallback((msg: string, color?: string) => {
     const entry = color ? `${color}${msg}` : msg;
@@ -51,8 +52,11 @@ function HeyGenTestInner() {
 
       const info: SessionInfo = json;
       sessionRef.current = info;
+      if (info.scenario_name && info.scenario_name !== "LiveAvatar Test") {
+        setResolvedScenarioName(info.scenario_name);
+        addLog(`📋 Scenario: ${info.scenario_name}`);
+      }
       addLog(`✅ Session: ${info.session_id}`);
-      if (info.scenario_name && info.scenario_name !== "LiveAvatar Test") addLog(`📋 Scenario: ${info.scenario_name}`);
       addLog(info.llm_config_id ? `✅ LLM config: ${info.llm_config_id}` : "⚠️ No LLM config (localhost — avatar won't respond)");
 
       const room = new Room();
@@ -237,7 +241,7 @@ function HeyGenTestInner() {
       <div className="flex items-center justify-between">
         <div>
         <h1 className="text-2xl font-bold">LiveAvatar Test</h1>
-        {scenarioId && <p className="text-sm text-gray-400 mt-0.5">Scenario: {sessionRef.current?.scenario_name ?? scenarioId}</p>}
+        {scenarioId && <p className="text-sm text-gray-400 mt-0.5">Scenario: {resolvedScenarioName ?? scenarioId}</p>}
       </div>
         <span className={`text-xs px-3 py-1 rounded-full font-medium ${
           status === "connected" ? "bg-green-700" :

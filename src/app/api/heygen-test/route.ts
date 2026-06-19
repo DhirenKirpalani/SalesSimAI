@@ -13,10 +13,10 @@ import { CustomScenario, CustomPersona } from "@/types";
 import { mockPersonas } from "@/lib/data/mockData";
 
 function serviceSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  console.log("[heygen-test] supabase key type:", process.env.SUPABASE_SERVICE_ROLE_KEY ? "service_role" : "anon (fallback)");
+  return createClient(url, key);
 }
 
 function buildPersonaPrompt(scenario: CustomScenario, persona: CustomPersona | null): string {
