@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
         scenario_table: scenarioTable,
         status: "active",
         state: {
-          trust_level: 50,
+          trust_level: 30,
           buyer_mood: 0,
           stage: "opening",
           facts_discovered: {
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
             current_solution: false,
           },
           objections_used: [],
-          engagement_level: 50,
+          engagement_level: 30,
         },
       })
       .select()

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { StatCard } from "@/components/cards/StatCard";
 import { PerformanceChart } from "@/components/charts/PerformanceChart";
@@ -32,8 +32,8 @@ interface RawSession {
 }
 
 function sessionDurationMins(s: RawSession): number {
-  const end = s.ended_at ? new Date(s.ended_at) : new Date();
-  return Math.round((end.getTime() - new Date(s.started_at).getTime()) / 60000);
+  if (!s.ended_at) return 0;
+  return Math.max(0, Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000));
 }
 
 function formatTrainingTime(mins: number): string {
@@ -74,43 +74,48 @@ export default function DashboardPage() {
   const [sessions, setSessions] = useState<RawSession[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
 
-    const { data: raw } = await supabase
-      .from("simulation_sessions")
-      .select("id, scenario_id, scenario_table, status, state, started_at, ended_at")
-      .eq("user_id", user.id)
-      .order("started_at", { ascending: false });
+      const { data: raw } = await supabase
+        .from("simulation_sessions")
+        .select("id, scenario_id, scenario_table, status, state, started_at, ended_at")
+        .eq("user_id", user.id)
+        .order("started_at", { ascending: false });
 
-    if (!raw?.length) { setSessions([]); setLoading(false); return; }
+      if (!raw?.length) { if (!cancelled) { setSessions([]); setLoading(false); } return; }
 
-    const byTable: Record<string, string[]> = {};
-    for (const s of raw) (byTable[s.scenario_table] ??= []).push(s.scenario_id);
+      const byTable: Record<string, string[]> = {};
+      for (const s of raw) (byTable[s.scenario_table] ??= []).push(s.scenario_id);
 
-    const nameMap: Record<string, string> = {};
-    for (const [table, ids] of Object.entries(byTable)) {
-      const { data: sc } = await supabase.from(table).select("id, name").in("id", ids);
-      for (const row of sc ?? []) nameMap[row.id] = row.name;
-    }
+      const nameMap: Record<string, string> = {};
+      for (const [table, ids] of Object.entries(byTable)) {
+        const { data: sc } = await supabase.from(table).select("id, name").in("id", ids);
+        for (const row of sc ?? []) nameMap[row.id] = row.name;
+      }
 
-    setSessions(raw.map((s) => ({ ...s, scenario_name: nameMap[s.scenario_id] ?? "Unknown" })));
-    setLoading(false);
+      if (!cancelled) {
+        setSessions(raw.map((s) => ({ ...s, scenario_name: nameMap[s.scenario_id] ?? "Unknown" })));
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => { load(); }, [load]);
-
-  const completed = sessions.filter((s) => s.status === "completed").length;
-  const allTrust = sessions.map((s) => s.state.trust_level);
-  const avgTrust = allTrust.length ? Math.round(allTrust.reduce((a, b) => a + b, 0) / allTrust.length) : 0;
-  const bestTrust = allTrust.length ? Math.max(...allTrust) : 0;
-  const totalMins = sessions.reduce((sum, s) => sum + sessionDurationMins(s), 0);
+  const completedSessions = sessions.filter((s) => s.status === "completed");
+  const completed = completedSessions.length;
+  const completedTrust = completedSessions.map((s) => s.state.trust_level);
+  const avgTrust = completedTrust.length ? Math.round(completedTrust.reduce((a, b) => a + b, 0) / completedTrust.length) : 0;
+  const bestTrust = completedTrust.length ? Math.max(...completedTrust) : 0;
+  const totalMins = completedSessions.reduce((sum, s) => sum + sessionDurationMins(s), 0);
   const recent = sessions.slice(0, 6);
-  const trendData = buildTrendData([...sessions].reverse());
-  const distData = buildDistData(sessions);
+  const trendData = buildTrendData([...completedSessions].reverse());
+  const distData = buildDistData(completedSessions);
 
   if (loading) {
     return (

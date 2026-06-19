@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { createClient } from "@/lib/supabase/client";
-import { Moon, Bell, Mail, Shield, User, Loader2, Check, AlertCircle, Briefcase } from "lucide-react";
+import { Moon, Bell, Mail, User, Loader2, Check, AlertCircle, Briefcase } from "lucide-react";
 
 interface Profile {
   full_name: string | null;

@@ -28,7 +28,7 @@ const baseNavItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const { isAdmin, loading } = useRole();
+  const { isAdmin } = useRole();
 
   const navItems = isAdmin
     ? [...baseNavItems, { label: "Admin", href: "/admin", icon: ShieldCheck }]

@@ -200,16 +200,17 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
                     <span className="font-medium text-foreground">{label}:</span> {value}
                   </p>
                 ))}
-                {scenario.custom_persona?.painPoints && scenario.custom_persona.painPoints.length > 0 && (
-                  <div className="pt-1">
-                    <p className="text-xs font-medium text-foreground mb-1">Pain points:</p>
-                    <ul className="list-disc list-inside text-xs text-muted-foreground space-y-0.5">
-                      {scenario.custom_persona.painPoints.map((p, i) => (
-                        <li key={i}>{p}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                {(() => {
+                  const pts = scenario.custom_persona?.painPoints ?? presetPersona?.painPoints;
+                  return pts && pts.length > 0 ? (
+                    <div className="pt-1">
+                      <p className="text-xs font-medium text-foreground mb-1">Pain points:</p>
+                      <ul className="list-disc list-inside text-xs text-muted-foreground space-y-0.5">
+                        {pts.map((p, i) => <li key={i}>{p}</li>)}
+                      </ul>
+                    </div>
+                  ) : null;
+                })()}
               </div>
             </div>
 

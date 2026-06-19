@@ -10,11 +10,17 @@ function headers() {
 }
 
 async function handleResponse(res: Response, label: string) {
+  const text = await res.text();
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`LiveAvatar ${label} failed (${res.status}): ${text}`);
+    // Strip HTML error pages to a clean message
+    const clean = text.startsWith("<!") ? `HTTP ${res.status} — LiveAvatar returned an HTML error page (check API key / avatar ID / account limits)` : text;
+    throw new Error(`LiveAvatar ${label} failed (${res.status}): ${clean}`);
   }
-  return res.json();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`LiveAvatar ${label}: unexpected non-JSON response — ${text.slice(0, 200)}`);
+  }
 }
 
 export interface LiveAvatarContextOptions {
@@ -76,7 +82,7 @@ export async function createSessionToken(
       ...(options.voice_id && { voice_id: options.voice_id }),
       ...(options.context_id && { context_id: options.context_id }),
     },
-    mode: "FULL",
+    mode: "CUSTOM",
     is_sandbox: options.is_sandbox ?? false,
     video_settings: {
       quality: options.quality ?? "low",
@@ -131,7 +137,9 @@ export async function startSession(
 // Speaking is done via the ws_url WebSocket returned by startSession (PUSH_TO_TALK mode)
 // or via the LiveKit data channel. This function is intentionally a no-op.
 export async function speakText(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _session_id: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _text: string
 ): Promise<void> {
   // Speech is handled client-side via ws_url / LiveKit — see useHeyGen.ts

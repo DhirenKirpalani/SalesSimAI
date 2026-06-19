@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createSessionToken, createLiveAvatarContext } from "@/lib/heygen";
 import { CustomScenario, CustomPersona } from "@/types";
+import { mockPersonas } from "@/lib/data/mockData";
 
-function buildPersonaPrompt(scenario: CustomScenario): { prompt: string; opening_text: string } {
-  const persona: CustomPersona | null = scenario.custom_persona;
+function buildPersonaPrompt(scenario: CustomScenario, resolvedPersona?: CustomPersona | null): { prompt: string; opening_text: string } {
+  const persona: CustomPersona | null = resolvedPersona ?? scenario.custom_persona;
 
   const name = persona?.name ?? "the buyer";
   const role = persona?.jobTitle ?? "Decision Maker";
@@ -71,10 +72,28 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (scenario) {
-        const { prompt, opening_text } = buildPersonaPrompt(scenario as CustomScenario);
+        // Resolve persona: custom > preset > undefined (buildPersonaPrompt handles null)
+        let resolvedPersona: CustomPersona | null = scenario.custom_persona ?? null;
+        if (!resolvedPersona && scenario.preset_persona_id) {
+          const preset = mockPersonas.find((p) => p.id === scenario.preset_persona_id);
+          if (preset) {
+            resolvedPersona = {
+              name: preset.name,
+              jobTitle: preset.jobTitle,
+              company: preset.company,
+              industry: preset.industry,
+              personality: preset.personality,
+              painPoints: preset.painPoints,
+              goals: preset.goals,
+            };
+          }
+        }
+
+        const { prompt, opening_text } = buildPersonaPrompt(scenario as CustomScenario, resolvedPersona);
+        const personaName = resolvedPersona?.name ?? "Buyer";
         try {
           contextId = await createLiveAvatarContext({
-            name: `${scenario.name} — ${scenario.custom_persona?.name ?? "Buyer"}`,
+            name: `${scenario.name} — ${personaName}`,
             prompt,
             opening_text,
           });

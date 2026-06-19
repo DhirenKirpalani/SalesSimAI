@@ -93,6 +93,7 @@ export interface CustomPersona {
   industry: string;
   personality: string;
   painPoints: string[];
+  goals?: string[];
 }
 
 export interface CustomScenario {

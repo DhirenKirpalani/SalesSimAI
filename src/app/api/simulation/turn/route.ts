@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { processTurn, applyStateUpdates } from "@/lib/buyer-brain";
 import { CustomPersona } from "@/types";
 import { SimulationState } from "@/types/simulation";
+import { mockPersonas } from "@/lib/data/mockData";
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,14 +19,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: session, error: sessionError } = await supabase
-      .from("simulation_sessions")
-      .select("*")
-      .eq("id", sessionId)
-      .eq("user_id", user.id)
-      .single();
+    const [{ data: session, error: sessionError }, { data: profile }] = await Promise.all([
+      supabase.from("simulation_sessions").select("*").eq("id", sessionId).eq("user_id", user.id).single(),
+      supabase.from("profiles").select("full_name, position, company").eq("id", user.id).single(),
+    ]);
 
     if (sessionError || !session) {
+      console.error("[simulation/turn] session not found:", sessionError);
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
@@ -35,17 +35,45 @@ export async function POST(req: NextRequest) {
 
     const { data: scenario, error: scenarioError } = await supabase
       .from(session.scenario_table)
-      .select("custom_persona, context_note, seller_description")
+      .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product")
       .eq("id", session.scenario_id)
       .single();
 
     if (scenarioError || !scenario) {
+      console.error("[simulation/turn] scenario not found:", scenarioError);
       return NextResponse.json({ error: "Scenario not found" }, { status: 404 });
     }
 
-    const persona = scenario.custom_persona as CustomPersona;
+    // Resolve persona: custom > preset > graceful fallback
+    let persona: CustomPersona = scenario.custom_persona as CustomPersona;
+
+    if (!persona && scenario.preset_persona_id) {
+      const preset = mockPersonas.find((p) => p.id === scenario.preset_persona_id);
+      if (preset) {
+        persona = {
+          name: preset.name,
+          jobTitle: preset.jobTitle,
+          company: preset.company,
+          industry: preset.industry,
+          personality: preset.personality,
+          painPoints: preset.painPoints,
+          goals: preset.goals,
+        };
+        console.log("[simulation/turn] Resolved preset persona:", preset.name);
+      }
+    }
+
     if (!persona) {
-      return NextResponse.json({ error: "Scenario has no persona configured" }, { status: 400 });
+      // Graceful fallback — build a generic buyer from scenario context
+      persona = {
+        name: "Alex Buyer",
+        jobTitle: "VP of Operations",
+        company: scenario.seller_company ?? "a mid-market company",
+        industry: "Technology",
+        personality: "analytical, skeptical, busy",
+        painPoints: ["efficiency", "cost control", "vendor reliability"],
+      };
+      console.warn("[simulation/turn] No persona found — using fallback for scenario", session.scenario_id);
     }
 
     const { data: recentMessages } = await supabase
@@ -58,14 +86,31 @@ export async function POST(req: NextRequest) {
     const messages = recentMessages ?? [];
     const state = session.state as SimulationState;
 
+    // Build a rich context note: call type + seller info + optional backstory
+    const contextParts: string[] = [];
+    if (scenario.scenario_type) contextParts.push(`Call type: ${scenario.scenario_type}`);
+    if (scenario.seller_company) contextParts.push(`Selling company: ${scenario.seller_company}`);
+    if (scenario.seller_product) contextParts.push(`Product: ${scenario.seller_product}`);
+    if (scenario.context_note) contextParts.push(`Backstory: ${scenario.context_note}`);
+    const richContextNote = contextParts.join("\n");
+
+    const sellerInfo = {
+      name: profile?.full_name ?? undefined,
+      position: profile?.position ?? undefined,
+      company: profile?.company ?? undefined,
+    };
+
+    console.log("[simulation/turn] calling buyer-brain…", { sessionId, msgCount: messages.length, trust: state.trust_level, persona: persona.name, seller: sellerInfo.name });
     const buyerResponse = await processTurn(
       persona,
-      scenario.context_note ?? "",
+      richContextNote,
       scenario.seller_description ?? "",
       state,
       messages,
-      message.trim()
+      message.trim(),
+      sellerInfo
     );
+    console.log("[simulation/turn] buyer-brain response:", buyerResponse.message.slice(0, 100));
 
     const newState = applyStateUpdates(state, buyerResponse.state_updates, messages.length + 1);
 
@@ -97,6 +142,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[simulation/turn]", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal server error" }, { status: 500 });
   }
 }

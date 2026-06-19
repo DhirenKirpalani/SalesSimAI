@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useMemo } from "react";
 import { HeyGenConnectionStatus } from "@/types/simulation";
 
 interface UseHeyGenOptions {
@@ -30,8 +30,8 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
   ) => {
     try {
       setStatus("connecting");
+      console.log("[useHeyGen] Step 1: requesting session token…", { simulationSessionId, avatarId, voiceId, scenarioId, scenarioTable });
 
-      // Step 1: server creates LiveAvatar session token (X-API-KEY auth)
       const newRes = await fetch("/api/simulation/heygen/new", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -45,27 +45,40 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
         }),
       });
 
-      if (!newRes.ok) throw new Error(await newRes.text());
-      const { session_id, session_token } = await newRes.json();
+      if (!newRes.ok) {
+        const errText = await newRes.text();
+        console.error("[useHeyGen] Step 1 failed:", newRes.status, errText);
+        throw new Error(`heygen/new failed (${newRes.status}): ${errText}`);
+      }
+      const newJson = await newRes.json();
+      console.log("[useHeyGen] Step 1 OK:", newJson);
+      const { session_id, session_token } = newJson;
 
       heygenSessionIdRef.current = session_id;
       setSessionId(session_id);
 
-      // Step 2: start session (Bearer session_token auth) → get LiveKit credentials
+      console.log("[useHeyGen] Step 2: starting session…");
       const connectRes = await fetch("/api/simulation/heygen/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_token }),
       });
 
-      if (!connectRes.ok) throw new Error(await connectRes.text());
+      if (!connectRes.ok) {
+        const errText = await connectRes.text();
+        console.error("[useHeyGen] Step 2 failed:", connectRes.status, errText);
+        throw new Error(`heygen/connect failed (${connectRes.status}): ${errText}`);
+      }
 
-      const { livekit_url, livekit_client_token, ws_url } = await connectRes.json();
+      const connectJson = await connectRes.json();
+      console.log("[useHeyGen] Step 2 OK:", connectJson);
+      const { livekit_url, livekit_client_token, ws_url } = connectJson;
 
-      // Step 3: connect to LiveKit room using @livekit/client
       if (!livekit_url || !livekit_client_token) {
+        console.error("[useHeyGen] Missing LiveKit credentials:", { livekit_url, livekit_client_token });
         throw new Error("Missing LiveKit credentials from LiveAvatar");
       }
+      console.log("[useHeyGen] Step 3: connecting LiveKit…", { livekit_url, hasToken: !!livekit_client_token, ws_url });
 
       const { Room, RoomEvent, Track } = await import("livekit-client");
 
@@ -75,35 +88,54 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
       });
       roomRef.current = room;
 
-      room.on(RoomEvent.TrackSubscribed, (track: { kind: string; attach: (el?: HTMLElement) => HTMLVideoElement | HTMLAudioElement }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      room.on(RoomEvent.TrackSubscribed, (track: any) => {
+        console.log("[useHeyGen] TrackSubscribed:", track.kind);
         if (track.kind === Track.Kind.Video) {
           if (videoRef.current) {
             track.attach(videoRef.current);
+            console.log("[useHeyGen] Video attached to ref");
           } else {
             pendingVideoTrackRef.current = track;
+            console.log("[useHeyGen] Video pending (ref not ready)");
           }
         } else if (track.kind === Track.Kind.Audio) {
           const audioEl = track.attach() as HTMLAudioElement;
           audioEl.play().catch(() => {});
           document.body.appendChild(audioEl);
+          console.log("[useHeyGen] Audio attached");
         }
       });
 
+      room.on(RoomEvent.Connected, () => {
+        console.log("[useHeyGen] LiveKit room connected");
+      });
+
       room.on(RoomEvent.Disconnected, () => {
+        console.warn("[useHeyGen] LiveKit disconnected");
         setStatus("stopped");
         options.onDisconnected?.();
       });
 
+      room.on(RoomEvent.ConnectionStateChanged, (state) => {
+        console.log("[useHeyGen] LiveKit state:", state);
+      });
+
       await room.connect(livekit_url, livekit_client_token);
+      console.log("[useHeyGen] LiveKit connect() resolved");
       setStatus("connected");
       options.onConnected?.();
 
-      // Step 4: connect to ws_url for PUSH_TO_TALK speak commands (if provided)
+      // Step 4: connect to ws_url for PUSH_TO_TALK speak commands
       if (ws_url) {
+        console.log("[useHeyGen] Step 4: opening ws_url…", ws_url);
         const ws = new WebSocket(ws_url);
         wsRef.current = ws;
-        ws.onclose = () => { wsRef.current = null; };
+        ws.onopen = () => console.log("[useHeyGen] WebSocket open");
+        ws.onclose = () => { wsRef.current = null; console.log("[useHeyGen] WebSocket closed"); };
         ws.onerror = (e) => console.warn("[useHeyGen] ws error:", e);
+      } else {
+        console.warn("[useHeyGen] No ws_url returned — avatar speech may not work");
       }
 
     } catch (err) {
@@ -117,15 +149,18 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
   const speak = useCallback(async (text: string) => {
     if (!heygenSessionIdRef.current) return;
     setStatus("speaking");
+    console.log("[useHeyGen] speak():", text.slice(0, 60));
 
-    // Send via WebSocket (PUSH_TO_TALK ws_url) if connected
+    // 1. Send via WebSocket (PUSH_TO_TALK ws_url)
     if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log("[useHeyGen] Sending via WebSocket");
       wsRef.current.send(JSON.stringify({ type: "speak", text }));
       setStatus("connected");
       return;
     }
 
-    // Fallback: send via server-side API route
+    // 2. Fallback: server-side API route
+    console.log("[useHeyGen] Falling back to REST speak route");
     try {
       await fetch("/api/simulation/heygen/speak", {
         method: "POST",
@@ -142,17 +177,14 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
   }, []);
 
   const stop = useCallback(async () => {
-    // Close WebSocket
     wsRef.current?.close();
     wsRef.current = null;
 
-    // Disconnect LiveKit room
     if (roomRef.current) {
       await roomRef.current.disconnect();
       roomRef.current = null;
     }
 
-    // Tell backend to stop the LiveAvatar session
     if (heygenSessionIdRef.current) {
       try {
         await fetch("/api/simulation/heygen/stop", {
@@ -178,12 +210,12 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
     }
   }, []);
 
-  return {
+  return useMemo(() => ({
     status,
     sessionId,
     initialize,
     speak,
     stop,
     attachVideo,
-  };
+  }), [status, sessionId, initialize, speak, stop, attachVideo]);
 }

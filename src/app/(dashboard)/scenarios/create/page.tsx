@@ -108,19 +108,10 @@ function loadFromStorage(): { step: number; form: FormState } | null {
 export default function CreateScenarioPage() {
   const router = useRouter();
 
-  const [step, setStep] = useState(1);
-  const [form, setForm] = useState<FormState>(INITIAL);
+  const [step, setStep] = useState(() => loadFromStorage()?.step ?? 1);
+  const [form, setForm] = useState<FormState>(() => loadFromStorage()?.form ?? INITIAL);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
-  // Load persisted state on mount
-  useEffect(() => {
-    const stored = loadFromStorage();
-    if (stored) {
-      setStep(stored.step);
-      setForm(stored.form);
-    }
-  }, []);
 
   // Persist state whenever step or form changes
   useEffect(() => {
@@ -235,7 +226,7 @@ export default function CreateScenarioPage() {
                   <Building2 className="w-4 h-4 text-primary" />
                   Tell us about your company
                 </CardTitle>
-                <p className="text-xs text-muted-foreground">This becomes the context the AI buyer understands — what you're selling and why it matters.</p>
+                <p className="text-xs text-muted-foreground">This becomes the context the AI buyer understands — what you&apos;re selling and why it matters.</p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
