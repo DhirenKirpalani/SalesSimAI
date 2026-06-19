@@ -54,8 +54,18 @@ export async function POST(req: NextRequest) {
     // Use system message from LiveAvatar (set from our context/persona prompt) if present
     const incomingSystem = messages.find((m) => m.role === "system");
     const systemContent = incomingSystem?.content?.trim() || SYSTEM_PROMPT;
-    console.log("[heygen-test/llm] user:", lastUser.content.slice(0, 80));
-    console.log("[heygen-test/llm] system source:", incomingSystem ? "LiveAvatar context" : "fallback generic");
+
+    console.log("[heygen-test/llm] ── INCOMING REQUEST ─────────────────────────────");
+    console.log("[heygen-test/llm] total messages:", messages.length);
+    console.log("[heygen-test/llm] system source:", incomingSystem ? "✅ LiveAvatar context (persona prompt)" : "⚠️  fallback generic (no context set)");
+    if (incomingSystem) {
+      console.log("[heygen-test/llm] ── SYSTEM PROMPT FROM LIVEAVATAR ──────────────");
+      console.log(incomingSystem.content);
+      console.log("[heygen-test/llm] ───────────────────────────────────────────────");
+    }
+    console.log("[heygen-test/llm] user says:", lastUser.content);
+    const history = messages.filter((m) => m.role === "user" || m.role === "assistant");
+    console.log("[heygen-test/llm] conversation turns so far:", history.length);
 
     const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
