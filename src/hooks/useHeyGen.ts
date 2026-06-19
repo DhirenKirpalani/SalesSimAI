@@ -25,6 +25,8 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pendingVideoTrackRef = useRef<any>(null);
   const heygenSessionIdRef = useRef<string | null>(null);
+  const speakQueueRef = useRef<string[]>([]);
+  const speakingRef = useRef(false);
 
   const [status, setStatus] = useState<HeyGenConnectionStatus>("idle");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -200,6 +202,12 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
         const eid = nextEventId();
         ws.send(JSON.stringify({ type: "agent.speak_end", event_id: eid }));
         console.log(`[useHeyGen:TTS] ✅ ${chunkCount} chunk(s) + agent.speak_end (${eid})`);
+
+        // Wait for avatar to finish speaking before returning — prevents mic from
+        // picking up avatar audio (echo loop). PCM: 24 kHz × 16-bit = 48000 bytes/sec.
+        const playbackMs = Math.ceil((pcmBuffer.byteLength / 48000) * 1000) + 600;
+        console.log(`[useHeyGen:TTS] waiting ${playbackMs}ms for playback to finish`);
+        await new Promise((r) => setTimeout(r, playbackMs));
       } else {
         console.warn("[useHeyGen:TTS] WS not open — readyState:", ws?.readyState ?? "none");
       }
@@ -289,16 +297,36 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
     }
   }, []);
 
+  // Drain the sentence queue — plays each sentence in order, waiting for playback
+  const drainQueue = useCallback(async () => {
+    if (speakingRef.current) return;
+    speakingRef.current = true;
+    setStatus("speaking");
+    while (speakQueueRef.current.length > 0) {
+      const sentence = speakQueueRef.current.shift()!;
+      await speakOpenAI(sentence);
+    }
+    speakingRef.current = false;
+    setStatus("connected");
+  }, [speakOpenAI]);
+
+  // Enqueue a sentence and trigger drain (for low-latency streaming pipeline)
+  const speakQueued = useCallback((text: string) => {
+    speakQueueRef.current.push(text);
+    drainQueue();
+  }, [drainQueue]);
+
   return useMemo(() => ({
     status,
     sessionId,
     avatarMode,
     initialize,
     speak,
+    speakQueued,
     stop,
     attachVideo,
     sendListening,
     pttStart,
     pttStop,
-  }), [status, sessionId, avatarMode, initialize, speak, stop, attachVideo, sendListening, pttStart, pttStop]);
+  }), [status, sessionId, avatarMode, initialize, speak, speakQueued, stop, attachVideo, sendListening, pttStart, pttStop]);
 }
