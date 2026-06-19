@@ -17,7 +17,7 @@ export async function POST() {
     let contextId: string | undefined;
     try {
       contextId = await createLiveAvatarContext({
-        name: "LiveAvatar Test",
+        name: `Test-${Date.now()}`,
         prompt: "You are a friendly assistant. Answer questions naturally and concisely.",
         opening_text: "Hi there! I'm your LiveAvatar test. Go ahead and talk to me.",
       });
