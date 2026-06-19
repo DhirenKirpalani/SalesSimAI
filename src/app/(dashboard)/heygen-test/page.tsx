@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Room, RoomEvent, Track } from "livekit-client";
 
@@ -14,7 +14,7 @@ interface SessionInfo {
   scenario_name: string;
 }
 
-export default function HeyGenTestPage() {
+function HeyGenTestInner() {
   const searchParams = useSearchParams();
   const scenarioId = searchParams.get("scenarioId") ?? undefined;
   const scenarioTable = searchParams.get("scenarioTable") ?? undefined;
@@ -298,5 +298,13 @@ export default function HeyGenTestPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function HeyGenTestPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
+      <HeyGenTestInner />
+    </Suspense>
   );
 }
