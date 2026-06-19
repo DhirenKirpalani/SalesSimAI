@@ -81,15 +81,26 @@ function HeyGenTestInner() {
           const text = new TextDecoder().decode(data);
           let parsed: Record<string, unknown> = {};
           try { parsed = JSON.parse(text); } catch { /* binary */ return; }
-          const evType = parsed.event_type as string ?? "";
-          if (evType.startsWith("agent.")) {
-            addLog(`🤖 AGENT: ${evType} — ${JSON.stringify(parsed).slice(0, 120)}`);
+          const evType = (parsed.event_type as string) ?? "";
+
+          if (evType === "avatar.speak_started") {
+            addLog(`🤖 AVATAR speaking…`);
+          } else if (evType === "avatar.speak_ended") {
+            addLog(`🤖 AVATAR done speaking`);
+          } else if (evType === "avatar.transcription") {
+            addLog(`🤖 Avatar said: "${parsed.text ?? parsed.message ?? JSON.stringify(parsed).slice(0, 80)}"`);
+          } else if (evType === "avatar.transcription.chunk") {
+            // suppress chunks — they're noisy; transcription event has the full text
+          } else if (evType.startsWith("agent.")) {
+            addLog(`🤖 ${evType}`);
           } else if (evType === "user.transcription") {
             addLog(`🎙️ You said: "${parsed.text}"`);
           } else if (evType.startsWith("user.")) {
             addLog(`👤 ${evType}`);
+          } else if (evType) {
+            addLog(`📦 ${evType}: ${JSON.stringify(parsed).slice(0, 80)}`);
           } else {
-            addLog(`📦 ${participant?.identity}: ${text.slice(0, 100)}`);
+            addLog(`📦 ${participant?.identity}: ${text.slice(0, 80)}`);
           }
         } catch { /* ignore */ }
       });
