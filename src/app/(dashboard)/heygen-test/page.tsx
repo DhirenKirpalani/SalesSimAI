@@ -21,12 +21,19 @@ interface TranscriptEntry {
 }
 
 interface FeedbackResult {
-  score: number;
-  summary: string;
-  wentWell: string[];
-  missed: string[];
-  objections: string[];
-  tip: string;
+  overall_score: number;
+  breakdown: {
+    metrics: number;
+    economic_buyer: number;
+    decision_criteria: number;
+    decision_process: number;
+    identify_pain: number;
+    champion: number;
+  };
+  strengths: string[];
+  weaknesses: string[];
+  missed_opportunities: string[];
+  coaching_recommendations: string[];
 }
 
 function HeyGenTestInner() {
@@ -414,41 +421,73 @@ function HeyGenTestInner() {
 
       {/* Post-call Feedback */}
       {(feedbackLoading || feedback) && (
-        <div className="max-w-4xl mx-auto w-full bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col gap-4">
+        <div className="max-w-4xl mx-auto w-full bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col gap-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-lg">Call Feedback</h2>
+            <h2 className="font-semibold text-lg">MEDDIC Analysis</h2>
             {feedback && (
               <span className={`text-2xl font-bold ${
-                feedback.score >= 70 ? "text-green-400" : feedback.score >= 40 ? "text-yellow-400" : "text-red-400"
-              }`}>{feedback.score}<span className="text-base text-gray-500">/100</span></span>
+                feedback.overall_score >= 70 ? "text-green-400" : feedback.overall_score >= 40 ? "text-yellow-400" : "text-red-400"
+              }`}>{feedback.overall_score}<span className="text-base text-gray-500">/100</span></span>
             )}
           </div>
-          {feedbackLoading && <p className="text-gray-400 text-sm animate-pulse">Analyzing your call…</p>}
+          {feedbackLoading && <p className="text-gray-400 text-sm animate-pulse">Analyzing your call with MEDDIC framework…</p>}
           {feedback && (
             <>
-              <p className="text-gray-300 text-sm">{feedback.summary}</p>
-              {feedback.wentWell?.length > 0 && (
-                <div>
-                  <p className="text-xs text-green-400 font-semibold uppercase tracking-wide mb-1.5">✅ What went well</p>
-                  {feedback.wentWell.map((w, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {w}</p>)}
+              {/* MEDDIC Breakdown Grid */}
+              {feedback.breakdown && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {([
+                    { key: "metrics", label: "Metrics" },
+                    { key: "economic_buyer", label: "Economic Buyer" },
+                    { key: "decision_criteria", label: "Decision Criteria" },
+                    { key: "decision_process", label: "Decision Process" },
+                    { key: "identify_pain", label: "Identify Pain" },
+                    { key: "champion", label: "Champion" },
+                  ] as { key: keyof FeedbackResult["breakdown"]; label: string }[]).map(({ key, label }) => {
+                    const val = feedback.breakdown[key];
+                    return (
+                      <div key={key} className="bg-gray-800/60 rounded-xl p-3 flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-gray-400 font-medium">{label}</span>
+                          <span className={`text-sm font-bold ${
+                            val >= 70 ? "text-green-400" : val >= 40 ? "text-yellow-400" : "text-red-400"
+                          }`}>{val}</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              val >= 70 ? "bg-green-500" : val >= 40 ? "bg-yellow-500" : "bg-red-500"
+                            }`}
+                            style={{ width: `${val}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
-              {feedback.missed?.length > 0 && (
+              {feedback.strengths?.length > 0 && (
                 <div>
-                  <p className="text-xs text-yellow-400 font-semibold uppercase tracking-wide mb-1.5">⚠️ Missed opportunities</p>
-                  {feedback.missed.map((m, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {m}</p>)}
+                  <p className="text-xs text-green-400 font-semibold uppercase tracking-wide mb-1.5">✅ Strengths</p>
+                  {feedback.strengths.map((s, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {s}</p>)}
                 </div>
               )}
-              {feedback.objections?.length > 0 && (
+              {feedback.weaknesses?.length > 0 && (
                 <div>
-                  <p className="text-xs text-red-400 font-semibold uppercase tracking-wide mb-1.5">❌ Objections not addressed</p>
-                  {feedback.objections.map((o, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {o}</p>)}
+                  <p className="text-xs text-yellow-400 font-semibold uppercase tracking-wide mb-1.5">⚠️ Weaknesses</p>
+                  {feedback.weaknesses.map((w, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {w}</p>)}
                 </div>
               )}
-              {feedback.tip && (
+              {feedback.missed_opportunities?.length > 0 && (
+                <div>
+                  <p className="text-xs text-orange-400 font-semibold uppercase tracking-wide mb-1.5">🔍 Missed Opportunities</p>
+                  {feedback.missed_opportunities.map((m, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {m}</p>)}
+                </div>
+              )}
+              {feedback.coaching_recommendations?.length > 0 && (
                 <div className="bg-blue-950/50 border border-blue-700/40 rounded-xl px-4 py-3">
-                  <p className="text-xs text-blue-400 font-semibold uppercase tracking-wide mb-1">💡 Coach’s Tip</p>
-                  <p className="text-sm text-gray-200 italic">{feedback.tip}</p>
+                  <p className="text-xs text-blue-400 font-semibold uppercase tracking-wide mb-2">💡 Coaching Recommendations</p>
+                  {feedback.coaching_recommendations.map((r, i) => <p key={i} className="text-sm text-gray-200 ml-1">• {r}</p>)}
                 </div>
               )}
             </>
