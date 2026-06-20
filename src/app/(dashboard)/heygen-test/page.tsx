@@ -40,6 +40,7 @@ function HeyGenTestInner() {
   const audioElemsRef = useRef<HTMLAudioElement[]>([]);
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +51,7 @@ function HeyGenTestInner() {
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [feedback, setFeedback] = useState<FeedbackResult | null>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
   const addLog = useCallback((msg: string) => {
     console.log("[heygen-test]", msg);
@@ -221,6 +223,13 @@ function HeyGenTestInner() {
       }
 
       setStatus("connected");
+      setTimeLeft(300);
+      timerRef.current = setInterval(() => {
+        setTimeLeft((t) => {
+          if (t === null || t <= 1) return 0;
+          return t - 1;
+        });
+      }, 1000);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
@@ -263,6 +272,8 @@ function HeyGenTestInner() {
       sessionRef.current = null;
     }
     if (videoRef.current) videoRef.current.srcObject = null;
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    setTimeLeft(null);
     setStatus("idle");
     setMicOn(false);
     addLog("Session stopped");
@@ -285,6 +296,12 @@ function HeyGenTestInner() {
     }
   }, [stop, resolvedScenarioName]);
 
+  // Auto-end when timer hits 0
+  useEffect(() => {
+    if (timeLeft === 0) handleEnd();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft]);
+
   // Cleanup on unmount
   useEffect(() => () => { stop(); }, [stop]);
 
@@ -296,11 +313,20 @@ function HeyGenTestInner() {
           <h1 className="text-2xl font-bold">LiveAvatar Test</h1>
           {scenarioId && <p className="text-sm text-gray-400 mt-0.5">Scenario: {resolvedScenarioName ?? scenarioId}</p>}
         </div>
-        <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-          status === "connected" ? "bg-green-700" :
-          status === "connecting" ? "bg-yellow-700" :
-          status === "error" ? "bg-red-700" : "bg-gray-700"
-        }`}>{status}</span>
+        <div className="flex items-center gap-3">
+          {timeLeft !== null && (
+            <span className={`text-sm font-mono font-bold ${
+              timeLeft <= 30 ? "text-red-400" : timeLeft <= 60 ? "text-yellow-400" : "text-green-400"
+            }`}>
+              {String(Math.floor(timeLeft / 60)).padStart(2, "0")}:{String(timeLeft % 60).padStart(2, "0")}
+            </span>
+          )}
+          <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+            status === "connected" ? "bg-green-700" :
+            status === "connecting" ? "bg-yellow-700" :
+            status === "error" ? "bg-red-700" : "bg-gray-700"
+          }`}>{status}</span>
+        </div>
       </div>
 
       {/* Video + Transcript */}
