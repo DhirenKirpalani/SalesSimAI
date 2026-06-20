@@ -98,6 +98,13 @@ function HeyGenTestInner() {
       sessionRef.current = info;
       heygenSessionDbIdRef.current = (json.heygen_session_db_id as string | null) ?? null;
       startedAtRef.current = new Date().toISOString();
+      // Persist to localStorage so end-of-call cleanup survives refreshes
+      if (heygenSessionDbIdRef.current) {
+        localStorage.setItem("heygen-active-session", JSON.stringify({
+          heygenSessionDbId: heygenSessionDbIdRef.current,
+          startedAt: startedAtRef.current,
+        }));
+      }
       if (info.scenario_name && info.scenario_name !== "LiveAvatar Test" && info.scenario_name !== "Simulation") {
         setResolvedScenarioName(info.scenario_name);
         addLog(`📋 Scenario: ${info.scenario_name}`);
@@ -287,6 +294,7 @@ function HeyGenTestInner() {
     setTimeLeft(null);
     setStatus("idle");
     setMicOn(false);
+    localStorage.removeItem("heygen-active-session");
     addLog("Session stopped");
   }, [addLog]);
 
@@ -311,6 +319,18 @@ function HeyGenTestInner() {
       finally { setFeedbackLoading(false); }
     }
   }, [stop, resolvedScenarioName]);
+
+  // Restore active session refs from localStorage after refresh
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("heygen-active-session");
+      if (stored) {
+        const parsed = JSON.parse(stored) as { heygenSessionDbId: string; startedAt: string };
+        heygenSessionDbIdRef.current = parsed.heygenSessionDbId;
+        startedAtRef.current = parsed.startedAt;
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   // Auto-end when timer hits 0
   useEffect(() => {
