@@ -94,6 +94,13 @@ export interface CustomPersona {
   personality: string;
   painPoints: string[];
   goals?: string[];
+  communicationStyle?: string;
+  priorVendorExperience?: string;
+  decisionCriteria?: string;
+  hiddenConcern?: string;
+  budgetStatus?: string;
+  timelinePressure?: string;
+  sampleDialogues?: string;
 }
 
 export interface CustomScenario {
