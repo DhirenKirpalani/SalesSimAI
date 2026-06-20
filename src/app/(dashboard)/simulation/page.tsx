@@ -166,13 +166,12 @@ export default function SimulationsPage() {
             return (
               <div
                 key={s.id}
-                className="group flex items-center gap-4 rounded-2xl border bg-card px-5 py-4 hover:shadow-sm hover:border-primary/30 transition-all cursor-pointer"
+                className={cn(
+                  "group flex items-center gap-4 rounded-2xl border bg-card px-5 py-4 hover:shadow-sm hover:border-primary/30 transition-all",
+                  s.status === "completed" ? "cursor-pointer" : "opacity-60"
+                )}
                 onClick={() => {
-                  if (s.status === "active") {
-                    router.push(`/simulation/${s.id}?table=${s.scenario_table}`);
-                  } else {
-                    router.push(`/analysis?session=${s.id}`);
-                  }
+                  if (s.status === "completed") router.push(`/analysis?session=${s.id}`);
                 }}
               >
                 {/* Trust indicator */}
@@ -237,11 +236,7 @@ export default function SimulationsPage() {
                   className="shrink-0 rounded-xl gap-1.5 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (s.status === "active") {
-                      router.push(`/simulation/${s.id}?table=${s.scenario_table}`);
-                    } else {
-                      router.push(`/analysis?session=${s.id}`);
-                    }
+                    if (s.status === "completed") router.push(`/analysis?session=${s.id}`);
                   }}
                 >
                   <Play className="w-3 h-3" />
