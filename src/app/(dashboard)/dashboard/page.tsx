@@ -20,20 +20,18 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-interface RawSession {
+interface HeygenSession {
   id: string;
-  scenario_id: string;
-  scenario_table: string;
-  status: "active" | "completed" | "abandoned";
-  state: { trust_level: number; stage: string; facts_discovered: Record<string, boolean> };
+  scenario_name: string | null;
+  analysis: { overall_score: number } | null;
+  duration_s: number | null;
   started_at: string;
   ended_at: string | null;
-  scenario_name?: string;
 }
 
-function sessionDurationMins(s: RawSession): number {
-  if (!s.ended_at) return 0;
-  return Math.max(0, Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000));
+function formatDurationMins(s: number | null): number {
+  if (!s) return 0;
+  return Math.max(0, Math.round(s / 60));
 }
 
 function formatTrainingTime(mins: number): string {
@@ -41,11 +39,12 @@ function formatTrainingTime(mins: number): string {
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
-function buildTrendData(sessions: RawSession[]) {
+function buildTrendData(sessions: HeygenSession[]) {
   const byDay: Record<string, number[]> = {};
   for (const s of sessions) {
+    if (!s.analysis?.overall_score) continue;
     const day = new Date(s.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    (byDay[day] ??= []).push(s.state.trust_level);
+    (byDay[day] ??= []).push(s.analysis.overall_score);
   }
   return Object.entries(byDay)
     .slice(-14)
@@ -55,23 +54,23 @@ function buildTrendData(sessions: RawSession[]) {
     }));
 }
 
-function buildDistData(sessions: RawSession[]) {
+function buildDistData(sessions: HeygenSession[]) {
   const buckets: Record<string, number> = {
     "0–29": 0, "30–49": 0, "50–69": 0, "70–89": 0, "90–100": 0,
   };
   for (const s of sessions) {
-    const t = s.state.trust_level;
-    if (t <= 29) buckets["0–29"]++;
-    else if (t <= 49) buckets["30–49"]++;
-    else if (t <= 69) buckets["50–69"]++;
-    else if (t <= 89) buckets["70–89"]++;
+    const score = s.analysis?.overall_score ?? 0;
+    if (score <= 29) buckets["0–29"]++;
+    else if (score <= 49) buckets["30–49"]++;
+    else if (score <= 69) buckets["50–69"]++;
+    else if (score <= 89) buckets["70–89"]++;
     else buckets["90–100"]++;
   }
   return Object.entries(buckets).map(([range, count]) => ({ range, count }));
 }
 
 export default function DashboardPage() {
-  const [sessions, setSessions] = useState<RawSession[]>([]);
+  const [sessions, setSessions] = useState<HeygenSession[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -83,36 +82,25 @@ export default function DashboardPage() {
       if (!user) { setLoading(false); return; }
 
       const { data: raw } = await supabase
-        .from("simulation_sessions")
-        .select("id, scenario_id, scenario_table, status, state, started_at, ended_at")
+        .from("heygen_sessions")
+        .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
         .eq("user_id", user.id)
         .order("started_at", { ascending: false });
 
-      if (!raw?.length) { if (!cancelled) { setSessions([]); setLoading(false); } return; }
-
-      const byTable: Record<string, string[]> = {};
-      for (const s of raw) (byTable[s.scenario_table] ??= []).push(s.scenario_id);
-
-      const nameMap: Record<string, string> = {};
-      for (const [table, ids] of Object.entries(byTable)) {
-        const { data: sc } = await supabase.from(table).select("id, name").in("id", ids);
-        for (const row of sc ?? []) nameMap[row.id] = row.name;
-      }
-
       if (!cancelled) {
-        setSessions(raw.map((s) => ({ ...s, scenario_name: nameMap[s.scenario_id] ?? "Unknown" })));
+        setSessions(raw ?? []);
         setLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, []);
 
-  const completedSessions = sessions.filter((s) => s.status === "completed");
+  const completedSessions = sessions.filter((s) => !!s.ended_at);
   const completed = completedSessions.length;
-  const completedTrust = completedSessions.map((s) => s.state.trust_level);
-  const avgTrust = completedTrust.length ? Math.round(completedTrust.reduce((a, b) => a + b, 0) / completedTrust.length) : 0;
-  const bestTrust = completedTrust.length ? Math.max(...completedTrust) : 0;
-  const totalMins = completedSessions.reduce((sum, s) => sum + sessionDurationMins(s), 0);
+  const meddicScores = completedSessions.map((s) => s.analysis?.overall_score).filter((n): n is number => typeof n === "number");
+  const avgMeddic = meddicScores.length ? Math.round(meddicScores.reduce((a, b) => a + b, 0) / meddicScores.length) : 0;
+  const bestMeddic = meddicScores.length ? Math.max(...meddicScores) : 0;
+  const totalMins = completedSessions.reduce((sum, s) => sum + formatDurationMins(s.duration_s), 0);
   const recent = sessions.slice(0, 6);
   const trendData = buildTrendData([...completedSessions].reverse());
   const distData = buildDistData(completedSessions);
@@ -145,8 +133,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Simulations Completed", value: completed, icon: Mic2 },
-          { label: "Avg Trust Score", value: avgTrust, icon: TrendingUp },
-          { label: "Best Trust Score", value: bestTrust, icon: Trophy },
+          { label: "Avg MEDDIC Score", value: avgMeddic, icon: TrendingUp },
+          { label: "Best MEDDIC Score", value: bestMeddic, icon: Trophy },
           { label: "Training Time", value: formatTrainingTime(totalMins), icon: Clock },
         ].map((stat, i) => (
           <motion.div
@@ -189,42 +177,43 @@ export default function DashboardPage() {
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-xs">Scenario</TableHead>
-                  <TableHead className="text-xs">Trust</TableHead>
+                  <TableHead className="text-xs">MEDDIC</TableHead>
                   <TableHead className="text-xs">Duration</TableHead>
                   <TableHead className="text-xs">Date</TableHead>
                   <TableHead className="text-xs">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recent.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="text-sm font-medium">{s.scenario_name}</TableCell>
-                    <TableCell className={cn(
-                      "text-sm font-semibold",
-                      s.state.trust_level >= 70 ? "text-emerald-500" :
-                      s.state.trust_level >= 40 ? "text-amber-500" : "text-red-400"
-                    )}>
-                      {s.state.trust_level}
-                    </TableCell>
-                    <TableCell className="text-sm">{sessionDurationMins(s)} min</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(s.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "text-[10px] font-normal capitalize",
-                          s.status === "completed" && "bg-blue-500/10 text-blue-600",
-                          s.status === "active" && "bg-emerald-500/10 text-emerald-600",
-                          s.status === "abandoned" && "bg-orange-500/10 text-orange-600",
-                        )}
-                      >
-                        {s.status}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {recent.map((s) => {
+                  const completed = !!s.ended_at;
+                  const score = s.analysis?.overall_score ?? 0;
+                  return (
+                    <TableRow key={s.id}>
+                      <TableCell className="text-sm font-medium">{s.scenario_name ?? "Untitled"}</TableCell>
+                      <TableCell className={cn(
+                        "text-sm font-semibold",
+                        score >= 70 ? "text-emerald-500" : score >= 40 ? "text-amber-500" : "text-red-400"
+                      )}>
+                        {score}
+                      </TableCell>
+                      <TableCell className="text-sm">{formatDurationMins(s.duration_s)} min</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(s.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[10px] font-normal capitalize",
+                            completed ? "bg-blue-500/10 text-blue-600" : "bg-emerald-500/10 text-emerald-600"
+                          )}
+                        >
+                          {completed ? "completed" : "active"}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

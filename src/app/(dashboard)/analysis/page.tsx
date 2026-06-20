@@ -45,14 +45,11 @@ interface Analysis {
 
 interface SessionSummary {
   id: string;
-  scenario_id: string;
-  scenario_table: string;
-  status: string;
-  state: { trust_level: number; stage: string };
+  scenario_name: string | null;
+  analysis?: Analysis;
+  duration_s: number | null;
   started_at: string;
   ended_at: string | null;
-  analysis?: Analysis;
-  scenario_name?: string;
 }
 
 function AnalysisContent() {
@@ -74,24 +71,13 @@ function AnalysisContent() {
     if (!user) { setLoading(false); return; }
 
     const { data: raw } = await supabase
-      .from("simulation_sessions")
-      .select("*")
+      .from("heygen_sessions")
+      .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
       .eq("user_id", user.id)
-      .neq("status", "active")
+      .not("ended_at", "is", null)
       .order("started_at", { ascending: false });
 
-    if (!raw?.length) { setSessions([]); setLoading(false); return; }
-
-    const byTable: Record<string, string[]> = {};
-    for (const s of raw) (byTable[s.scenario_table] ??= []).push(s.scenario_id);
-    const nameMap: Record<string, string> = {};
-    for (const [table, ids] of Object.entries(byTable)) {
-      const { data: sc } = await supabase.from(table).select("id, name").in("id", ids);
-      for (const row of sc ?? []) nameMap[row.id] = row.name;
-    }
-
-    const enriched = raw.map((s) => ({ ...s, scenario_name: nameMap[s.scenario_id] ?? "Unknown" }));
-    setSessions(enriched);
+    setSessions((raw ?? []) as SessionSummary[]);
     setLoading(false);
   }, []);
 
@@ -101,8 +87,8 @@ function AnalysisContent() {
     const supabase = createClient();
 
     const { data: session } = await supabase
-      .from("simulation_sessions")
-      .select("*")
+      .from("heygen_sessions")
+      .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
       .eq("id", sid)
       .single();
 
@@ -110,34 +96,13 @@ function AnalysisContent() {
 
     if (session.analysis) {
       setAnalysis(session.analysis as Analysis);
-      setCurrentSession(session);
+      setCurrentSession(session as SessionSummary);
       setLoading(false);
       return;
     }
 
+    setError("No analysis available for this session. The call may have ended before feedback was generated.");
     setLoading(false);
-    setGenerating(true);
-    const res = await fetch("/api/simulation/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: sid }),
-    });
-
-    if (!res.ok) {
-      let errMsg = "Failed to generate analysis.";
-      try {
-        const errData = await res.json();
-        if (errData.error) errMsg = errData.error;
-      } catch { /* ignore */ }
-      setError(errMsg);
-      setGenerating(false);
-      return;
-    }
-
-    const data = await res.json();
-    setAnalysis(data.analysis);
-    setCurrentSession(session);
-    setGenerating(false);
   }, []);
 
   useEffect(() => {
@@ -192,40 +157,53 @@ function AnalysisContent() {
           </div>
         ) : (
           <div className="grid gap-3">
-            {sessions.map((s) => (
-              <div
-                key={s.id}
-                className="group flex items-center gap-4 rounded-2xl border bg-card px-5 py-4 hover:shadow-sm hover:border-primary/30 transition-all cursor-pointer"
-                onClick={() => router.push(`/analysis?session=${s.id}`)}
-              >
-                <div className="hidden sm:flex flex-col items-center gap-1 w-12 shrink-0">
-                  <div className={cn(
-                    "text-lg font-bold tabular-nums leading-none",
-                    s.state.trust_level >= 70 ? "text-emerald-500" :
-                    s.state.trust_level >= 40 ? "text-amber-500" : "text-red-400"
-                  )}>{s.state.trust_level}</div>
-                  <p className="text-[9px] text-muted-foreground uppercase tracking-wide">Trust</p>
-                </div>
-                <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-medium text-sm truncate">{s.scenario_name}</p>
-                    {s.analysis && (
-                      <Badge variant="secondary" className="text-[10px] bg-violet-500/10 text-violet-600 border-violet-500/20">Analysed</Badge>
+            {sessions.map((s) => {
+              const score = s.analysis?.overall_score ?? null;
+              return (
+                <div
+                  key={s.id}
+                  className="group flex items-center gap-4 rounded-2xl border bg-card px-5 py-4 hover:shadow-sm hover:border-primary/30 transition-all cursor-pointer"
+                  onClick={() => router.push(`/analysis?session=${s.id}`)}
+                >
+                  <div className="hidden sm:flex flex-col items-center gap-1 w-12 shrink-0">
+                    {score !== null ? (
+                      <>
+                        <div className={cn(
+                          "text-lg font-bold tabular-nums leading-none",
+                          score >= 70 ? "text-emerald-500" : score >= 40 ? "text-amber-500" : "text-red-400"
+                        )}>{score}</div>
+                        <p className="text-[9px] text-muted-foreground uppercase tracking-wide">Score</p>
+                      </>
+                    ) : (
+                      <div className="text-[9px] text-muted-foreground uppercase tracking-wide text-center">No score</div>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                    <span className="flex items-center gap-1 capitalize"><TrendingUp className="w-3 h-3" />{s.state.stage}</span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {new Date(s.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                    </span>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-sm truncate">{s.scenario_name ?? "Untitled"}</p>
+                      {s.analysis && (
+                        <Badge variant="secondary" className="text-[10px] bg-violet-500/10 text-violet-600 border-violet-500/20">MEDDIC</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {new Date(s.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </span>
+                      {score !== null && (
+                        <span className="flex items-center gap-1">
+                          <TrendingUp className="w-3 h-3" />
+                          MEDDIC {score}/100
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  <Button size="sm" variant="ghost" className="shrink-0 gap-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
+                    View <ArrowRight className="w-3 h-3" />
+                  </Button>
                 </div>
-                <Button size="sm" variant="ghost" className="shrink-0 gap-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
-                  {s.analysis ? "View" : "Analyse"} <ArrowRight className="w-3 h-3" />
-                </Button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -272,7 +250,7 @@ function AnalysisContent() {
           <ChevronLeft className="w-3.5 h-3.5" /> All Sessions
         </Button>
         {currentSession && (
-          <h1 className="text-lg font-semibold truncate">{(currentSession as SessionSummary & { scenario_name?: string }).scenario_name ?? "Session Analysis"}</h1>
+          <h1 className="text-lg font-semibold truncate">{currentSession?.scenario_name ?? "Session Analysis"}</h1>
         )}
       </div>
 
