@@ -6,6 +6,36 @@ interface TranscriptEntry {
   time: string;
 }
 
+const SYSTEM_PROMPT = `You are an expert B2B sales coach analyzing a sales call transcript.
+Evaluate the salesperson's performance using the MEDDIC framework and provide actionable feedback.
+
+Return ONLY valid JSON in this exact shape:
+{
+  "overall_score": <0-100>,
+  "breakdown": {
+    "metrics": <0-100>,
+    "economic_buyer": <0-100>,
+    "decision_criteria": <0-100>,
+    "decision_process": <0-100>,
+    "identify_pain": <0-100>,
+    "champion": <0-100>
+  },
+  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
+  "weaknesses": ["<weakness 1>", "<weakness 2>", "<weakness 3>"],
+  "missed_opportunities": ["<opportunity 1>", "<opportunity 2>"],
+  "coaching_recommendations": ["<recommendation 1>", "<recommendation 2>", "<recommendation 3>"]
+}
+
+MEDDIC scoring guidance:
+- Metrics: Did they quantify business impact and ROI?
+- Economic Buyer: Did they identify and engage the decision maker?
+- Decision Criteria: Did they uncover evaluation criteria?
+- Decision Process: Did they map the buying process and timeline?
+- Identify Pain: Did they discover and probe specific pain points?
+- Champion: Did they build a relationship and internal advocate?
+
+Be honest and specific. Reference actual moments from the transcript. If the call was very short, score conservatively and note it.`;
+
 export async function POST(req: NextRequest) {
   const { transcript, scenarioName } = await req.json() as {
     transcript: TranscriptEntry[];
@@ -17,27 +47,10 @@ export async function POST(req: NextRequest) {
   }
 
   const transcriptText = transcript
-    .map((t) => `${t.role === "user" ? "Seller" : "Buyer"}: ${t.text}`)
+    .map((t) => `${t.role === "user" ? "SALESPERSON" : "BUYER"}: ${t.text}`)
     .join("\n");
 
-  const prompt = `You are an expert sales coach reviewing a simulated B2B sales call.
-
-Scenario: ${scenarioName}
-
-TRANSCRIPT:
-${transcriptText}
-
-Analyze the seller's performance. Return a JSON object with exactly these fields:
-{
-  "score": number (0-100, overall call quality),
-  "summary": string (1-2 sentence overall assessment),
-  "wentWell": string[] (2-3 specific things the seller did well, referencing actual moments — empty array if none),
-  "missed": string[] (2-3 specific missed opportunities — empty array if none),
-  "objections": string[] (objections or concerns raised by the buyer that the seller didn't fully address — empty array if none),
-  "tip": string (the single most important coaching tip for the seller's next call)
-}
-
-Be specific and reference actual moments. Be constructive but honest. If the call was very short, note that in the summary.`;
+  const userPrompt = `SCENARIO: ${scenarioName}\n\nTRANSCRIPT:\n${transcriptText}`;
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -49,8 +62,12 @@ Be specific and reference actual moments. Be constructive but honest. If the cal
       body: JSON.stringify({
         model: "gpt-4o-mini",
         response_format: { type: "json_object" },
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.3,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.4,
+        max_tokens: 800,
       }),
     });
 
