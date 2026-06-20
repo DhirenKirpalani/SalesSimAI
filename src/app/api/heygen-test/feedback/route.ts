@@ -85,20 +85,24 @@ export async function POST(req: NextRequest) {
     const content = data.choices?.[0]?.message?.content;
     const analysis = JSON.parse(content);
 
-    // Persist to DB (best-effort)
+    // Persist to DB before responding
     if (heygenSessionId) {
       const durationS = startedAt
         ? Math.round((Date.now() - new Date(startedAt).getTime()) / 1000)
         : null;
-      void serviceSupabase()
-        .from("heygen_sessions")
-        .update({
-          transcript,
-          analysis,
-          duration_s: durationS,
-          ended_at: new Date().toISOString(),
-        })
-        .eq("id", heygenSessionId);
+      try {
+        await serviceSupabase()
+          .from("heygen_sessions")
+          .update({
+            transcript,
+            analysis,
+            duration_s: durationS,
+            ended_at: new Date().toISOString(),
+          })
+          .eq("id", heygenSessionId);
+      } catch (dbErr) {
+        console.warn("[heygen-test/feedback] DB update failed:", dbErr);
+      }
     }
 
     return NextResponse.json(analysis);
