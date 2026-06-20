@@ -42,6 +42,8 @@ function HeyGenTestInner() {
   const scenarioTable = searchParams.get("scenarioTable") ?? undefined;
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
   const roomRef = useRef<Room | null>(null);
   const sessionRef = useRef<SessionInfo | null>(null);
   const audioElemsRef = useRef<HTMLAudioElement[]>([]);
@@ -54,8 +56,10 @@ function HeyGenTestInner() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [micOn, setMicOn] = useState(false);
+  const [cameraOn, setCameraOn] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [logOpen, setLogOpen] = useState(false);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [resolvedScenarioName, setResolvedScenarioName] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [feedback, setFeedback] = useState<FeedbackResult | null>(null);
@@ -296,7 +300,34 @@ function HeyGenTestInner() {
     setMicOn(false);
     localStorage.removeItem("heygen-active-session");
     addLog("Session stopped");
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+    }
+    setCameraOn(false);
+    setTranscriptOpen(false);
   }, [addLog]);
+
+  const toggleCamera = useCallback(async () => {
+    if (cameraOn) {
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
+      }
+      setCameraOn(false);
+      addLog("Camera OFF");
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        localStreamRef.current = stream;
+        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+        setCameraOn(true);
+        addLog("Camera ON");
+      } catch (e) {
+        addLog("Camera access denied");
+      }
+    }
+  }, [cameraOn, addLog]);
 
   const handleEnd = useCallback(async () => {
     const currentTranscript = [...transcriptRef.current];
@@ -342,60 +373,111 @@ function HeyGenTestInner() {
   useEffect(() => () => { stop(); }, [stop]);
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-6 flex flex-col gap-5">
-      {/* Header */}
-      <div className="flex items-center justify-between max-w-4xl mx-auto w-full">
-        <div>
-          <h1 className="text-2xl font-bold">Simulation</h1>
-          {scenarioId && <p className="text-sm text-gray-400 mt-0.5">Scenario: {resolvedScenarioName ?? scenarioId}</p>}
+    <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col">
+      {/* Top Bar */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-white/5 bg-[#0B0E14]/80 backdrop-blur-sm z-20">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-600/20 flex items-center justify-center">
+            <span className="text-blue-400 text-sm font-bold">S</span>
+          </div>
+          <div>
+            <p className="text-sm font-semibold leading-none">Simulation</p>
+            {resolvedScenarioName && (
+              <p className="text-[11px] text-gray-500 mt-0.5">{resolvedScenarioName}</p>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
-          {timeLeft !== null && (
-            <span className={`text-sm font-mono font-bold ${
-              timeLeft <= 30 ? "text-red-400" : timeLeft <= 60 ? "text-yellow-400" : "text-green-400"
+          {(status === "connected" || status === "connecting") && timeLeft !== null && (
+            <div className={`px-2.5 py-1 rounded-md text-xs font-mono font-bold ${
+              timeLeft <= 30 ? "bg-red-500/10 text-red-400" :
+              timeLeft <= 60 ? "bg-yellow-500/10 text-yellow-400" :
+              "bg-green-500/10 text-green-400"
             }`}>
               {String(Math.floor(timeLeft / 60)).padStart(2, "0")}:{String(timeLeft % 60).padStart(2, "0")}
-            </span>
+            </div>
           )}
-          <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-            status === "connected" ? "bg-green-700" :
-            status === "connecting" ? "bg-yellow-700" :
-            status === "error" ? "bg-red-700" : "bg-gray-700"
-          }`}>{status}</span>
-        </div>
-      </div>
-
-      {/* Video + Transcript */}
-      <div className="flex flex-col lg:flex-row gap-4 max-w-4xl mx-auto w-full">
-        {/* Video */}
-        <div className="relative w-full lg:w-1/2 aspect-video bg-gray-900 rounded-2xl overflow-hidden border border-gray-800 shrink-0">
-          <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-          {status !== "connected" && (
-            <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">
-              {status === "connecting" ? "Connecting to LiveAvatar…" :
-               status === "error" ? "Connection failed" : "Press Start to begin"}
+          {status === "connected" && (
+            <div className="flex items-center gap-1.5 text-xs text-green-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              Live
             </div>
           )}
         </div>
+      </div>
 
-        {/* Transcript */}
-        <div className="w-full lg:w-1/2 flex flex-col gap-2">
-          <p className="text-xs text-gray-500 uppercase tracking-wide">Conversation</p>
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-1 min-h-[200px] max-h-[320px] overflow-y-auto flex flex-col gap-3">
+      {/* Main Call Area */}
+      <div className="flex-1 flex relative overflow-hidden">
+        {/* Video Grid */}
+        <div className="flex-1 flex items-center justify-center p-4 lg:p-6">
+          <div className="relative w-full max-w-5xl aspect-video bg-[#111827] rounded-2xl overflow-hidden shadow-2xl">
+            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+
+            {status !== "connected" && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#111827]">
+                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
+                  <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                  </svg>
+                </div>
+                <p className="text-gray-400 text-sm">
+                  {status === "connecting" ? "Connecting to LiveAvatar…" :
+                   status === "error" ? "Connection failed" : "Press Start to begin"}
+                </p>
+                {resolvedScenarioName && (
+                  <p className="text-xs text-gray-600 mt-2">{resolvedScenarioName}</p>
+                )}
+              </div>
+            )}
+
+            {/* Local Camera PiP */}
+            <div className={`absolute bottom-4 right-4 rounded-xl overflow-hidden border border-white/10 shadow-lg transition-all ${
+              cameraOn ? "w-44 h-28 opacity-100" : "w-0 h-0 opacity-0 border-0"
+            }`}>
+              <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover bg-black" />
+            </div>
+
+            {/* Transcript Toggle (mobile) */}
+            {status === "connected" && (
+              <button
+                onClick={() => setTranscriptOpen((o) => !o)}
+                className="absolute top-4 right-4 lg:hidden bg-black/50 hover:bg-black/70 backdrop-blur-sm rounded-lg px-3 py-1.5 text-xs font-medium text-white/80 transition-colors"
+              >
+                {transcriptOpen ? "Hide Chat" : "Chat"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Transcript Panel */}
+        <div className={`w-80 border-l border-white/5 bg-[#0F131A] flex flex-col transition-transform lg:translate-x-0 ${
+          transcriptOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0 hidden lg:flex"
+        } fixed lg:static inset-y-0 right-0 z-10`}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Conversation</p>
+            <button onClick={() => setTranscriptOpen(false)} className="lg:hidden text-gray-500 hover:text-white">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
             {transcript.length === 0 ? (
-              <p className="text-gray-600 text-sm text-center mt-6">
-                {status === "connected" ? "Speak to start the conversation…" : "Transcript will appear here after you start."}
-              </p>
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-gray-600 text-sm text-center">
+                  {status === "connected" ? "Speak to start the conversation…" : "Conversation will appear here."}
+                </p>
+              </div>
             ) : (
               transcript.map((entry, i) => (
                 <div key={i} className={`flex flex-col ${entry.role === "user" ? "items-end" : "items-start"}`}>
-                  <span className="text-[10px] text-gray-500 mb-0.5 px-1">
-                    {entry.role === "user" ? "You" : (resolvedScenarioName ? "Buyer" : "Avatar")} · {entry.time}
+                  <span className="text-[10px] text-gray-600 mb-0.5 px-1">
+                    {entry.role === "user" ? "You" : "Buyer"} · {entry.time}
                   </span>
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm leading-relaxed ${
+                  <div className={`max-w-[90%] rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed ${
                     entry.role === "user"
                       ? "bg-blue-600 text-white rounded-br-sm"
-                      : "bg-gray-700 text-gray-100 rounded-bl-sm"
+                      : "bg-[#1E293B] text-gray-100 rounded-bl-sm"
                   }`}>
                     {entry.text}
                   </div>
@@ -407,133 +489,173 @@ function HeyGenTestInner() {
         </div>
       </div>
 
-      {/* Error */}
+      {/* Floating Control Bar */}
+      <div className="flex items-center justify-center gap-3 pb-6 pt-2 px-4">
+        {status === "idle" || status === "error" ? (
+          <button onClick={start} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-8 py-3 rounded-full shadow-lg shadow-blue-900/30 transition-all hover:scale-105 active:scale-95">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+            </svg>
+            Start Call
+          </button>
+        ) : status === "connecting" ? (
+          <div className="flex items-center gap-2 bg-gray-700/50 text-gray-400 px-8 py-3 rounded-full">
+            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Connecting…
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            {/* Mic */}
+            <button
+              onClick={toggleMic}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${
+                micOn ? "bg-gray-700/80 text-white hover:bg-gray-600/80" : "bg-red-500/90 text-white hover:bg-red-600/90"
+              }`}
+              title={micOn ? "Mute" : "Unmute"}
+            >
+              {micOn ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                </svg>
+              )}
+            </button>
+
+            {/* Camera */}
+            <button
+              onClick={toggleCamera}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${
+                cameraOn ? "bg-gray-700/80 text-white hover:bg-gray-600/80" : "bg-gray-700/40 text-gray-400 hover:bg-gray-600/60"
+              }`}
+              title={cameraOn ? "Turn off camera" : "Turn on camera"}
+            >
+              {cameraOn ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18" />
+                </svg>
+              )}
+            </button>
+
+            {/* End Call */}
+            <button
+              onClick={handleEnd}
+              className="w-12 h-12 rounded-full bg-red-500/90 text-white flex items-center justify-center hover:bg-red-600 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-red-900/20"
+              title="End call"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z" />
+              </svg>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Error Toast */}
       {error && (
-        <div className="max-w-4xl mx-auto w-full bg-red-900/40 border border-red-700 text-red-300 px-4 py-3 rounded-xl text-sm break-all">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 bg-red-900/90 border border-red-700/50 text-red-200 px-5 py-3 rounded-xl text-sm shadow-xl z-50 backdrop-blur-sm">
           {error}
         </div>
       )}
 
-      {/* Controls */}
-      <div className="flex gap-3 max-w-4xl mx-auto w-full">
-        {status === "idle" || status === "error" ? (
-          <button onClick={start} className="flex-1 bg-blue-600 hover:bg-blue-500 font-semibold py-3 rounded-xl transition-colors">
-            🚀 Start Call
-          </button>
-        ) : status === "connecting" ? (
-          <button disabled className="flex-1 bg-gray-700 text-gray-400 font-semibold py-3 rounded-xl cursor-not-allowed">
-            Connecting…
-          </button>
-        ) : (
-          <>
-            <button
-              onClick={toggleMic}
-              className={`flex-1 font-semibold py-3 rounded-xl transition-colors ${micOn ? "bg-green-700 hover:bg-green-600" : "bg-gray-700 hover:bg-gray-600"}`}
-            >
-              {micOn ? "🎙️ Mic ON (tap to mute)" : "🔇 Mic OFF (tap to unmute)"}
-            </button>
-            <button onClick={handleEnd} className="px-6 bg-red-800 hover:bg-red-700 font-semibold rounded-xl transition-colors">
-              End
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Instructions */}
-      {status === "connected" && (
-        <p className="text-center text-sm text-gray-400 max-w-4xl mx-auto">
-          {sessionRef.current?.llm_config_id
-            ? "Speak naturally — LiveAvatar will respond after you pause."
-            : "⚠️ Running locally without LLM config. Avatar hears you but won't respond. Deploy to prod for full experience."}
-        </p>
-      )}
-
       {/* Post-call Feedback */}
       {(feedbackLoading || feedback) && (
-        <div className="max-w-4xl mx-auto w-full bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col gap-5">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-lg">MEDDIC Analysis</h2>
+        <div className="px-4 pb-4">
+          <div className="max-w-4xl mx-auto bg-[#111827] border border-white/5 rounded-2xl p-6 flex flex-col gap-5 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-lg">MEDDIC Analysis</h2>
+              {feedback && (
+                <span className={`text-2xl font-bold ${
+                  feedback.overall_score >= 70 ? "text-green-400" : feedback.overall_score >= 40 ? "text-yellow-400" : "text-red-400"
+                }`}>{feedback.overall_score}<span className="text-base text-gray-500">/100</span></span>
+              )}
+            </div>
+            {feedbackLoading && <p className="text-gray-400 text-sm animate-pulse">Analyzing your call with MEDDIC framework…</p>}
             {feedback && (
-              <span className={`text-2xl font-bold ${
-                feedback.overall_score >= 70 ? "text-green-400" : feedback.overall_score >= 40 ? "text-yellow-400" : "text-red-400"
-              }`}>{feedback.overall_score}<span className="text-base text-gray-500">/100</span></span>
+              <>
+                {feedback.breakdown && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {([
+                      { key: "metrics", label: "Metrics" },
+                      { key: "economic_buyer", label: "Economic Buyer" },
+                      { key: "decision_criteria", label: "Decision Criteria" },
+                      { key: "decision_process", label: "Decision Process" },
+                      { key: "identify_pain", label: "Identify Pain" },
+                      { key: "champion", label: "Champion" },
+                    ] as { key: keyof FeedbackResult["breakdown"]; label: string }[]).map(({ key, label }) => {
+                      const val = feedback.breakdown[key];
+                      return (
+                        <div key={key} className="bg-gray-800/40 rounded-xl p-3 flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] text-gray-400 font-medium">{label}</span>
+                            <span className={`text-sm font-bold ${
+                              val >= 70 ? "text-green-400" : val >= 40 ? "text-yellow-400" : "text-red-400"
+                            }`}>{val}</span>
+                          </div>
+                          <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                val >= 70 ? "bg-green-500" : val >= 40 ? "bg-yellow-500" : "bg-red-500"
+                              }`}
+                              style={{ width: `${val}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {feedback.strengths?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-green-400 font-semibold uppercase tracking-wide mb-1.5">✅ Strengths</p>
+                    {feedback.strengths.map((s, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {s}</p>)}
+                  </div>
+                )}
+                {feedback.weaknesses?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-yellow-400 font-semibold uppercase tracking-wide mb-1.5">⚠️ Weaknesses</p>
+                    {feedback.weaknesses.map((w, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {w}</p>)}
+                  </div>
+                )}
+                {feedback.missed_opportunities?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-orange-400 font-semibold uppercase tracking-wide mb-1.5">🔍 Missed Opportunities</p>
+                    {feedback.missed_opportunities.map((m, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {m}</p>)}
+                  </div>
+                )}
+                {feedback.coaching_recommendations?.length > 0 && (
+                  <div className="bg-blue-950/30 border border-blue-700/30 rounded-xl px-4 py-3">
+                    <p className="text-xs text-blue-400 font-semibold uppercase tracking-wide mb-2">💡 Coaching Recommendations</p>
+                    {feedback.coaching_recommendations.map((r, i) => <p key={i} className="text-sm text-gray-200 ml-1">• {r}</p>)}
+                  </div>
+                )}
+              </>
             )}
           </div>
-          {feedbackLoading && <p className="text-gray-400 text-sm animate-pulse">Analyzing your call with MEDDIC framework…</p>}
-          {feedback && (
-            <>
-              {/* MEDDIC Breakdown Grid */}
-              {feedback.breakdown && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {([
-                    { key: "metrics", label: "Metrics" },
-                    { key: "economic_buyer", label: "Economic Buyer" },
-                    { key: "decision_criteria", label: "Decision Criteria" },
-                    { key: "decision_process", label: "Decision Process" },
-                    { key: "identify_pain", label: "Identify Pain" },
-                    { key: "champion", label: "Champion" },
-                  ] as { key: keyof FeedbackResult["breakdown"]; label: string }[]).map(({ key, label }) => {
-                    const val = feedback.breakdown[key];
-                    return (
-                      <div key={key} className="bg-gray-800/60 rounded-xl p-3 flex flex-col gap-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] text-gray-400 font-medium">{label}</span>
-                          <span className={`text-sm font-bold ${
-                            val >= 70 ? "text-green-400" : val >= 40 ? "text-yellow-400" : "text-red-400"
-                          }`}>{val}</span>
-                        </div>
-                        <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${
-                              val >= 70 ? "bg-green-500" : val >= 40 ? "bg-yellow-500" : "bg-red-500"
-                            }`}
-                            style={{ width: `${val}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {feedback.strengths?.length > 0 && (
-                <div>
-                  <p className="text-xs text-green-400 font-semibold uppercase tracking-wide mb-1.5">✅ Strengths</p>
-                  {feedback.strengths.map((s, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {s}</p>)}
-                </div>
-              )}
-              {feedback.weaknesses?.length > 0 && (
-                <div>
-                  <p className="text-xs text-yellow-400 font-semibold uppercase tracking-wide mb-1.5">⚠️ Weaknesses</p>
-                  {feedback.weaknesses.map((w, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {w}</p>)}
-                </div>
-              )}
-              {feedback.missed_opportunities?.length > 0 && (
-                <div>
-                  <p className="text-xs text-orange-400 font-semibold uppercase tracking-wide mb-1.5">🔍 Missed Opportunities</p>
-                  {feedback.missed_opportunities.map((m, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {m}</p>)}
-                </div>
-              )}
-              {feedback.coaching_recommendations?.length > 0 && (
-                <div className="bg-blue-950/50 border border-blue-700/40 rounded-xl px-4 py-3">
-                  <p className="text-xs text-blue-400 font-semibold uppercase tracking-wide mb-2">💡 Coaching Recommendations</p>
-                  {feedback.coaching_recommendations.map((r, i) => <p key={i} className="text-sm text-gray-200 ml-1">• {r}</p>)}
-                </div>
-              )}
-            </>
-          )}
         </div>
       )}
 
-      {/* Debug Log (collapsible) */}
-      <div className="max-w-4xl mx-auto w-full">
+      {/* Debug Log */}
+      <div className="px-4 pb-4">
         <button
           onClick={() => setLogOpen((o) => !o)}
-          className="text-xs text-gray-600 hover:text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1 transition-colors"
+          className="text-[10px] text-gray-600 hover:text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1 transition-colors"
         >
           {logOpen ? "▼" : "▶"} Debug Log
         </button>
         {logOpen && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 h-48 overflow-y-auto font-mono text-xs text-gray-300 flex flex-col gap-0.5">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 h-32 overflow-y-auto font-mono text-[10px] text-gray-300 flex flex-col gap-0.5">
             {log.length === 0 && <span className="text-gray-600">Waiting…</span>}
             {log.map((l, i) => (
               <span key={i} className={l.includes("❌") ? "text-red-400" : l.includes("✅") ? "text-green-300" : ""}>{l}</span>
@@ -547,7 +669,7 @@ function HeyGenTestInner() {
 
 export default function HeyGenTestPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-950" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#0B0E14]" />}>
       <HeyGenTestInner />
     </Suspense>
   );
