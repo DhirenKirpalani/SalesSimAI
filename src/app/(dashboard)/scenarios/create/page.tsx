@@ -68,6 +68,14 @@ interface FormState {
   customPersonaIndustry: string;
   customPersonaPersonality: string;
   customPersonaPainPoints: string;
+  customPersonaGoals: string;
+  customPersonaCommStyle: string;
+  customPersonaPriorVendor: string;
+  customPersonaDecisionCriteria: string;
+  customPersonaHiddenConcern: string;
+  customPersonaBudget: string;
+  customPersonaTimeline: string;
+  customPersonaSampleDialogues: string;
   scenarioType: string;
   difficulty: Difficulty;
   duration: number;
@@ -88,6 +96,14 @@ const INITIAL: FormState = {
   customPersonaIndustry: "",
   customPersonaPersonality: "",
   customPersonaPainPoints: "",
+  customPersonaGoals: "",
+  customPersonaCommStyle: "",
+  customPersonaPriorVendor: "",
+  customPersonaDecisionCriteria: "",
+  customPersonaHiddenConcern: "",
+  customPersonaBudget: "",
+  customPersonaTimeline: "",
+  customPersonaSampleDialogues: "",
   scenarioType: "First Discovery Call",
   difficulty: "Intermediate",
   duration: 20,
@@ -158,6 +174,14 @@ export default function CreateScenarioPage() {
         industry: form.customPersonaIndustry,
         personality: form.customPersonaPersonality,
         painPoints: form.customPersonaPainPoints.split("\n").map((s) => s.trim()).filter(Boolean),
+        goals: form.customPersonaGoals.split("\n").map((s) => s.trim()).filter(Boolean),
+        communicationStyle: form.customPersonaCommStyle || undefined,
+        priorVendorExperience: form.customPersonaPriorVendor || undefined,
+        decisionCriteria: form.customPersonaDecisionCriteria || undefined,
+        hiddenConcern: form.customPersonaHiddenConcern || undefined,
+        budgetStatus: form.customPersonaBudget || undefined,
+        timelinePressure: form.customPersonaTimeline || undefined,
+        sampleDialogues: form.customPersonaSampleDialogues || undefined,
       } : null,
       scenario_type: form.scenarioType,
       difficulty: form.difficulty,
@@ -366,6 +390,55 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
                         value={form.customPersonaPainPoints}
                         onChange={(e) => set("customPersonaPainPoints", e.target.value)}
                       />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Goals <span className="font-normal text-muted-foreground">(one per line)</span></Label>
+                      <Textarea
+                        className="rounded-xl text-sm min-h-[60px]"
+                        placeholder={"Get budget approval by Q3\nUnderstand integration requirements"}
+                        value={form.customPersonaGoals}
+                        onChange={(e) => set("customPersonaGoals", e.target.value)}
+                      />
+                    </div>
+
+                    {/* Advanced persona fields */}
+                    <div className="pt-2">
+                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Advanced (for realism)</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] font-medium">Communication Style</Label>
+                          <Input className="rounded-xl text-sm" placeholder="Short sentences, never volunteers numbers..." value={form.customPersonaCommStyle} onChange={(e) => set("customPersonaCommStyle", e.target.value)} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] font-medium">Prior Vendor Experience</Label>
+                          <Input className="rounded-xl text-sm" placeholder="Tried Expensify 2 years ago..." value={form.customPersonaPriorVendor} onChange={(e) => set("customPersonaPriorVendor", e.target.value)} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] font-medium">Decision Criteria</Label>
+                          <Input className="rounded-xl text-sm" placeholder="Must have Xero integration..." value={form.customPersonaDecisionCriteria} onChange={(e) => set("customPersonaDecisionCriteria", e.target.value)} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] font-medium">Hidden Concern</Label>
+                          <Input className="rounded-xl text-sm" placeholder="Worried team will resist change..." value={form.customPersonaHiddenConcern} onChange={(e) => set("customPersonaHiddenConcern", e.target.value)} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] font-medium">Budget Status</Label>
+                          <Input className="rounded-xl text-sm" placeholder="Needs CFO sign-off >$30k/year..." value={form.customPersonaBudget} onChange={(e) => set("customPersonaBudget", e.target.value)} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] font-medium">Timeline Pressure</Label>
+                          <Input className="rounded-xl text-sm" placeholder="Audit in 6 weeks..." value={form.customPersonaTimeline} onChange={(e) => set("customPersonaTimeline", e.target.value)} />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5 mt-3">
+                        <Label className="text-[11px] font-medium">Sample Dialogue <span className="font-normal text-muted-foreground">(few-shot examples)</span></Label>
+                        <Textarea
+                          className="rounded-xl text-sm min-h-[100px]"
+                          placeholder={`Seller: "We automate expense management."\nYou: "We already have a process. What part of automate?"\n\nSeller: "Can I show you a demo?"\nYou: "Not sure we're there yet."`}
+                          value={form.customPersonaSampleDialogues}
+                          onChange={(e) => set("customPersonaSampleDialogues", e.target.value)}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}

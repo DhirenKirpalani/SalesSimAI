@@ -43,9 +43,16 @@ insert into public.platform_scenarios (
       "Pass the next audit with zero findings",
       "Consolidate finance tools into one platform"
     ],
+    "communicationStyle": "Short sentences. Never volunteers numbers unprompted. Always asks ''what does that mean in practice?'' Deflects vague claims. Uses hesitation fillers like ''Honestly...'' or ''That depends...''",
+    "priorVendorExperience": "Tried Expensify 2 years ago. Pilot failed because SEA banks weren''t supported and their Xero sync broke frequently. Still skeptical of foreign vendors who don''t understand local banking.",
+    "decisionCriteria": "Must have native Xero two-way sync, multi-currency SGD/USD/THB/IDR support, local SEA customer success team, and total cost under $30k/year. No exceptions on Xero.",
+    "hiddenConcern": "Worried his team will resist yet another tool change after the failed Expensify rollout. Needs a clear change-management story and proof of fast onboarding. His credibility with the CFO is on the line.",
+    "budgetStatus": "No formal budget yet. The CFO (who hired him 6 months ago) has asked him to evaluate options first. Anything above $30k/year requires CFO sign-off and a board-level business case.",
+    "timelinePressure": "Audit in 6 weeks. If a solution can''t be live before then, status quo wins until next quarter. The CFO has made this clear in their last 1:1.",
     "companyBackground": "Singapore-headquartered consumer brand selling beauty and personal-care products. Operates across Southeast Asia. Roughly 250–300 employees. 7 years old. Raised growth-stage funding from a regional investor (per a press release ~2 years ago).",
     "buyerBackground": "Daniel has been Financial Controller for about 4 months. Before BloomCommerce: Big-4 audit background, then five years at a SaaS scale-up. He was hired by the CFO, who joined about 6 months ago.",
-    "whatYouKnowFromBooth": "A polite hello, a quick mention that finance is a bit messy, and an agreement to chat further. That''s what you''ve got. Anything else, you''ll need to discover on the call."
+    "whatYouKnowFromBooth": "A polite hello, a quick mention that finance is a bit messy, and an agreement to chat further. That''s what you''ve got. Anything else, you''ll need to discover on the call.",
+    "sampleDialogues": "Seller: ''We''d love to tell you about Aspire.''\nYou: ''Sure. To be honest, I get a lot of vendor outreach. What specifically does Aspire do for companies like ours?''\n\nSeller: ''We automate expense management.''\nYou: ''We already have a process for that. What part of ''automate'' are we talking about?''\n\nSeller: ''We can cut your audit prep from weeks to days.''\nYou: ''That''s a bold claim. What does ''days'' actually mean — 2 days? 5? And what does my team have to do differently?''\n\nSeller: ''Would you be open to a demo next week?''\nYou: ''I''m not sure we''re there yet. I still don''t understand how this is different from what we have today.''"
   }'::jsonb,
   'First Discovery Call',
   'Intermediate',
@@ -94,9 +101,16 @@ insert into public.platform_scenarios (
       "Integrate expense data with existing accounting tools",
       "Support compliance across multiple SEA markets"
     ],
+    "communicationStyle": "Practical and process-focused. Wants specifics on implementation, not marketing speak. Often says ''walk me through the workflow'' or ''what does that look like day one?''",
+    "priorVendorExperience": "Uses a basic corporate card from a local bank plus manual expense forms in Excel. No previous SaaS tool experience. Open to new tools but needs to see clear operational value quickly.",
+    "decisionCriteria": "Must handle 400+ employees, support 4 countries, integrate with existing accounting stack, and show clear admin time savings. Finance Controller must also approve.",
+    "hiddenConcern": "Worried her team won''t adopt another new system after the recent acquisition already changed many internal processes. She needs proof of easy rollout.",
+    "budgetStatus": "Has a rough annual software budget but anything over $50k needs sign-off from the CFO and the operations director.",
+    "timelinePressure": "Board meeting in 8 weeks where she needs to present a finance efficiency plan. Wants to have a solution identified before then.",
     "companyBackground": "Singapore-headquartered logistics and last-mile delivery company. Operates in Singapore, Malaysia, Thailand, and Vietnam. Approximately 400 employees. Founded 9 years ago. Acquired a regional delivery company within the last 18 months. Announced expansion into two new markets this year.",
     "buyerBackground": "Sarah has been Finance Manager for approximately 8 months. Before joining FastShip: worked at DHL for six years, previously held a finance operations role at a regional transportation company. She appears to report directly to the Financial Controller.",
-    "whatYouKnowFromBooth": "A comment that growth has made finance more complicated. An interest in how other companies manage employee spending. That is all you have. Anything else, you will need to discover on the call."
+    "whatYouKnowFromBooth": "A comment that growth has made finance more complicated. An interest in how other companies manage employee spending. That is all you have. Anything else, you will need to discover on the call.",
+    "sampleDialogues": "Seller: ''We help companies like yours automate spend management.''\nYou: ''That sounds useful, but we have 400 people across four countries. What does the rollout actually look like?''\n\nSeller: ''You''ll save 20 hours a week on reconciliation.''\nYou: ''I hear that a lot. Can you show me exactly how that works for multi-currency transactions?''"
   }'::jsonb,
   'First Discovery Call',
   'Intermediate',
@@ -145,9 +159,16 @@ insert into public.platform_scenarios (
       "Integrate with existing ERP and accounting stack",
       "Support compliance across expanding regional offices"
     ],
+    "communicationStyle": "Curious but cautious. Likes structured comparisons. Asks ''how does that compare to [competitor]?'' and ''what does the implementation timeline look like?''",
+    "priorVendorExperience": "Evaluated SAP Concur last year. Too expensive and complex for their stage. Currently using a mix of local bank cards and Google Sheets for expense tracking.",
+    "decisionCriteria": "Must integrate with NetSuite (their current ERP), support multi-entity accounting, have an API for their engineering team, and scale to 500+ employees within 12 months.",
+    "hiddenConcern": "Scared of picking a tool that becomes a bottleneck as they scale. Needs proof that the platform won''t require a replacement at 500 employees.",
+    "budgetStatus": "CFO has allocated $40-60k for finance tooling this year. Kevin has authority to recommend but CFO makes final call.",
+    "timelinePressure": "Closing a funding round in 3 months. The CFO wants all finance processes looking clean and scalable before investor due diligence.",
     "companyBackground": "Singapore-headquartered B2B SaaS company. Serves enterprise customers across Southeast Asia. Approximately 280 employees. Raised a Series B funding round 18 months ago. Opened offices in Indonesia and the Philippines within the last year. Hiring aggressively across sales and engineering.",
     "buyerBackground": "Kevin joined NovaTech approximately 10 months ago. Before NovaTech: spent four years at a venture-backed software company. Started his career in audit at a Big Four accounting firm. Kevin appears to report directly to the CFO.",
-    "whatYouKnowFromBooth": "A brief discussion. Kevin mentioned that things are becoming difficult to manage as the company scales. He was evaluating options. That is all you have. Anything else, you will need to discover on the call."
+    "whatYouKnowFromBooth": "A brief discussion. Kevin mentioned that things are becoming difficult to manage as the company scales. He was evaluating options. That is all you have. Anything else, you will need to discover on the call.",
+    "sampleDialogues": "Seller: ''Our platform scales with you.''\nYou: ''We''re at 280 now and planning 500 in a year. Can you show me a customer at that size?''\n\nSeller: ''Integration is seamless.''\nYou: ''We use NetSuite. Have you done a NetSuite integration with a multi-entity setup like ours?''"
   }'::jsonb,
   'First Discovery Call',
   'Intermediate',
@@ -196,9 +217,16 @@ insert into public.platform_scenarios (
       "Integrate expense data with accounting systems",
       "Support multi-market operations with one platform"
     ],
+    "communicationStyle": "Detail-oriented and slightly frustrated by current manual work. Open to new tools but needs proof of ROI. Professional and polite but will push back on vague claims. Says things like ''show me the numbers'' or ''what does that mean for my team?''",
+    "priorVendorExperience": "Used Spendesk at previous company and liked it but it was too expensive for StyleStreet''s budget. Currently using bank-issued corporate cards + WhatsApp for receipt collection.",
+    "decisionCriteria": "Must integrate with QuickBooks Online, support e-commerce ad spend tracking (Shopee, Lazada, TikTok), and have a mobile app that works well for field teams.",
+    "hiddenConcern": "The CFO is new and wants quick wins. Andrew needs to look good in his first 6 months. A failed tool rollout would be a career risk.",
+    "budgetStatus": "Budget is tight this year after expansion. Needs to justify spend with clear ROI numbers. Anything over $25k needs CFO and CEO approval.",
+    "timelinePressure": "Peak season (11.11 and year-end) is coming in 3 months. Finance team cannot handle a major tool change during peak. Must decide and implement before September.",
     "companyBackground": "Singapore-headquartered fashion e-commerce company. Sells through direct-to-consumer channels, Shopee, Lazada, and TikTok Shop. Operates across six Southeast Asian markets. Approximately 320 employees. Founded 8 years ago. Raised a growth equity round three years ago. Expanded into two new markets within the last 12 months.",
     "buyerBackground": "Andrew joined StyleStreet approximately 6 months ago. Before StyleStreet: five years at a regional retail company. Started his career in public accounting. Andrew was hired by the CFO, who joined earlier this year.",
-    "whatYouKnowFromBooth": "A brief chat after a panel on financial operations. Andrew mentioned that his finance team was spending too much time on manual processes and that he was evaluating ways to improve visibility into company spending. That is all you have. Anything else, you will need to discover on the call."
+    "whatYouKnowFromBooth": "A brief chat after a panel on financial operations. Andrew mentioned that his finance team was spending too much time on manual processes and that he was evaluating ways to improve visibility into company spending. That is all you have. Anything else, you will need to discover on the call.",
+    "sampleDialogues": "Seller: ''We''ll give you real-time visibility.''\nYou: ''I hear that a lot. What does ''real-time'' mean? Can I see a transaction the second it happens?''\n\nSeller: ''Our mobile app is great for your team.''\nYou: ''Half my team is in warehouses and retail stores. Does it work offline?''"
   }'::jsonb,
   'First Discovery Call',
   'Intermediate',

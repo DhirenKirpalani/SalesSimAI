@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Plus, Clock, TrendingUp, Play, Loader2, Inbox, CheckCircle2 } from "lucide-react";
+import { Plus, Clock, TrendingUp, Loader2, Inbox, CheckCircle2 } from "lucide-react";
 
 interface HeygenSession {
   id: string;
@@ -155,15 +155,6 @@ export default function SimulationsPage() {
                   </div>
                 )}
 
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0 rounded-xl gap-1.5 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => { e.stopPropagation(); if (completed) router.push(`/analysis?session=${s.id}`); }}
-                >
-                  <Play className="w-3 h-3" />
-                  View
-                </Button>
               </div>
             );
           })}
