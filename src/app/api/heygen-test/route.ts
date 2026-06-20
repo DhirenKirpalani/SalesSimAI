@@ -261,10 +261,14 @@ export async function DELETE(req: NextRequest) {
   const { session_id, heygen_session_db_id } = await req.json();
   if (session_id) await stopSession(session_id).catch(() => {});
   if (heygen_session_db_id) {
-    void serviceSupabase()
-      .from("heygen_sessions")
-      .update({ ended_at: new Date().toISOString() })
-      .eq("id", heygen_session_db_id);
+    try {
+      await serviceSupabase()
+        .from("heygen_sessions")
+        .update({ ended_at: new Date().toISOString() })
+        .eq("id", heygen_session_db_id);
+    } catch (dbErr) {
+      console.warn("[heygen-test/DELETE] DB update failed:", dbErr);
+    }
   }
   // LLM config is shared infrastructure — never deleted per-session
   return NextResponse.json({ ok: true });
