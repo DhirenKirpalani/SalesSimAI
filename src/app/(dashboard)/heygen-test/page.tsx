@@ -14,6 +14,21 @@ interface SessionInfo {
   scenario_name: string;
 }
 
+interface TranscriptEntry {
+  role: "avatar" | "user";
+  text: string;
+  time: string;
+}
+
+interface FeedbackResult {
+  score: number;
+  summary: string;
+  wentWell: string[];
+  missed: string[];
+  objections: string[];
+  tip: string;
+}
+
 function HeyGenTestInner() {
   const searchParams = useSearchParams();
   const scenarioId = searchParams.get("scenarioId") ?? undefined;
@@ -23,22 +38,42 @@ function HeyGenTestInner() {
   const roomRef = useRef<Room | null>(null);
   const sessionRef = useRef<SessionInfo | null>(null);
   const audioElemsRef = useRef<HTMLAudioElement[]>([]);
+  const transcriptRef = useRef<TranscriptEntry[]>([]);
+  const transcriptEndRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [micOn, setMicOn] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+  const [logOpen, setLogOpen] = useState(false);
   const [resolvedScenarioName, setResolvedScenarioName] = useState<string | null>(null);
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [feedback, setFeedback] = useState<FeedbackResult | null>(null);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
-  const addLog = useCallback((msg: string, color?: string) => {
-    const entry = color ? `${color}${msg}` : msg;
+  const addLog = useCallback((msg: string) => {
     console.log("[heygen-test]", msg);
-    setLog((prev) => [`[${new Date().toLocaleTimeString()}] ${entry}`, ...prev.slice(0, 99)]);
+    setLog((prev) => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 99)]);
   }, []);
+
+  const addTranscript = useCallback((role: "avatar" | "user", text: string) => {
+    const entry: TranscriptEntry = { role, text, time: new Date().toLocaleTimeString() };
+    transcriptRef.current = [...transcriptRef.current, entry];
+    setTranscript((prev) => [...prev, entry]);
+  }, []);
+
+  useEffect(() => {
+    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [transcript]);
 
   const start = useCallback(async () => {
     setStatus("connecting");
     setError(null);
+    setTranscript([]);
+    setFeedback(null);
+    transcriptRef.current = [];
     addLog("Starting LiveAvatar session…");
 
     try {
@@ -92,13 +127,15 @@ function HeyGenTestInner() {
           } else if (evType === "avatar.speak_ended") {
             addLog(`🤖 AVATAR done speaking`);
           } else if (evType === "avatar.transcription") {
-            addLog(`🤖 Avatar said: "${parsed.text ?? parsed.message ?? JSON.stringify(parsed).slice(0, 80)}"`);
+            const avatarText = String(parsed.text ?? parsed.message ?? "").trim();
+            if (avatarText) { addTranscript("avatar", avatarText); addLog(`🤖 Avatar said: "${avatarText.slice(0, 60)}"`); }
           } else if (evType === "avatar.transcription.chunk") {
-            // suppress chunks — they're noisy; transcription event has the full text
+            // suppress — full transcription event has the complete text
           } else if (evType.startsWith("agent.")) {
             addLog(`🤖 ${evType}`);
           } else if (evType === "user.transcription") {
-            addLog(`🎙️ You said: "${parsed.text}"`);
+            const userText = String(parsed.text ?? "").trim();
+            if (userText) { addTranscript("user", userText); addLog(`🎙️ You said: "${userText}"`); }
           } else if (evType.startsWith("user.")) {
             addLog(`👤 ${evType}`);
           } else if (evType) {
@@ -186,13 +223,20 @@ function HeyGenTestInner() {
       }
 
       setStatus("connected");
+      setTimeLeft(300);
+      timerRef.current = setInterval(() => {
+        setTimeLeft((t) => {
+          if (t === null || t <= 1) return 0;
+          return t - 1;
+        });
+      }, 1000);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
       setStatus("error");
       addLog("❌ " + msg);
     }
-  }, [addLog]);
+  }, [addLog, addTranscript, scenarioId, scenarioTable]);
 
   const toggleMic = useCallback(async () => {
     const room = roomRef.current;
@@ -223,53 +267,119 @@ function HeyGenTestInner() {
       fetch("/api/heygen-test", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: info.session_id, llm_config_id: info.llm_config_id }),
+        body: JSON.stringify({ session_id: info.session_id }),
       }).catch(() => {});
       sessionRef.current = null;
     }
     if (videoRef.current) videoRef.current.srcObject = null;
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    setTimeLeft(null);
     setStatus("idle");
     setMicOn(false);
     addLog("Session stopped");
   }, [addLog]);
+
+  const handleEnd = useCallback(async () => {
+    const currentTranscript = [...transcriptRef.current];
+    await stop();
+    if (currentTranscript.length >= 2) {
+      setFeedbackLoading(true);
+      try {
+        const res = await fetch("/api/heygen-test/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcript: currentTranscript, scenarioName: resolvedScenarioName ?? "LiveAvatar Test" }),
+        });
+        setFeedback(await res.json());
+      } catch { /* ignore */ }
+      finally { setFeedbackLoading(false); }
+    }
+  }, [stop, resolvedScenarioName]);
+
+  // Auto-end when timer hits 0
+  useEffect(() => {
+    if (timeLeft === 0) handleEnd();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft]);
 
   // Cleanup on unmount
   useEffect(() => () => { stop(); }, [stop]);
 
   return (
     <div className="min-h-screen bg-gray-950 text-white p-6 flex flex-col gap-5">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-center justify-between max-w-4xl mx-auto w-full">
         <div>
-        <h1 className="text-2xl font-bold">LiveAvatar Test</h1>
-        {scenarioId && <p className="text-sm text-gray-400 mt-0.5">Scenario: {resolvedScenarioName ?? scenarioId}</p>}
-      </div>
-        <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-          status === "connected" ? "bg-green-700" :
-          status === "connecting" ? "bg-yellow-700" :
-          status === "error" ? "bg-red-700" : "bg-gray-700"
-        }`}>{status}</span>
+          <h1 className="text-2xl font-bold">LiveAvatar Test</h1>
+          {scenarioId && <p className="text-sm text-gray-400 mt-0.5">Scenario: {resolvedScenarioName ?? scenarioId}</p>}
+        </div>
+        <div className="flex items-center gap-3">
+          {timeLeft !== null && (
+            <span className={`text-sm font-mono font-bold ${
+              timeLeft <= 30 ? "text-red-400" : timeLeft <= 60 ? "text-yellow-400" : "text-green-400"
+            }`}>
+              {String(Math.floor(timeLeft / 60)).padStart(2, "0")}:{String(timeLeft % 60).padStart(2, "0")}
+            </span>
+          )}
+          <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+            status === "connected" ? "bg-green-700" :
+            status === "connecting" ? "bg-yellow-700" :
+            status === "error" ? "bg-red-700" : "bg-gray-700"
+          }`}>{status}</span>
+        </div>
       </div>
 
-      {/* Video */}
-      <div className="relative w-full max-w-2xl aspect-video bg-gray-900 rounded-2xl overflow-hidden border border-gray-800 mx-auto">
-        <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-        {status !== "connected" && (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">
-            {status === "connecting" ? "Connecting to LiveAvatar…" :
-             status === "error" ? "Connection failed" : "Press Start to begin"}
+      {/* Video + Transcript */}
+      <div className="flex flex-col lg:flex-row gap-4 max-w-4xl mx-auto w-full">
+        {/* Video */}
+        <div className="relative w-full lg:w-1/2 aspect-video bg-gray-900 rounded-2xl overflow-hidden border border-gray-800 shrink-0">
+          <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+          {status !== "connected" && (
+            <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">
+              {status === "connecting" ? "Connecting to LiveAvatar…" :
+               status === "error" ? "Connection failed" : "Press Start to begin"}
+            </div>
+          )}
+        </div>
+
+        {/* Transcript */}
+        <div className="w-full lg:w-1/2 flex flex-col gap-2">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Conversation</p>
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-1 min-h-[200px] max-h-[320px] overflow-y-auto flex flex-col gap-3">
+            {transcript.length === 0 ? (
+              <p className="text-gray-600 text-sm text-center mt-6">
+                {status === "connected" ? "Speak to start the conversation…" : "Transcript will appear here after you start."}
+              </p>
+            ) : (
+              transcript.map((entry, i) => (
+                <div key={i} className={`flex flex-col ${entry.role === "user" ? "items-end" : "items-start"}`}>
+                  <span className="text-[10px] text-gray-500 mb-0.5 px-1">
+                    {entry.role === "user" ? "You" : (resolvedScenarioName ? "Buyer" : "Avatar")} · {entry.time}
+                  </span>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm leading-relaxed ${
+                    entry.role === "user"
+                      ? "bg-blue-600 text-white rounded-br-sm"
+                      : "bg-gray-700 text-gray-100 rounded-bl-sm"
+                  }`}>
+                    {entry.text}
+                  </div>
+                </div>
+              ))
+            )}
+            <div ref={transcriptEndRef} />
           </div>
-        )}
+        </div>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="max-w-2xl mx-auto w-full bg-red-900/40 border border-red-700 text-red-300 px-4 py-3 rounded-xl text-sm break-all">
+        <div className="max-w-4xl mx-auto w-full bg-red-900/40 border border-red-700 text-red-300 px-4 py-3 rounded-xl text-sm break-all">
           {error}
         </div>
       )}
 
       {/* Controls */}
-      <div className="flex gap-3 max-w-2xl mx-auto w-full">
+      <div className="flex gap-3 max-w-4xl mx-auto w-full">
         {status === "idle" || status === "error" ? (
           <button onClick={start} className="flex-1 bg-blue-600 hover:bg-blue-500 font-semibold py-3 rounded-xl transition-colors">
             🚀 Start Call
@@ -286,7 +396,7 @@ function HeyGenTestInner() {
             >
               {micOn ? "🎙️ Mic ON (tap to mute)" : "🔇 Mic OFF (tap to unmute)"}
             </button>
-            <button onClick={stop} className="px-6 bg-red-800 hover:bg-red-700 font-semibold rounded-xl transition-colors">
+            <button onClick={handleEnd} className="px-6 bg-red-800 hover:bg-red-700 font-semibold rounded-xl transition-colors">
               End
             </button>
           </>
@@ -295,22 +405,73 @@ function HeyGenTestInner() {
 
       {/* Instructions */}
       {status === "connected" && (
-        <p className="text-center text-sm text-gray-400 max-w-2xl mx-auto">
+        <p className="text-center text-sm text-gray-400 max-w-4xl mx-auto">
           {sessionRef.current?.llm_config_id
             ? "Speak naturally — LiveAvatar will respond after you pause."
             : "⚠️ Running locally without LLM config. Avatar hears you but won't respond. Deploy to prod for full experience."}
         </p>
       )}
 
-      {/* Log */}
-      <div className="max-w-2xl mx-auto w-full">
-        <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Live Log</p>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 h-64 overflow-y-auto font-mono text-xs text-gray-300 flex flex-col gap-0.5">
-          {log.length === 0 && <span className="text-gray-600">Waiting…</span>}
-          {log.map((l, i) => (
-            <span key={i} className={l.includes("AGENT") ? "text-green-400 font-bold" : l.includes("❌") ? "text-red-400" : l.includes("✅") ? "text-green-300" : ""}>{l}</span>
-          ))}
+      {/* Post-call Feedback */}
+      {(feedbackLoading || feedback) && (
+        <div className="max-w-4xl mx-auto w-full bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-lg">Call Feedback</h2>
+            {feedback && (
+              <span className={`text-2xl font-bold ${
+                feedback.score >= 70 ? "text-green-400" : feedback.score >= 40 ? "text-yellow-400" : "text-red-400"
+              }`}>{feedback.score}<span className="text-base text-gray-500">/100</span></span>
+            )}
+          </div>
+          {feedbackLoading && <p className="text-gray-400 text-sm animate-pulse">Analyzing your call…</p>}
+          {feedback && (
+            <>
+              <p className="text-gray-300 text-sm">{feedback.summary}</p>
+              {feedback.wentWell?.length > 0 && (
+                <div>
+                  <p className="text-xs text-green-400 font-semibold uppercase tracking-wide mb-1.5">✅ What went well</p>
+                  {feedback.wentWell.map((w, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {w}</p>)}
+                </div>
+              )}
+              {feedback.missed?.length > 0 && (
+                <div>
+                  <p className="text-xs text-yellow-400 font-semibold uppercase tracking-wide mb-1.5">⚠️ Missed opportunities</p>
+                  {feedback.missed.map((m, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {m}</p>)}
+                </div>
+              )}
+              {feedback.objections?.length > 0 && (
+                <div>
+                  <p className="text-xs text-red-400 font-semibold uppercase tracking-wide mb-1.5">❌ Objections not addressed</p>
+                  {feedback.objections.map((o, i) => <p key={i} className="text-sm text-gray-300 ml-1">• {o}</p>)}
+                </div>
+              )}
+              {feedback.tip && (
+                <div className="bg-blue-950/50 border border-blue-700/40 rounded-xl px-4 py-3">
+                  <p className="text-xs text-blue-400 font-semibold uppercase tracking-wide mb-1">💡 Coach’s Tip</p>
+                  <p className="text-sm text-gray-200 italic">{feedback.tip}</p>
+                </div>
+              )}
+            </>
+          )}
         </div>
+      )}
+
+      {/* Debug Log (collapsible) */}
+      <div className="max-w-4xl mx-auto w-full">
+        <button
+          onClick={() => setLogOpen((o) => !o)}
+          className="text-xs text-gray-600 hover:text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1 transition-colors"
+        >
+          {logOpen ? "▼" : "▶"} Debug Log
+        </button>
+        {logOpen && (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 h-48 overflow-y-auto font-mono text-xs text-gray-300 flex flex-col gap-0.5">
+            {log.length === 0 && <span className="text-gray-600">Waiting…</span>}
+            {log.map((l, i) => (
+              <span key={i} className={l.includes("❌") ? "text-red-400" : l.includes("✅") ? "text-green-300" : ""}>{l}</span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
