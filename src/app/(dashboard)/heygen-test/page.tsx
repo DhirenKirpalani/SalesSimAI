@@ -48,6 +48,8 @@ function HeyGenTestInner() {
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const heygenSessionDbIdRef = useRef<string | null>(null);
+  const startedAtRef = useRef<string | null>(null);
 
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +96,9 @@ function HeyGenTestInner() {
 
       const info: SessionInfo = json;
       sessionRef.current = info;
-      if (info.scenario_name && info.scenario_name !== "LiveAvatar Test") {
+      heygenSessionDbIdRef.current = (json.heygen_session_db_id as string | null) ?? null;
+      startedAtRef.current = new Date().toISOString();
+      if (info.scenario_name && info.scenario_name !== "LiveAvatar Test" && info.scenario_name !== "Simulation") {
         setResolvedScenarioName(info.scenario_name);
         addLog(`📋 Scenario: ${info.scenario_name}`);
       }
@@ -274,7 +278,7 @@ function HeyGenTestInner() {
       fetch("/api/heygen-test", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: info.session_id }),
+        body: JSON.stringify({ session_id: info.session_id, heygen_session_db_id: heygenSessionDbIdRef.current }),
       }).catch(() => {});
       sessionRef.current = null;
     }
@@ -295,7 +299,12 @@ function HeyGenTestInner() {
         const res = await fetch("/api/heygen-test/feedback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transcript: currentTranscript, scenarioName: resolvedScenarioName ?? "LiveAvatar Test" }),
+          body: JSON.stringify({
+          transcript: currentTranscript,
+          scenarioName: resolvedScenarioName ?? "Simulation",
+          heygenSessionId: heygenSessionDbIdRef.current,
+          startedAt: startedAtRef.current,
+        }),
         });
         setFeedback(await res.json());
       } catch { /* ignore */ }

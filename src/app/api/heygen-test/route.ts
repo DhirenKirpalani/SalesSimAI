@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 import {
   createSessionToken,
   startSession,
@@ -215,12 +216,39 @@ export async function POST(req: NextRequest) {
     console.log("[heygen-test] ✅ Session started:", session.session_id);
     console.log("[heygen-test] livekit_url:", session.livekit_url);
 
+    // Persist session row in DB (best-effort — don't block on failure)
+    let heygenSessionDbId: string | null = null;
+    try {
+      const serverSupabase = await createServerClient();
+      const { data: { user } } = await serverSupabase.auth.getUser();
+      if (user) {
+        const svcSupabase = serviceSupabase();
+        const { data: dbRow } = await svcSupabase
+          .from("heygen_sessions")
+          .insert({
+            user_id: user.id,
+            scenario_id: scenarioId ?? null,
+            scenario_table: scenarioTable ?? null,
+            scenario_name: scenarioName,
+          })
+          .select("id")
+          .single();
+        heygenSessionDbId = dbRow?.id ?? null;
+        console.log("[heygen-test] ✅ DB session created:", heygenSessionDbId);
+      } else {
+        console.warn("[heygen-test] No authenticated user — session not persisted");
+      }
+    } catch (dbErr) {
+      console.warn("[heygen-test] DB session insert failed (non-fatal):", dbErr);
+    }
+
     return NextResponse.json({
       session_id: session.session_id,
       livekit_url: session.livekit_url,
       livekit_client_token: session.livekit_client_token,
       llm_config_id: llmConfigId ?? null,
       scenario_name: scenarioName,
+      heygen_session_db_id: heygenSessionDbId,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -230,8 +258,14 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const { session_id } = await req.json();
+  const { session_id, heygen_session_db_id } = await req.json();
   if (session_id) await stopSession(session_id).catch(() => {});
+  if (heygen_session_db_id) {
+    void serviceSupabase()
+      .from("heygen_sessions")
+      .update({ ended_at: new Date().toISOString() })
+      .eq("id", heygen_session_db_id);
+  }
   // LLM config is shared infrastructure — never deleted per-session
   return NextResponse.json({ ok: true });
 }
