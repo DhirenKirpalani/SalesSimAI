@@ -310,7 +310,7 @@ function HeyGenTestInner() {
       {/* Header */}
       <div className="flex items-center justify-between max-w-4xl mx-auto w-full">
         <div>
-          <h1 className="text-2xl font-bold">LiveAvatar Test</h1>
+          <h1 className="text-2xl font-bold">Simulation</h1>
           {scenarioId && <p className="text-sm text-gray-400 mt-0.5">Scenario: {resolvedScenarioName ?? scenarioId}</p>}
         </div>
         <div className="flex items-center gap-3">

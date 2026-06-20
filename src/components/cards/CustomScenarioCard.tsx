@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { CustomScenario } from "@/types";
-import { Clock, BarChart3, ArrowRight, Trash2, Building2, Users, MessageSquare, Play, Video } from "lucide-react";
+import { Clock, BarChart3, ArrowRight, Trash2, Building2, Users, MessageSquare, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { mockPersonas } from "@/lib/data/mockData";
@@ -93,11 +93,6 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
 
   const handleStart = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/simulation/${scenario.id}?table=${table}`);
-  };
-
-  const handleTestAvatar = (e: React.MouseEvent) => {
-    e.stopPropagation();
     router.push(`/heygen-test?scenarioId=${scenario.id}&scenarioTable=${table}`);
   };
 
@@ -143,15 +138,6 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
                 <Button size="sm" className="flex-1 rounded-lg gap-1 text-xs group-hover:gap-2 transition-all" onClick={handleStart}>
                   Start Simulation
                   <ArrowRight className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-lg h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                  onClick={handleTestAvatar}
-                  title="Test with Live Avatar"
-                >
-                  <Video className="w-3.5 h-3.5" />
                 </Button>
                 {showDelete && (
                   <Button
@@ -252,10 +238,6 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
           <DialogFooter className="pt-4">
             <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>
               Close
-            </Button>
-            <Button variant="outline" className="rounded-xl gap-1" onClick={handleTestAvatar}>
-              <Video className="w-4 h-4" />
-              Test Avatar
             </Button>
             <Button className="rounded-xl gap-1" onClick={handleStart}>
               Start Simulation
