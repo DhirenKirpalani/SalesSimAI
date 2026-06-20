@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
       console.warn("[heygen-test] ⚠️  No APP_URL or OPENAI_API_KEY — skipping LLM config. Avatar will NOT respond.");
     }
 
-    const token = await createSessionToken({
+    const buildToken = (configId: string | undefined) => createSessionToken({
       mode: "FULL",
       avatar_id: AVATAR_ID,
       quality: "medium",
@@ -173,8 +173,10 @@ export async function POST(req: NextRequest) {
       interactivity_type: "CONVERSATIONAL",
       voice_id: VOICE_ID,
       context_id: contextId,
-      llm_configuration_id: llmConfigId,
+      llm_configuration_id: configId,
     });
+
+    let token = await buildToken(llmConfigId);
 
     console.log("[heygen-test] ── SESSION TOKEN ───────────────────────────────");
     console.log("[heygen-test] session_id:", token.session_id);
@@ -183,7 +185,34 @@ export async function POST(req: NextRequest) {
     console.log("[heygen-test] mode: FULL, interactivity: CONVERSATIONAL");
     console.log("[heygen-test] ────────────────────────────────────────────────");
 
-    const session = await startSession(token.session_token);
+    let session;
+    try {
+      session = await startSession(token.session_token);
+    } catch (startErr) {
+      const errMsg = startErr instanceof Error ? startErr.message : String(startErr);
+      // If cached LLM config was deleted, recreate it and retry once
+      if (cachedLlmConfigId && errMsg.includes(cachedLlmConfigId) && appUrl && openaiKey) {
+        console.warn("[heygen-test] ⚠️  Cached LLM config is stale — recreating…");
+        try {
+          const retryName = `Test-${Date.now()}`;
+          const retrySecret = await createLiveAvatarSecret(openaiKey, retryName);
+          llmConfigId = await createLLMConfig({
+            display_name: retryName,
+            model_name: "gpt-4o",
+            secret_id: retrySecret,
+            base_url: `${appUrl}/api/heygen-test/llm`,
+          });
+          console.log("[heygen-test] ✅ New LLM config:", llmConfigId);
+          console.warn("[heygen-test] ⚠️  Update LIVEAVATAR_TEST_LLM_CONFIG_ID=" + llmConfigId + " in your env vars");
+          token = await buildToken(llmConfigId);
+          session = await startSession(token.session_token);
+        } catch (retryErr) {
+          throw retryErr;
+        }
+      } else {
+        throw startErr;
+      }
+    }
     console.log("[heygen-test] ✅ Session started:", session.session_id);
     console.log("[heygen-test] livekit_url:", session.livekit_url);
 
