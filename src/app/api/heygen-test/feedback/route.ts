@@ -1,4 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+function serviceSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+}
 
 interface TranscriptEntry {
   role: "avatar" | "user";
@@ -37,9 +45,11 @@ MEDDIC scoring guidance:
 Be honest and specific. Reference actual moments from the transcript. If the call was very short, score conservatively and note it.`;
 
 export async function POST(req: NextRequest) {
-  const { transcript, scenarioName } = await req.json() as {
+  const { transcript, scenarioName, heygenSessionId, startedAt } = await req.json() as {
     transcript: TranscriptEntry[];
     scenarioName: string;
+    heygenSessionId?: string;
+    startedAt?: string;
   };
 
   if (!transcript?.length) {
@@ -73,7 +83,25 @@ export async function POST(req: NextRequest) {
 
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content;
-    return NextResponse.json(JSON.parse(content));
+    const analysis = JSON.parse(content);
+
+    // Persist to DB (best-effort)
+    if (heygenSessionId) {
+      const durationS = startedAt
+        ? Math.round((Date.now() - new Date(startedAt).getTime()) / 1000)
+        : null;
+      void serviceSupabase()
+        .from("heygen_sessions")
+        .update({
+          transcript,
+          analysis,
+          duration_s: durationS,
+          ended_at: new Date().toISOString(),
+        })
+        .eq("id", heygenSessionId);
+    }
+
+    return NextResponse.json(analysis);
   } catch (e) {
     console.error("[heygen-test/feedback] error:", e);
     return NextResponse.json({ error: "Failed to generate feedback" }, { status: 500 });
