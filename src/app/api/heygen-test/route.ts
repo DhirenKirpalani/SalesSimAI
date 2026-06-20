@@ -30,7 +30,25 @@ function buildPersonaPrompt(scenario: CustomScenario, persona: CustomPersona | n
     : "- No specific pain points listed";
   const sellerCtx = scenario.seller_description ? `\nWHAT IS BEING SOLD:\n${scenario.seller_description}` : "";
   const callCtx = scenario.context_note ? `\nCALL CONTEXT:\n${scenario.context_note}` : "";
-  return `You are ${name}, ${role} at ${company}${industry ? ` (${industry})` : ""}.\nPERSONALITY: ${personality}\nYOUR PAIN POINTS:\n${painPoints}${sellerCtx}${callCtx}\n\nGROUND RULES:\n- You are the BUYER. Stay fully in character.\n- Be guarded. Share info only when asked the right questions.\n- Ask for data and proof before committing.\n- Keep responses concise (2-4 sentences). Speak naturally.`;
+  return `You are ${name}, ${role} at ${company}${industry ? ` (${industry})` : ""}.
+PERSONALITY: ${personality}
+YOUR PAIN POINTS:
+${painPoints}${sellerCtx}${callCtx}
+
+GROUND RULES:
+- You are the BUYER. Stay fully in character at all times.
+- Be guarded. Do not volunteer information unless directly asked.
+- Ask for evidence, data, or proof before showing interest.
+- Do not explain everything. Let the seller work for information.
+- Never sound like an AI assistant or give a presentation.
+
+SPEECH STYLE:
+- Keep every response to 1-3 sentences maximum.
+- Speak like a real person on a business call, not a corporate presenter.
+- Use natural hesitation: "Honestly...", "That's a good question...", "We're still figuring that out..."
+- Show mild skepticism by default. Warm up slowly only if the seller asks good questions.
+- Example bad: "Thank you for your question. Let me provide some context about our operations..."
+- Example good: "Honestly, we have a process today. The issue is visibility when teams spend across markets."`;
 }
 
 const AVATAR_ID = process.env.LIVEAVATAR_AVATAR_ID!;
@@ -119,8 +137,12 @@ export async function POST(req: NextRequest) {
     let llmConfigId: string | undefined;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL;
     const openaiKey = process.env.OPENAI_API_KEY;
+    const cachedLlmConfigId = process.env.LIVEAVATAR_TEST_LLM_CONFIG_ID;
     console.log("[heygen-test] NEXT_PUBLIC_APP_URL:", appUrl ?? "(not set — localhost, LLM will be skipped)");
-    if (appUrl && openaiKey) {
+    if (cachedLlmConfigId) {
+      llmConfigId = cachedLlmConfigId;
+      console.log("[heygen-test] ✅ Reusing cached LLM config:", llmConfigId);
+    } else if (appUrl && openaiKey) {
       const llmName = `Test-${Date.now()}`;
       const llmEndpoint = `${appUrl}/api/heygen-test/llm`;
       console.log("[heygen-test] LLM base_url:", llmEndpoint);
@@ -135,6 +157,7 @@ export async function POST(req: NextRequest) {
           base_url: llmEndpoint,
         });
         console.log("[heygen-test] ✅ LLM config created:", llmConfigId);
+        console.log("[heygen-test] 💡 Add to env: LIVEAVATAR_TEST_LLM_CONFIG_ID=" + llmConfigId);
       } catch (e) {
         console.error("[heygen-test] ❌ LLM config failed:", e);
       }
@@ -181,6 +204,9 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const { session_id, llm_config_id } = await req.json();
   if (session_id) await stopSession(session_id).catch(() => {});
-  if (llm_config_id) await deleteLLMConfig(llm_config_id).catch(() => {});
+  const cachedLlmConfigId = process.env.LIVEAVATAR_TEST_LLM_CONFIG_ID;
+  if (llm_config_id && llm_config_id !== cachedLlmConfigId) {
+    await deleteLLMConfig(llm_config_id).catch(() => {});
+  }
   return NextResponse.json({ ok: true });
 }
