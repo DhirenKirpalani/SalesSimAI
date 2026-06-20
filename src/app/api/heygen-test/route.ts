@@ -7,7 +7,6 @@ import {
   createLiveAvatarContext,
   createLiveAvatarSecret,
   createLLMConfig,
-  deleteLLMConfig,
 } from "@/lib/heygen";
 import { CustomScenario, CustomPersona } from "@/types";
 import { mockPersonas } from "@/lib/data/mockData";
@@ -231,11 +230,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const { session_id, llm_config_id } = await req.json();
+  const { session_id } = await req.json();
   if (session_id) await stopSession(session_id).catch(() => {});
-  const cachedLlmConfigId = process.env.LIVEAVATAR_TEST_LLM_CONFIG_ID;
-  if (llm_config_id && llm_config_id !== cachedLlmConfigId) {
-    await deleteLLMConfig(llm_config_id).catch(() => {});
-  }
+  // LLM config is shared infrastructure — never deleted per-session
   return NextResponse.json({ ok: true });
 }
