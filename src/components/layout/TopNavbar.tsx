@@ -45,7 +45,7 @@ import { useRole } from "@/hooks/useRole";
 const baseMobileNavItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Scenarios", href: "/scenarios", icon: Library },
-  { label: "Simulations", href: "/simulation", icon: Mic2 },
+  { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
   { label: "Profile", href: "/profile", icon: User },
 ];
@@ -208,7 +208,7 @@ export function TopNavbar() {
       pollInterval = setInterval(load, 30_000);
 
       channel = supabase
-        .channel(`notif_${user.id}`)
+        .channel(`notif_${user.id}_${Date.now()}`)
         .on(
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: "heygen_sessions", filter: `user_id=eq.${user.id}` },

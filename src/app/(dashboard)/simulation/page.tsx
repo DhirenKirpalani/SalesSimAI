@@ -53,6 +53,7 @@ function HeyGenTestInner() {
   const avatarId = searchParams.get("avatarId") ?? undefined;
   const voiceId = searchParams.get("voiceId") ?? undefined;
   const scenarioNameParam = searchParams.get("scenarioName") ?? undefined;
+  const avatarNameParam = searchParams.get("avatarName") ?? undefined;
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -83,6 +84,7 @@ function HeyGenTestInner() {
   const [feedback, setFeedback] = useState<FeedbackResult | null>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
 
   const addLog = useCallback((msg: string) => {
     console.log("[heygen-test]", msg);
@@ -98,6 +100,18 @@ function HeyGenTestInner() {
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [transcript]);
+
+  useEffect(() => {
+    const resolveAvatarId = avatarId ?? scenarioId;
+    if (!resolveAvatarId) return;
+    fetch(`/api/heygen-test/avatars?page=1&page_size=100`)
+      .then((r) => r.json())
+      .then((data) => {
+        const match = (data.avatars ?? []).find((a: { id: string; preview_image_url: string | null }) => a.id === avatarId);
+        if (match?.preview_image_url) setAvatarImageUrl(match.preview_image_url);
+      })
+      .catch(() => { /* ignore */ });
+  }, [avatarId, scenarioId]);
 
   const start = useCallback(async () => {
     const isResume = resumeTimeLeftRef.current !== null;
@@ -556,14 +570,18 @@ function HeyGenTestInner() {
         {status !== "connected" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B0E14]">
             <div className="text-center space-y-4">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center mx-auto ring-1 ring-white/10">
-                <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                </svg>
+              <div className="w-20 h-20 rounded-full mx-auto ring-1 ring-white/10 overflow-hidden bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
+                {avatarImageUrl ? (
+                  <img src={avatarImageUrl} alt={avatarNameParam ?? "Avatar"} className="w-full h-full object-cover object-top" />
+                ) : (
+                  <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                  </svg>
+                )}
               </div>
               <div>
                 <p className="text-gray-300 font-medium">
-                  {status === "connecting" ? "Connecting to avatar…" :
+                  {status === "connecting" ? `Connecting to ${avatarNameParam ?? "avatar"}…` :
                    status === "error" ? "Connection failed" :
                    status === "paused" ? "Session paused" :
                    "Ready to practice"}
