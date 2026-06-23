@@ -56,7 +56,7 @@ const SCENARIO_TYPES = [
 ];
 
 const DIFFICULTIES = ["Beginner", "Intermediate", "Advanced", "Expert"] as const;
-const DURATIONS = [5, 10, 15, 20, 25, 30, 40];
+const DURATIONS = [5, 10, 15, 20];
 
 type Difficulty = typeof DIFFICULTIES[number];
 
