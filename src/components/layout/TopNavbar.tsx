@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -19,7 +19,7 @@ import {
   Sun,
   Trophy,
   MessageCircle,
-  Calendar,
+  Sparkles,
   Info,
   LogOut,
 } from "lucide-react";
@@ -56,50 +56,35 @@ type Notification = {
   message: string;
   time: string;
   read: boolean;
-  type: "score" | "message" | "reminder" | "system";
+  type: "score" | "message" | "scenario" | "system";
 };
 
-const sampleNotifications: Notification[] = [
-  {
-    id: "1",
-    title: "New High Score",
-    message: "You achieved 92/100 on the Enterprise SaaS scenario.",
-    time: "2 hours ago",
-    read: false,
-    type: "score",
-  },
-  {
-    id: "2",
-    title: "Coach Feedback",
-    message: "Your objection handling has improved by 15% this week.",
-    time: "5 hours ago",
-    read: false,
-    type: "message",
-  },
-  {
-    id: "3",
-    title: "Session Reminder",
-    message: "Your scheduled practice session starts in 30 minutes.",
-    time: "1 day ago",
-    read: true,
-    type: "reminder",
-  },
-  {
-    id: "4",
-    title: "Weekly Report",
-    message: "Your weekly performance summary is now available.",
-    time: "2 days ago",
-    read: true,
-    type: "system",
-  },
-];
+const READ_KEY = "notif_read_ids";
+
+function getReadIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(READ_KEY) ?? "[]")); } catch { return new Set(); }
+}
+
+function saveReadIds(ids: Set<string>) {
+  try { localStorage.setItem(READ_KEY, JSON.stringify([...ids])); } catch { /* ignore */ }
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
 
 const notificationIcon = (type: Notification["type"]) => {
   const className = "h-4 w-4 text-primary";
   switch (type) {
     case "score": return <Trophy className={className} />;
     case "message": return <MessageCircle className={className} />;
-    case "reminder": return <Calendar className={className} />;
+    case "scenario": return <Sparkles className={className} />;
     case "system": return <Info className={className} />;
   }
 };
@@ -112,9 +97,49 @@ export function TopNavbar() {
   const { darkMode, toggleDarkMode } = useThemeStore();
   const [initials, setInitials] = useState("U");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(sampleNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const readIdsRef = useRef<Set<string>>(new Set());
 
   const { isAdmin } = useRole();
+
+  const buildNotifications = useCallback((sessions: any[], scenarios: any[], readIds: Set<string>): Notification[] => {
+    const notifs: Notification[] = [];
+    sessions.forEach((s) => {
+      const score = s.analysis?.overall_score as number | undefined;
+      const name = s.scenario_name ?? "a simulation";
+      const id = `session-${s.id}`;
+      notifs.push({
+        id,
+        title: score !== undefined ? `Simulation scored ${score}/100` : "Simulation completed",
+        message: score !== undefined
+          ? `You scored ${score}/100 on "${name}".`
+          : `Your simulation "${name}" has ended.`,
+        time: timeAgo(s.ended_at ?? s.started_at),
+        read: readIds.has(id),
+        type: score !== undefined && score >= 80 ? "score" : "message",
+      });
+    });
+    scenarios.forEach((s) => {
+      const id = `scenario-${s.id}`;
+      notifs.push({
+        id,
+        title: "Scenario created",
+        message: `"${s.name}" is ready to practice.`,
+        time: timeAgo(s.created_at),
+        read: readIds.has(id),
+        type: "scenario",
+      });
+    });
+    return notifs.sort((a, b) => {
+      const ta = sessions.find((s) => `session-${s.id}` === a.id)?.ended_at
+        ?? sessions.find((s) => `session-${s.id}` === a.id)?.started_at
+        ?? (scenarios.find((s) => `scenario-${s.id}` === a.id)?.created_at ?? "");
+      const tb = sessions.find((s) => `session-${s.id}` === b.id)?.ended_at
+        ?? sessions.find((s) => `session-${s.id}` === b.id)?.started_at
+        ?? (scenarios.find((s) => `scenario-${s.id}` === b.id)?.created_at ?? "");
+      return new Date(tb).getTime() - new Date(ta).getTime();
+    });
+  }, []);
 
   const mobileNavItems = isAdmin
     ? [...baseMobileNavItems, { label: "Admin", href: "/admin", icon: ShieldCheck }]
@@ -130,12 +155,22 @@ export function TopNavbar() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => {
+      const updated = prev.map((n) => ({ ...n, read: true }));
+      const ids = new Set(updated.map((n) => n.id));
+      readIdsRef.current = ids;
+      saveReadIds(ids);
+      return updated;
+    });
   };
 
   useEffect(() => {
     const supabase = createClient();
+    let sessionsCache: any[] = [];
+    let scenariosCache: any[] = [];
+
     supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
       const name = user?.user_metadata?.full_name || user?.email || "U";
       const letters = name
         .split(" ")
@@ -144,8 +179,56 @@ export function TopNavbar() {
         .slice(0, 2)
         .toUpperCase();
       setInitials(letters);
+
+      readIdsRef.current = getReadIds();
+
+      const load = async () => {
+        const [{ data: sessions }, { data: scenarios }] = await Promise.all([
+          supabase
+            .from("heygen_sessions")
+            .select("id, scenario_name, analysis, started_at, ended_at")
+            .eq("user_id", user.id)
+            .not("ended_at", "is", null)
+            .order("ended_at", { ascending: false })
+            .limit(10),
+          supabase
+            .from("custom_scenarios")
+            .select("id, name, created_at")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(5),
+        ]);
+        sessionsCache = sessions ?? [];
+        scenariosCache = scenarios ?? [];
+        setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
+      };
+      load();
+
+      const channel = supabase
+        .channel("notif_sessions")
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "heygen_sessions", filter: `user_id=eq.${user.id}` },
+          (payload) => {
+            if (!payload.new.ended_at) return;
+            const updated = payload.new;
+            sessionsCache = [updated, ...sessionsCache.filter((s) => s.id !== updated.id)].slice(0, 10);
+            setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "custom_scenarios", filter: `user_id=eq.${user.id}` },
+          (payload) => {
+            scenariosCache = [payload.new, ...scenariosCache].slice(0, 5);
+            setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
+          }
+        )
+        .subscribe();
+
+      return () => { supabase.removeChannel(channel); };
     });
-  }, []);
+  }, [buildNotifications]);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-card/80 backdrop-blur px-4 lg:px-6">
