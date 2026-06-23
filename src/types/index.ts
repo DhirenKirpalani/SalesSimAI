@@ -59,6 +59,12 @@ export interface AnalysisBreakdown {
   champion: number;
 }
 
+export interface CoachingMoment {
+  buyerQuote: string;
+  signal: string;
+  whatTheyShouldHaveSaid: string;
+}
+
 export interface SessionAnalysis {
   id: string;
   simulationId: string;
@@ -68,6 +74,7 @@ export interface SessionAnalysis {
   weaknesses: string[];
   missedOpportunities: string[];
   coachingRecommendations: string[];
+  coachingMoments: CoachingMoment[];
 }
 
 export interface Organization {
@@ -116,5 +123,8 @@ export interface CustomScenario {
   duration: number;
   context_note: string | null;
   name: string;
+  avatar_id: string | null;
+  avatar_name: string | null;
+  voice_id: string | null;
   created_at: string;
 }

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { CustomScenario } from "@/types";
-import { Clock, BarChart3, ArrowRight, Trash2, Building2, Users, MessageSquare, Play } from "lucide-react";
+import { Clock, BarChart3, ArrowRight, Trash2, Building2, Users, MessageSquare, Play, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { mockPersonas } from "@/lib/data/mockData";
@@ -30,6 +30,8 @@ interface CustomScenarioCardProps {
 export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenarios" }: CustomScenarioCardProps) {
   const [open, setOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [overrideAvatarId, setOverrideAvatarId] = useState(scenario.avatar_id ?? "");
+  const [overrideVoiceId, setOverrideVoiceId] = useState(scenario.voice_id ?? "");
   const router = useRouter();
   const { isAdmin } = useRole();
   const isPlatform = table === "platform_scenarios";
@@ -93,7 +95,10 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
 
   const handleStart = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/heygen-test?scenarioId=${scenario.id}&scenarioTable=${table}`);
+    const avatarParam = overrideAvatarId ? `&avatarId=${encodeURIComponent(overrideAvatarId)}` : "";
+    const voiceParam = !overrideAvatarId && overrideVoiceId ? `&voiceId=${encodeURIComponent(overrideVoiceId)}` : "";
+    const nameParam = scenario.name ? `&scenarioName=${encodeURIComponent(scenario.name)}` : "";
+    router.push(`/simulation?scenarioId=${scenario.id}&scenarioTable=${table}${avatarParam}${voiceParam}${nameParam}`);
   };
 
   return (
@@ -235,9 +240,32 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
             </div>
           </div>
 
-          <DialogFooter className="pt-4">
+          <Separator />
+
+          {/* Avatar */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <Users className="w-3.5 h-3.5" />
+              Avatar
+            </div>
+            <div className="rounded-xl border bg-muted/30 p-3">
+              <p className="text-sm font-medium text-foreground">
+                {scenario.avatar_name ? scenario.avatar_name.split(" ")[0] : scenario.avatar_id ? "Custom" : "Default avatar"}
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-4 gap-2">
             <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>
               Close
+            </Button>
+            <Button
+              variant="outline"
+              className="rounded-xl gap-1"
+              onClick={() => router.push(`/scenarios/create?editId=${scenario.id}&editTable=${table}`)}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Edit
             </Button>
             <Button className="rounded-xl gap-1" onClick={handleStart}>
               Start Simulation

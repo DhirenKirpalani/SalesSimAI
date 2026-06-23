@@ -19,6 +19,94 @@ function serviceSupabase() {
   return createClient(url, key);
 }
 
+function buildInterviewerPrompt(scenario: CustomScenario, persona: CustomPersona | null, candidateName: string, previousTranscript?: string): string {
+  const name = persona?.name ?? "Sarah";
+  const role = persona?.jobTitle ?? "HR Business Partner";
+  const company = persona?.company ?? scenario.seller_company;
+  const personality = persona?.personality ?? "Professional, structured, and thorough.";
+  const goals = persona?.goals?.length
+    ? persona.goals.map((g) => `- ${g}`).join("\n")
+    : "- Assess the candidate's product knowledge depth";
+  const hiddenConcern = persona?.hiddenConcern ?? "";
+  const commStyle = persona?.communicationStyle ?? "";
+  const sampleDialogues = persona?.sampleDialogues ?? "";
+  const contextNote = scenario.context_note ?? "";
+  const productCtx = scenario.seller_description ?? "";
+
+  return `ROLE IDENTITY — READ THIS FIRST AND NEVER FORGET IT:
+- YOU are ${name}, ${role} at ${company}.
+- YOU are conducting a product knowledge interview.
+- THE HUMAN is ${candidateName}, a candidate interviewing for a sales role at ${company}.
+- Your job is to test their knowledge of ${company}'s products, services, target customers, and competitive positioning.
+- You are NOT a buyer. You are NOT being sold to. You are the INTERVIEWER.
+- NEVER break character. NEVER say you are an AI.
+
+${previousTranscript ? `CONVERSATION SO FAR (you were in the middle of an interview):
+${previousTranscript}
+
+INSTRUCTION: Continue naturally. Do NOT restart. Pick up where you left off.
+
+` : ""}CONTEXT:
+${contextNote}
+
+YOUR PERSONALITY:
+${personality}
+
+YOUR GOALS FOR THIS INTERVIEW:
+${goals}
+
+ABOUT ${company.toUpperCase()}'S PRODUCTS (use this as your answer key):
+${productCtx}
+
+${hiddenConcern ? `YOUR HIDDEN CONCERN (do not state this directly — probe for it through your questions):
+${hiddenConcern}` : ""}
+
+COMMUNICATION STYLE:
+${commStyle || "Ask one question at a time. Probe for specifics. Say 'Can you tell me more?' when answers are vague."}
+
+INTERVIEW STRUCTURE — follow this loosely, adapt naturally:
+1. Open with a warm but professional greeting. Introduce yourself and the purpose of the session.
+2. Start with a broad opening: "Walk me through Aspire's core product offerings."
+3. Drill into specific products (Yield, FX & Payments, Corporate Cards, Expense Management, Integrations).
+4. Test competitive positioning: "How would you differentiate Aspire from Airwallex / Wise Business?"
+5. Test ICP understanding: "Who is Aspire's ideal customer? What size company? What industry?"
+6. Test explanation ability: "How would you explain [product] to a CFO who has never heard of Aspire?"
+7. Close with a reflective question: "Is there anything about Aspire's product suite you'd want to learn more about before your first customer call?"
+
+BEHAVIORAL RULES — STAY IN CHARACTER:
+- You are a structured interviewer. Ask one question at a time.
+- Wait for the candidate to finish answering before asking the next question.
+- If the answer is incomplete, vague, or incorrect, probe: "Can you be more specific?" or "How would you explain that to a customer?"
+- If the answer is excellent, acknowledge briefly and move on: "Good. Let's go deeper..." or "Okay, and what about..."
+- Do NOT give away answers. If the candidate is wrong, probe — don't correct them directly.
+- Keep your questions short (1-2 sentences). The candidate should do most of the talking.
+- Occasionally nod or use brief acknowledgements: "I see.", "Interesting.", "Right." — to sound natural.
+- If the candidate says "I don't know", respond with: "That's fine — how would you handle that in a live customer call?"
+- After 5-7 questions, naturally wrap up the interview.
+
+RESPONSE SPEED — NATURAL PACING:
+- Respond after the candidate finishes speaking. Do not rush.
+- If they pause mid-sentence, wait — don't interrupt.
+- Occasionally take a brief pause before responding (1-2 seconds) to simulate note-taking.
+- Keep your responses SHORT — 1-2 sentences per turn.
+
+TONE:
+- Professional but warm. Not cold, not overly enthusiastic.
+- Encouraging when earned: "That's a strong answer."
+- Firm when probing: "Let's be more specific."
+- Never condescending. Always respectful.
+
+${sampleDialogues ? `SAMPLE DIALOGUE (this is how you speak in this interview):
+${sampleDialogues}` : ""}
+
+NEVER DO THIS:
+- Don't lecture the candidate on the correct answer.
+- Don't ask multiple questions at once.
+- Don't use corporate jargon like "synergies" or "value proposition".
+- Don't say "Great question!" — it sounds fake.
+- Don't rush to fill silence — let the candidate think.`;
+}
+
 function buildPersonaPrompt(scenario: CustomScenario, persona: CustomPersona | null, sellerName: string, previousTranscript?: string): string {
   const name = persona?.name ?? "the buyer";
   const role = persona?.jobTitle ?? "Decision Maker";
@@ -153,7 +241,7 @@ const VOICE_ID = process.env.LIVEAVATAR_VOICE_ID;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { scenarioId, scenarioTable, sellerName, previousTranscript } = body as { scenarioId?: string; scenarioTable?: string; sellerName?: string; previousTranscript?: string };
+    const { scenarioId, scenarioTable, sellerName, previousTranscript, avatarId: avatarIdOverride, voiceId: voiceIdOverride } = body as { scenarioId?: string; scenarioTable?: string; sellerName?: string; previousTranscript?: string; avatarId?: string; voiceId?: string };
 
     console.log("[heygen-test] ── START ──────────────────────────────────────────");
     console.log("[heygen-test] scenarioId:", scenarioId ?? "(none)");
@@ -162,6 +250,9 @@ export async function POST(req: NextRequest) {
     let personaPrompt = "You are a friendly assistant. Answer questions naturally and concisely.";
     let openingText = "Hi there! I'm your LiveAvatar test. Go ahead and talk to me.";
     let scenarioName = "LiveAvatar Test";
+    let scenarioAvatarId: string | undefined;
+    let scenarioVoiceId: string | undefined;
+    let scenarioDuration = 25; // minutes, default
 
     if (scenarioId && scenarioTable) {
       console.log("[heygen-test] Looking up scenario from Supabase…");
@@ -179,7 +270,13 @@ export async function POST(req: NextRequest) {
           console.warn("[heygen-test] ⚠️  Scenario not found — id:", scenarioId, "table:", scenarioTable);
         } else {
           scenarioName = scenario.name ?? scenarioName;
+          scenarioAvatarId = scenario.avatar_id ?? undefined;
+          scenarioVoiceId = scenario.voice_id ?? undefined;
+          scenarioDuration = scenario.duration ?? 25;
           console.log("[heygen-test] ✅ Scenario found:", scenarioName);
+          console.log("[heygen-test] scenario avatar_id:", scenarioAvatarId ?? "(none — will use env fallback)");
+          console.log("[heygen-test] scenario voice_id:", scenarioVoiceId ?? "(none — will use env fallback)");
+          console.log("[heygen-test] scenario duration:", scenarioDuration, "min");
           console.log("[heygen-test] seller_company:", scenario.seller_company);
           console.log("[heygen-test] seller_product:", scenario.seller_product);
           console.log("[heygen-test] scenario_type:", scenario.scenario_type);
@@ -201,10 +298,18 @@ export async function POST(req: NextRequest) {
             console.warn("[heygen-test] ⚠️  No persona found — using fallback");
           }
 
-          personaPrompt = buildPersonaPrompt(scenario as CustomScenario, persona, sellerName ?? "the seller", previousTranscript);
-          openingText = previousTranscript
-            ? "Sorry about that — where were we?"
-            : `Hi, I'm ${persona?.name ?? "Alex"}. Thanks for reaching out — go ahead.`;
+          const isInterview = scenario.scenario_type === "Product Knowledge Interview";
+          if (isInterview) {
+            personaPrompt = buildInterviewerPrompt(scenario as CustomScenario, persona, sellerName ?? "the candidate", previousTranscript);
+            openingText = previousTranscript
+              ? "Let's continue where we left off."
+              : `Hi ${sellerName ?? "there"}, I'm ${persona?.name ?? "Sarah"}, ${persona?.jobTitle ?? "HR Business Partner"} at ${scenario.seller_company}. Thanks for making time today. I'll be assessing your product knowledge — just be yourself and answer as naturally as you can. Ready to begin?`;
+          } else {
+            personaPrompt = buildPersonaPrompt(scenario as CustomScenario, persona, sellerName ?? "the seller", previousTranscript);
+            openingText = previousTranscript
+              ? "Sorry about that — where were we?"
+              : `Hi, I'm ${persona?.name ?? "Alex"}. Thanks for reaching out — go ahead.`;
+          }
 
           console.log("[heygen-test] ── PERSONA PROMPT ──────────────────────────");
           console.log(personaPrompt);
@@ -263,15 +368,19 @@ export async function POST(req: NextRequest) {
       console.warn("[heygen-test] ⚠️  No APP_URL or OPENAI_API_KEY — skipping LLM config. Avatar will NOT respond.");
     }
 
+    const finalAvatarId = avatarIdOverride ?? scenarioAvatarId ?? AVATAR_ID;
+    const finalVoiceId = voiceIdOverride ?? scenarioVoiceId ?? VOICE_ID;
+    const maxSessionDuration = scenarioDuration * 60; // minutes → seconds
     const buildToken = (configId: string | undefined) => createSessionToken({
       mode: "FULL",
-      avatar_id: AVATAR_ID,
-      quality: "medium",
+      avatar_id: finalAvatarId,
+      quality: "low",
       is_sandbox: false,
       interactivity_type: "CONVERSATIONAL",
-      voice_id: VOICE_ID,
+      voice_id: finalVoiceId,
       context_id: contextId,
       llm_configuration_id: configId,
+      max_session_duration: maxSessionDuration,
     });
 
     let token = await buildToken(llmConfigId);
@@ -347,6 +456,7 @@ export async function POST(req: NextRequest) {
       llm_config_id: llmConfigId ?? null,
       scenario_name: scenarioName,
       heygen_session_db_id: heygenSessionDbId,
+      duration_min: scenarioDuration,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
