@@ -27,6 +27,12 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 
+interface CoachingMoment {
+  buyer_quote: string;
+  signal: string;
+  what_they_should_have_said: string;
+}
+
 interface Analysis {
   overall_score: number;
   breakdown: {
@@ -41,6 +47,7 @@ interface Analysis {
   weaknesses: string[];
   missed_opportunities: string[];
   coaching_recommendations: string[];
+  coaching_moments?: CoachingMoment[];
 }
 
 interface SessionSummary {
@@ -340,6 +347,38 @@ function AnalysisContent() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Coaching Moments — transcript-specific advice */}
+      {analysis.coaching_moments && analysis.coaching_moments.length > 0 && (
+        <Card className="rounded-2xl border bg-card shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-violet-500" /> Key Moments from Your Call
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">When the buyer said something important, here is what you should have said instead.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {analysis.coaching_moments.map((moment, i) => (
+              <div key={i} className="space-y-2 rounded-xl border border-border p-3 bg-muted/20">
+                <div className="flex items-start gap-2">
+                  <Badge className="text-[10px] bg-violet-500/10 text-violet-600 border-violet-500/20 shrink-0">Moment {i + 1}</Badge>
+                  <div className="space-y-1 flex-1">
+                    <p className="text-xs font-medium text-muted-foreground">Buyer said:</p>
+                    <p className="text-sm italic text-foreground">&ldquo;{moment.buyer_quote}&rdquo;</p>
+                  </div>
+                </div>
+                <div className="pl-10">
+                  <p className="text-xs font-medium text-amber-600 dark:text-amber-400">Signal: {moment.signal}</p>
+                </div>
+                <div className="pl-10 space-y-1">
+                  <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">You should have said:</p>
+                  <p className="text-sm bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2 text-foreground">{moment.what_they_should_have_said}</p>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -31,7 +31,14 @@ Return ONLY valid JSON in this exact shape:
   "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
   "weaknesses": ["<weakness 1>", "<weakness 2>", "<weakness 3>"],
   "missed_opportunities": ["<opportunity 1>", "<opportunity 2>"],
-  "coaching_recommendations": ["<recommendation 1>", "<recommendation 2>", "<recommendation 3>"]
+  "coaching_recommendations": ["<recommendation 1>", "<recommendation 2>", "<recommendation 3>"],
+  "coaching_moments": [
+    {
+      "buyer_quote": "<exact buyer statement from transcript>",
+      "signal": "<what this statement signals — e.g. price objection, gatekeeper, buying signal, etc.>",
+      "what_they_should_have_said": "<exact script they should have used in that moment>"
+    }
+  ]
 }
 
 MEDDIC scoring guidance:
@@ -42,7 +49,12 @@ MEDDIC scoring guidance:
 - Identify Pain: Did they discover and probe specific pain points?
 - Champion: Did they build a relationship and internal advocate?
 
-Be honest and specific. Reference actual moments from the transcript. If the call was very short, score conservatively and note it.`;
+COACHING MOMENTS rules:
+- Pick 3-5 real moments from the transcript where the buyer said something significant.
+- For each, explain what signal that statement sends (objection, buying signal, etc.).
+- Provide an exact script the seller should have used — not generic advice, word-for-word what to say.
+- Be honest and specific. Reference actual moments from the transcript.
+- If the call was very short, score conservatively and note it.`;
 
 export async function POST(req: NextRequest) {
   const { transcript, scenarioName, heygenSessionId, startedAt } = await req.json() as {
@@ -77,7 +89,7 @@ export async function POST(req: NextRequest) {
           { role: "user", content: userPrompt },
         ],
         temperature: 0.4,
-        max_tokens: 800,
+        max_tokens: 2000,
       }),
     });
 

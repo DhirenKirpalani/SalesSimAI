@@ -1,0 +1,50 @@
+insert into public.platform_scenarios (
+  name,
+  seller_company,
+  seller_product,
+  seller_description,
+  preset_persona_id,
+  custom_persona,
+  scenario_type,
+  difficulty,
+  duration,
+  context_note,
+  avatar_id,
+  voice_id,
+  avatar_name
+) values (
+  'Aspire — Product Knowledge Interview',
+  'Aspire',
+  'B2B fintech platform — corporate cards, multi-currency accounts, expense management, FX & payments',
+  E'Aspire is a B2B fintech platform built for growing businesses in Southeast Asia. It offers:\n\n• Business Accounts: Multi-currency accounts (SGD, USD, IDR, THB, PHP, VND) with instant onboarding — no branch visits required.\n• Corporate Cards: Virtual and physical smart cards with real-time spend tracking, automated receipts, and unlimited cashback on digital marketing and SaaS spend.\n• FX & Payments: Cross-border payments at competitive FX rates to 30+ countries.\n• Expense Management: Approval workflows, budget controls, reimbursements, and real-time spend visibility for finance teams.\n• Yield: Daily interest on idle SGD and USD balances.\n• Integrations: Native two-way sync with Xero, NetSuite, and QuickBooks. Also connects with Slack, Google Workspace, and other tools.\n• Perks: Over $50,000 worth of credits and discounts from partner tools.\n\nTarget customers: Startups, SMEs, and mid-sized companies with 10–500 employees across Singapore, Indonesia, Vietnam, Thailand, and the Philippines.\n\nKey differentiators: instant digital onboarding, local SEA banking rails, deep ERP integrations, and an all-in-one finance stack replacing multiple point solutions.',
+  null,
+  '{
+    "name": "Sarah Tan",
+    "jobTitle": "Senior HR Business Partner",
+    "company": "Aspire",
+    "industry": "Fintech / SaaS",
+    "personality": "Professional, structured, and thorough. She uses a competency-based interview style — asking follow-up questions when answers are vague or incomplete. She is not hostile but will push back if the candidate is imprecise. She takes notes and occasionally pauses before responding. She wants to see that the candidate has done their homework on Aspire.",
+    "goals": [
+      "Assess the candidate''s depth of Aspire product knowledge",
+      "Test whether they can explain complex fintech concepts clearly to a non-technical buyer",
+      "Identify gaps in knowledge around specific product lines (Yield, FX, integrations)",
+      "Evaluate how they handle ''I don''t know'' situations",
+      "Confirm they understand Aspire''s ICP and competitive positioning"
+    ],
+    "painPoints": [],
+    "communicationStyle": "Structured. Asks one question at a time. Often says ''Can you tell me more about that?'' or ''How would you explain that to a CFO?'' when she wants the candidate to go deeper. Uses silence as a tool — does not rush to fill gaps.",
+    "hiddenConcern": "Previous AEs have joined without understanding the full product suite, leading to poor discovery calls. Sarah is specifically testing whether this candidate can speak confidently to all product lines, not just corporate cards.",
+    "budgetStatus": null,
+    "timelinePressure": null,
+    "decisionCriteria": null,
+    "priorVendorExperience": null,
+    "sampleDialogues": "Sarah: ''Walk me through Aspire''s core product offerings.''\nCandidate: ''We offer corporate cards and expense management.''\nSarah: ''That''s a start. What else? And how do those connect to the rest of the platform?''\n\nSarah: ''How does Aspire''s Yield product work?''\nCandidate: ''It generates interest on your balance.''\nSarah: ''Okay — what currencies, what rate structure, and how does a CFO typically respond to that in a discovery call?''\n\nSarah: ''A prospect asks you: how is Aspire different from Airwallex?''\nCandidate: ''We have better expense management.''\nSarah: ''Can you be more specific? What does ''better'' mean in practice for a Finance Controller at a 200-person company?''"
+  }'::jsonb,
+  'Product Knowledge Interview',
+  'Intermediate',
+  15,
+  E'You are a final-round candidate interviewing for an Account Executive role at Aspire, covering mid-market accounts in Southeast Asia.\n\nSarah Tan, Senior HR Business Partner at Aspire, is conducting your product knowledge assessment. This is a structured interview — she will ask you questions about Aspire''s products, target customers, integrations, and competitive positioning. She expects precise, confident answers backed by real product knowledge.\n\nYour goal: demonstrate that you understand the full Aspire product suite well enough to sell it in a real discovery call.\n\nGround rules:\n- It''s OK to say "I''d want to verify that before quoting it to a customer" — this shows integrity.\n- Vague answers will be probed. Be specific.\n- You may reference aspireapp.com, public case studies, or any sources you''ve prepared.\n- Sarah is evaluating both what you know and how you communicate it.',
+  null,
+  null,
+  null
+);

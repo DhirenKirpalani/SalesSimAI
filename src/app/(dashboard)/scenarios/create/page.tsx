@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,16 +28,19 @@ import {
   Loader2,
   Clock,
   Sparkles,
+  Image,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { mockPersonas } from "@/lib/data/mockData";
 import { cn } from "@/lib/utils";
+import { AvatarPicker } from "@/components/AvatarPicker";
 
 const STEPS = [
   { id: 1, label: "Your Company", icon: Building2 },
   { id: 2, label: "Buyer Persona", icon: Users },
-  { id: 3, label: "Scenario Setup", icon: Settings2 },
-  { id: 4, label: "Review", icon: FileCheck },
+  { id: 3, label: "Avatar", icon: Image },
+  { id: 4, label: "Scenario Setup", icon: Settings2 },
+  { id: 5, label: "Review", icon: FileCheck },
 ];
 
 const SCENARIO_TYPES = [
@@ -49,10 +52,11 @@ const SCENARIO_TYPES = [
   "Win-Back",
   "Renewal",
   "Executive Presentation",
+  "Product Knowledge Interview",
 ];
 
 const DIFFICULTIES = ["Beginner", "Intermediate", "Advanced", "Expert"] as const;
-const DURATIONS = [10, 15, 20, 25, 30, 40];
+const DURATIONS = [5, 10, 15, 20, 25, 30, 40];
 
 type Difficulty = typeof DIFFICULTIES[number];
 
@@ -80,6 +84,9 @@ interface FormState {
   difficulty: Difficulty;
   duration: number;
   contextNote: string;
+  avatarId: string;
+  avatarName: string;
+  voiceId: string;
 }
 
 const LS_KEY = "salesSimAI_createScenario";
@@ -106,8 +113,11 @@ const INITIAL: FormState = {
   customPersonaSampleDialogues: "",
   scenarioType: "First Discovery Call",
   difficulty: "Intermediate",
-  duration: 20,
+  duration: 5,
   contextNote: "",
+  avatarId: "",
+  avatarName: "",
+  voiceId: "",
 };
 
 function loadFromStorage(): { step: number; form: FormState } | null {
@@ -121,18 +131,68 @@ function loadFromStorage(): { step: number; form: FormState } | null {
   }
 }
 
-export default function CreateScenarioPage() {
+function CreateScenarioPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("editId");
+  const editTable = searchParams.get("editTable") || "custom_scenarios";
+  const isEditMode = !!editId;
 
-  const [step, setStep] = useState(() => loadFromStorage()?.step ?? 1);
-  const [form, setForm] = useState<FormState>(() => loadFromStorage()?.form ?? INITIAL);
+  const [step, setStep] = useState(() => (isEditMode ? 1 : loadFromStorage()?.step ?? 1));
+  const [form, setForm] = useState<FormState>(() => (isEditMode ? INITIAL : loadFromStorage()?.form ?? INITIAL));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [loadingEdit, setLoadingEdit] = useState(isEditMode);
 
-  // Persist state whenever step or form changes
+  // Load existing scenario in edit mode
   useEffect(() => {
+    if (!isEditMode || !editId) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingEdit(true);
+      const supabase = createClient();
+      const { data } = await supabase.from(editTable).select("*").eq("id", editId).single();
+      if (!cancelled && data) {
+        const cp = data.custom_persona as Record<string, unknown> | null;
+        setForm({
+          sellerCompany: data.seller_company ?? "",
+          sellerProduct: data.seller_product ?? "",
+          sellerDescription: data.seller_description ?? "",
+          usePresetPersona: !cp && !!data.preset_persona_id,
+          presetPersonaId: data.preset_persona_id ?? "",
+          customPersonaName: cp?.name ? String(cp.name) : "",
+          customPersonaTitle: cp?.jobTitle ? String(cp.jobTitle) : "",
+          customPersonaCompany: cp?.company ? String(cp.company) : "",
+          customPersonaIndustry: cp?.industry ? String(cp.industry) : "",
+          customPersonaPersonality: cp?.personality ? String(cp.personality) : "",
+          customPersonaPainPoints: Array.isArray(cp?.painPoints) ? (cp.painPoints as string[]).join("\n") : "",
+          customPersonaGoals: Array.isArray(cp?.goals) ? (cp.goals as string[]).join("\n") : "",
+          customPersonaCommStyle: cp?.communicationStyle ? String(cp.communicationStyle) : "",
+          customPersonaPriorVendor: cp?.priorVendorExperience ? String(cp.priorVendorExperience) : "",
+          customPersonaDecisionCriteria: cp?.decisionCriteria ? String(cp.decisionCriteria) : "",
+          customPersonaHiddenConcern: cp?.hiddenConcern ? String(cp.hiddenConcern) : "",
+          customPersonaBudget: cp?.budgetStatus ? String(cp.budgetStatus) : "",
+          customPersonaTimeline: cp?.timelinePressure ? String(cp.timelinePressure) : "",
+          customPersonaSampleDialogues: cp?.sampleDialogues ? String(cp.sampleDialogues) : "",
+          scenarioType: data.scenario_type ?? "First Discovery Call",
+          difficulty: (data.difficulty as Difficulty) ?? "Intermediate",
+          duration: data.duration ?? 5,
+          contextNote: data.context_note ?? "",
+          avatarId: data.avatar_id ?? "",
+          avatarName: "",
+          voiceId: data.voice_id ?? "",
+        });
+      }
+      setLoadingEdit(false);
+    })();
+    return () => { cancelled = true; };
+  }, [isEditMode, editId, editTable]);
+
+  // Persist state whenever step or form changes (skip in edit mode)
+  useEffect(() => {
+    if (isEditMode) return;
     localStorage.setItem(LS_KEY, JSON.stringify({ step, form }));
-  }, [step, form]);
+  }, [step, form, isEditMode]);
 
   const set = (field: keyof FormState, value: string | boolean | number) =>
     setForm((f) => ({ ...f, [field]: value }));
@@ -149,7 +209,8 @@ export default function CreateScenarioPage() {
       if (form.usePresetPersona) return !!form.presetPersonaId;
       return form.customPersonaName.trim() && form.customPersonaTitle.trim() && form.customPersonaCompany.trim();
     }
-    if (step === 3) return !!form.scenarioType;
+    if (step === 3) return !!form.avatarId;
+    if (step === 4) return !!form.scenarioType;
     return true;
   };
 
@@ -161,7 +222,6 @@ export default function CreateScenarioPage() {
     if (!user) { setError("Not authenticated."); setSaving(false); return; }
 
     const payload = {
-      user_id: user.id,
       name: scenarioName,
       seller_company: form.sellerCompany,
       seller_product: form.sellerProduct,
@@ -187,12 +247,21 @@ export default function CreateScenarioPage() {
       difficulty: form.difficulty,
       duration: form.duration,
       context_note: form.contextNote || null,
+      avatar_id: form.avatarId || null,
+      avatar_name: form.avatarName || null,
+      voice_id: form.voiceId || null,
     };
 
-    const { error: dbErr } = await supabase.from("custom_scenarios").insert(payload);
-    if (dbErr) { setError(dbErr.message); setSaving(false); return; }
-    localStorage.removeItem(LS_KEY);
-    router.push("/scenarios");
+    if (isEditMode && editId) {
+      const { error: dbErr } = await supabase.from(editTable).update(payload).eq("id", editId);
+      if (dbErr) { setError(dbErr.message); setSaving(false); return; }
+      router.push("/scenarios");
+    } else {
+      const { error: dbErr } = await supabase.from("custom_scenarios").insert({ ...payload, user_id: user.id });
+      if (dbErr) { setError(dbErr.message); setSaving(false); return; }
+      localStorage.removeItem(LS_KEY);
+      router.push("/scenarios");
+    }
   };
 
   return (
@@ -203,8 +272,8 @@ export default function CreateScenarioPage() {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
-          <h1 className="text-xl font-bold tracking-tight">Create Custom Scenario</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">Build a simulation tailored to your product and buyers</p>
+          <h1 className="text-xl font-bold tracking-tight">{isEditMode ? "Edit Scenario" : "Create Custom Scenario"}</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">{isEditMode ? "Update the scenario details below." : "Build a simulation tailored to your product and buyers"}</p>
         </div>
       </div>
 
@@ -446,8 +515,31 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
             </Card>
           )}
 
-          {/* Step 3: Scenario Setup */}
+          {/* Step 3: Avatar */}
           {step === 3 && (
+            <Card className="rounded-2xl border shadow-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Image className="w-4 h-4 text-primary" />
+                  Choose an avatar
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Pick the LiveAvatar that represents your buyer persona.</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <AvatarPicker
+                  selected={form.avatarId}
+                  onSelect={(id, voiceId, name) => {
+                    set("avatarId", id);
+                    set("avatarName", name);
+                    set("voiceId", voiceId ?? "");
+                  }}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Step 4: Scenario Setup */}
+          {step === 4 && (
             <Card className="rounded-2xl border shadow-sm">
               <CardHeader className="pb-4">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -523,8 +615,8 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
             </Card>
           )}
 
-          {/* Step 4: Review */}
-          {step === 4 && (
+          {/* Step 5: Review */}
+          {step === 5 && (
             <Card className="rounded-2xl border shadow-sm">
               <CardHeader className="pb-4">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -555,6 +647,14 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
                   <p className="text-xs text-muted-foreground">at <span className="font-medium text-foreground">{form.sellerCompany}</span></p>
                   <p className="text-xs text-muted-foreground mt-2 line-clamp-3">{form.sellerDescription}</p>
                 </div>
+
+                {/* Avatar */}
+                {form.avatarId && (
+                  <div className="rounded-xl border p-3 space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Avatar</p>
+                    <p className="text-sm font-medium">{form.avatarName ? form.avatarName.split(" ")[0] : form.avatarId}</p>
+                  </div>
+                )}
 
                 {/* Buyer */}
                 <div className="rounded-xl border p-3 space-y-1">
@@ -609,11 +709,11 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
           Back
         </Button>
 
-        {step < 4 ? (
+        {step < 5 ? (
           <Button
             className="rounded-xl gap-1"
             onClick={() => setStep((s) => s + 1)}
-            disabled={!canGoNext()}
+            disabled={!canGoNext() || loadingEdit}
           >
             Continue
             <ArrowRight className="w-4 h-4" />
@@ -624,10 +724,9 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
               variant="outline"
               className="rounded-xl gap-1"
               disabled={saving}
-              onClick={handleSave}
+              onClick={() => router.push("/scenarios")}
             >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Save for Later
+              Cancel
             </Button>
             <Button
               className="rounded-xl gap-1"
@@ -635,11 +734,19 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
               onClick={handleSave}
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              Save & Start
+              {isEditMode ? "Update Scenario" : "Save & Start"}
             </Button>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+export default function CreateScenarioPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <CreateScenarioPage />
+    </Suspense>
   );
 }

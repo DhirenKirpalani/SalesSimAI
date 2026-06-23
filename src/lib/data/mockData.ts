@@ -256,6 +256,23 @@ export const mockAnalysis: SessionAnalysis = {
     "Role-play Economic Buyer identification: ask 'Who else needs to sign off?' in the first 5 minutes",
     "Map the Decision Process before ending any call: confirm steps, stakeholders, and timeline for each stage",
   ],
+  coachingMoments: [
+    {
+      buyerQuote: "We already have a vendor for this.",
+      signal: "Status quo objection — buyer is risk-averse and doesn't see differentiation",
+      whatTheyShouldHaveSaid: "I appreciate that. Most companies we work with also have existing vendors. What I'm curious about is — when was the last time you evaluated whether you're getting the best rates? Even a 0.5% difference in processing fees on your volume could be meaningful.",
+    },
+    {
+      buyerQuote: "I'll need to run this by our CFO.",
+      signal: "Gatekeeper — buyer is not the economic buyer. Need to identify who has budget authority.",
+      whatTheyShouldHaveSaid: "That makes sense. To make this easy for your CFO, could you share what their top priorities are this quarter? I'd like to tailor the business case around what matters most to them. And would it help if I joined your next call with them?",
+    },
+    {
+      buyerQuote: "Your pricing seems high compared to what we're paying now.",
+      signal: "Price objection — buyer is comparing sticker price without considering total cost or value",
+      whatTheyShouldHaveSaid: "I understand the concern. Let's look at this differently. What does your current setup cost you in compliance fees, manual reconciliation hours, and chargeback risk? Often when we add those up, the total cost of ownership tells a different story.",
+    },
+  ],
 };
 
 export const mockOrganizations: Organization[] = [
