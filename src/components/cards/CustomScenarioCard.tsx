@@ -98,7 +98,8 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
     const avatarParam = overrideAvatarId ? `&avatarId=${encodeURIComponent(overrideAvatarId)}` : "";
     const voiceParam = !overrideAvatarId && overrideVoiceId ? `&voiceId=${encodeURIComponent(overrideVoiceId)}` : "";
     const nameParam = scenario.name ? `&scenarioName=${encodeURIComponent(scenario.name)}` : "";
-    router.push(`/simulation?scenarioId=${scenario.id}&scenarioTable=${table}${avatarParam}${voiceParam}${nameParam}`);
+    const avatarNameParam = scenario.avatar_name ? `&avatarName=${encodeURIComponent(scenario.avatar_name.split(" ")[0])}` : "";
+    router.push(`/simulation?scenarioId=${scenario.id}&scenarioTable=${table}${avatarParam}${voiceParam}${nameParam}${avatarNameParam}`);
   };
 
   return (
