@@ -168,44 +168,47 @@ export function TopNavbar() {
     const supabase = createClient();
     let sessionsCache: any[] = [];
     let scenariosCache: any[] = [];
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let userId: string | null = null;
+
+    const load = async () => {
+      if (!userId) return;
+      const [{ data: sessions }, { data: scenarios }] = await Promise.all([
+        supabase
+          .from("heygen_sessions")
+          .select("id, scenario_name, analysis, started_at, ended_at")
+          .eq("user_id", userId)
+          .not("ended_at", "is", null)
+          .order("ended_at", { ascending: false })
+          .limit(10),
+        supabase
+          .from("custom_scenarios")
+          .select("id, name, created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(5),
+      ]);
+      sessionsCache = sessions ?? [];
+      scenariosCache = scenarios ?? [];
+      setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
+    };
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      const name = user?.user_metadata?.full_name || user?.email || "U";
-      const letters = name
-        .split(" ")
-        .map((n: string) => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase();
-      setInitials(letters);
+      userId = user.id;
 
+      const name = user?.user_metadata?.full_name || user?.email || "U";
+      const letters = name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
+      setInitials(letters);
       readIdsRef.current = getReadIds();
 
-      const load = async () => {
-        const [{ data: sessions }, { data: scenarios }] = await Promise.all([
-          supabase
-            .from("heygen_sessions")
-            .select("id, scenario_name, analysis, started_at, ended_at")
-            .eq("user_id", user.id)
-            .not("ended_at", "is", null)
-            .order("ended_at", { ascending: false })
-            .limit(10),
-          supabase
-            .from("custom_scenarios")
-            .select("id, name, created_at")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(5),
-        ]);
-        sessionsCache = sessions ?? [];
-        scenariosCache = scenarios ?? [];
-        setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
-      };
       load();
 
-      const channel = supabase
-        .channel("notif_sessions")
+      pollInterval = setInterval(load, 30_000);
+
+      channel = supabase
+        .channel(`notif_${user.id}`)
         .on(
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: "heygen_sessions", filter: `user_id=eq.${user.id}` },
@@ -225,9 +228,12 @@ export function TopNavbar() {
           }
         )
         .subscribe();
-
-      return () => { supabase.removeChannel(channel); };
     });
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [buildNotifications]);
 
   return (
