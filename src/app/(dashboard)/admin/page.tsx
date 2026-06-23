@@ -1,20 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRole } from "@/hooks/useRole";
 import { Loader2 } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { mockUsers, mockOrganizations, mockScenarios, mockSimulations } from "@/lib/data/mockData";
+import { createClient } from "@/lib/supabase/client";
 import {
   AreaChart,
   Area,
@@ -48,12 +39,28 @@ const orgData = [
 export default function AdminPage() {
   const router = useRouter();
   const { isAdmin, loading } = useRole();
+  const [stats, setStats] = useState({ scenarios: 0, simulations: 0 });
 
   useEffect(() => {
     if (!loading && !isAdmin) {
       router.push("/dashboard");
     }
   }, [loading, isAdmin, router]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const supabase = createClient();
+    Promise.all([
+      supabase.from("custom_scenarios").select("id", { count: "exact", head: true }),
+      supabase.from("platform_scenarios").select("id", { count: "exact", head: true }),
+      supabase.from("heygen_sessions").select("id", { count: "exact", head: true }).not("ended_at", "is", null),
+    ]).then(([custom, platform, sessions]) => {
+      setStats({
+        scenarios: (custom.count ?? 0) + (platform.count ?? 0),
+        simulations: sessions.count ?? 0,
+      });
+    });
+  }, [isAdmin]);
 
   if (loading) {
     return (
@@ -74,10 +81,8 @@ export default function AdminPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Users" value={mockUsers.length} icon={Users} />
-        <StatCard label="Organizations" value={mockOrganizations.length} icon={Building2} />
-        <StatCard label="Scenarios" value={mockScenarios.length} icon={BookOpen} />
-        <StatCard label="Simulations" value={mockSimulations.length} icon={Activity} />
+        <StatCard label="Scenarios" value={stats.scenarios} icon={BookOpen} />
+        <StatCard label="Simulations" value={stats.simulations} icon={Activity} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -170,73 +175,6 @@ export default function AdminPage() {
         </Card>
       </div>
 
-      <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b">
-          <h3 className="font-semibold text-sm">Users</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs">Name</TableHead>
-                <TableHead className="text-xs">Email</TableHead>
-                <TableHead className="text-xs">Role</TableHead>
-                <TableHead className="text-xs">Organization</TableHead>
-                <TableHead className="text-xs">Joined</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockUsers.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell className="text-sm font-medium">{u.name}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="text-[10px] font-normal">
-                      {u.role}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm">{u.organization}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{u.joinDate}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b">
-          <h3 className="font-semibold text-sm">Organizations</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs">Name</TableHead>
-                <TableHead className="text-xs">Plan</TableHead>
-                <TableHead className="text-xs">Users</TableHead>
-                <TableHead className="text-xs">Simulations</TableHead>
-                <TableHead className="text-xs">Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockOrganizations.map((o) => (
-                <TableRow key={o.id}>
-                  <TableCell className="text-sm font-medium">{o.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-[10px] font-normal">
-                      {o.plan}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm">{o.users}</TableCell>
-                  <TableCell className="text-sm">{o.simulations}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{o.createdAt}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
     </div>
   );
 }
