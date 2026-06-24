@@ -17,7 +17,7 @@ interface AvatarPickerProps {
   onSelect: (id: string, voiceId: string | null, name: string) => void;
 }
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 6;
 
 export function AvatarPicker({ selected, onSelect }: AvatarPickerProps) {
   const [page, setPage] = useState(1);

@@ -12,6 +12,7 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -20,6 +21,7 @@ import { useRole } from "@/hooks/useRole";
 const baseNavItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Scenarios", href: "/scenarios", icon: Library },
+  { label: "AI Onboarding", href: "/company-onboarding", icon: Sparkles },
   { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
   { label: "Profile", href: "/profile", icon: User },
