@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         scenario_id: scenarioId,
         scenario_table: scenarioTable,
+        scenario_name: scenario.name ?? "Voice Simulation",
         status: "active",
         state: {
           trust_level: 30,

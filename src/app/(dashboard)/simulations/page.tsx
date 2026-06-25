@@ -15,6 +15,7 @@ interface SessionSummary {
   duration_s: number | null;
   started_at: string;
   ended_at: string | null;
+  source: "heygen" | "voice";
 }
 
 function scoreColor(score: number) {
@@ -45,13 +46,46 @@ export default function SimulationsPage() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
-    const { data } = await supabase
-      .from("heygen_sessions")
-      .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
-      .eq("user_id", user.id)
-      .not("ended_at", "is", null)
-      .order("started_at", { ascending: false });
-    setSessions((data ?? []) as SessionSummary[]);
+    const [{ data: heygenData }, { data: voiceData }] = await Promise.all([
+      supabase
+        .from("heygen_sessions")
+        .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
+        .eq("user_id", user.id)
+        .not("ended_at", "is", null)
+        .order("started_at", { ascending: false }),
+      supabase
+        .from("simulation_sessions")
+        .select("id, scenario_id, scenario_table, scenario_name, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
+        .eq("user_id", user.id)
+        .eq("status", "completed")
+        .not("ended_at", "is", null)
+        .order("started_at", { ascending: false }),
+    ]);
+
+    const heygenSessions: SessionSummary[] = (heygenData ?? []).map((s) => ({
+      ...s,
+      source: "heygen" as const,
+      scenario_name: s.scenario_name ?? "Simulation",
+    }));
+
+    const voiceSessions: SessionSummary[] = (voiceData ?? []).map((s) => {
+      const coachingArr = s.simulation_coaching as Array<{ overall_score?: number }> | null;
+      const coaching = coachingArr?.[0] ?? null;
+      return {
+        id: s.id,
+        scenario_name: s.scenario_name ?? "Voice Simulation",
+        analysis: coaching ? { overall_score: coaching.overall_score } : null,
+        duration_s: s.duration_s ?? null,
+        started_at: s.started_at ?? new Date().toISOString(),
+        ended_at: s.ended_at,
+        source: "voice" as const,
+      };
+    });
+
+    const merged = [...heygenSessions, ...voiceSessions].sort(
+      (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+    );
+    setSessions(merged);
     setLoading(false);
   }, []);
 
@@ -88,7 +122,7 @@ export default function SimulationsPage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: i * 0.04 }}
-                onClick={() => router.push(`/analysis?session=${s.id}`)}
+                onClick={() => router.push(`/analysis?session=${s.id}&source=${s.source}`)}
                 className="flex items-center gap-4 px-5 py-4 rounded-2xl border bg-card hover:bg-accent/50 cursor-pointer transition-colors group"
               >
                 {/* Score badge */}
@@ -115,6 +149,9 @@ export default function SimulationsPage() {
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="w-3 h-3" />
                       {formatDuration(s.duration_s)}
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-300">
+                      {s.source === "heygen" ? "Video Call" : "Voice Call"}
                     </span>
                   </div>
                 </div>

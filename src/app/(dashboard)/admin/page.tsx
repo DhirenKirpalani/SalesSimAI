@@ -17,7 +17,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { Users, Building2, BookOpen, Activity } from "lucide-react";
+import { Users, Building2, BookOpen, Activity, Database } from "lucide-react";
 import { StatCard } from "@/components/cards/StatCard";
 
 const activityData = [
@@ -83,6 +83,17 @@ export default function AdminPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Scenarios" value={stats.scenarios} icon={BookOpen} />
         <StatCard label="Simulations" value={stats.simulations} icon={Activity} />
+        <button
+          onClick={() => router.push("/admin/vector-demo")}
+          className="text-left rounded-2xl border bg-card p-5 shadow-sm hover:bg-accent/30 transition-colors"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <Database className="w-5 h-5 text-primary" />
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">RAG</span>
+          </div>
+          <div className="text-2xl font-bold">Vector Demo</div>
+          <p className="text-xs text-muted-foreground mt-1">Semantic search across call transcripts</p>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

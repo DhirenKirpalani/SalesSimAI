@@ -20,13 +20,14 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-interface HeygenSession {
+interface UnifiedSession {
   id: string;
   scenario_name: string | null;
   analysis: { overall_score: number } | null;
   duration_s: number | null;
   started_at: string;
   ended_at: string | null;
+  source: "heygen" | "voice";
 }
 
 function formatDurationMins(s: number | null): number {
@@ -39,7 +40,7 @@ function formatTrainingTime(mins: number): string {
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
-function buildTrendData(sessions: HeygenSession[]) {
+function buildTrendData(sessions: UnifiedSession[]) {
   const byDay: Record<string, number[]> = {};
   for (const s of sessions) {
     if (!s.analysis?.overall_score) continue;
@@ -54,7 +55,7 @@ function buildTrendData(sessions: HeygenSession[]) {
     }));
 }
 
-function buildDistData(sessions: HeygenSession[]) {
+function buildDistData(sessions: UnifiedSession[]) {
   const buckets: Record<string, number> = {
     "0–29": 0, "30–49": 0, "50–69": 0, "70–89": 0, "90–100": 0,
   };
@@ -70,7 +71,7 @@ function buildDistData(sessions: HeygenSession[]) {
 }
 
 export default function DashboardPage() {
-  const [sessions, setSessions] = useState<HeygenSession[]>([]);
+  const [sessions, setSessions] = useState<UnifiedSession[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -81,14 +82,46 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
 
-      const { data: raw } = await supabase
-        .from("heygen_sessions")
-        .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
-        .eq("user_id", user.id)
-        .order("started_at", { ascending: false });
+      const [{ data: heygenData }, { data: voiceData }] = await Promise.all([
+        supabase
+          .from("heygen_sessions")
+          .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
+          .eq("user_id", user.id)
+          .order("started_at", { ascending: false }),
+        supabase
+          .from("simulation_sessions")
+          .select("id, scenario_id, scenario_table, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
+          .eq("user_id", user.id)
+          .eq("status", "completed")
+          .order("started_at", { ascending: false }),
+      ]);
+
+      const heygenSessions: UnifiedSession[] = (heygenData ?? []).map((s) => ({
+        ...s,
+        source: "heygen" as const,
+      }));
+
+      const voiceSessions: UnifiedSession[] = (voiceData ?? []).map((s) => {
+        const coaching = s.simulation_coaching as { overall_score?: number } | null;
+        return {
+          id: s.id,
+          scenario_name: "Voice Simulation",
+          analysis: coaching && typeof coaching.overall_score === "number"
+            ? { overall_score: coaching.overall_score }
+            : null,
+          duration_s: s.duration_s ?? null,
+          started_at: s.started_at ?? new Date().toISOString(),
+          ended_at: s.ended_at,
+          source: "voice" as const,
+        };
+      });
+
+      const merged = [...heygenSessions, ...voiceSessions].sort(
+        (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+      );
 
       if (!cancelled) {
-        setSessions(raw ?? []);
+        setSessions(merged);
         setLoading(false);
       }
     })();
@@ -189,7 +222,12 @@ export default function DashboardPage() {
                   const score = s.analysis?.overall_score ?? 0;
                   return (
                     <TableRow key={s.id}>
-                      <TableCell className="text-sm font-medium">{s.scenario_name ?? "Untitled"}</TableCell>
+                      <TableCell className="text-sm font-medium">
+                        {s.scenario_name ?? "Untitled"}
+                        {s.source === "voice" && (
+                          <Badge variant="outline" className="text-[9px] ml-2">Voice</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className={cn(
                         "text-sm font-semibold",
                         score >= 70 ? "text-emerald-500" : score >= 40 ? "text-amber-500" : "text-red-400"

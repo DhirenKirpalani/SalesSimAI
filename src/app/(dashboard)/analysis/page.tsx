@@ -53,7 +53,7 @@ interface Analysis {
 interface SessionSummary {
   id: string;
   scenario_name: string | null;
-  analysis?: Analysis;
+  analysis?: Analysis | null;
   duration_s: number | null;
   started_at: string;
   ended_at: string | null;
@@ -77,22 +77,103 @@ function AnalysisContent() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
-    const { data: raw } = await supabase
-      .from("heygen_sessions")
-      .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
-      .eq("user_id", user.id)
-      .not("ended_at", "is", null)
-      .order("started_at", { ascending: false });
+    const [{ data: heygenData }, { data: voiceData }] = await Promise.all([
+      supabase
+        .from("heygen_sessions")
+        .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
+        .eq("user_id", user.id)
+        .not("ended_at", "is", null)
+        .order("started_at", { ascending: false }),
+      supabase
+        .from("simulation_sessions")
+        .select("id, scenario_id, scenario_table, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
+        .eq("user_id", user.id)
+        .eq("status", "completed")
+        .order("started_at", { ascending: false }),
+    ]);
 
-    setSessions((raw ?? []) as SessionSummary[]);
+    const heygenSessions: SessionSummary[] = (heygenData ?? []).map((s) => ({
+      ...s,
+      scenario_name: s.scenario_name ?? "Simulation",
+    }));
+
+    const voiceSessions: SessionSummary[] = (voiceData ?? []).map((s) => {
+      const coaching = s.simulation_coaching as { overall_score?: number } | null;
+      return {
+        id: s.id,
+        scenario_name: "Voice Simulation",
+        analysis: coaching
+          ? ({ overall_score: coaching.overall_score } as Analysis)
+          : null,
+        duration_s: s.duration_s ?? null,
+        started_at: s.started_at ?? new Date().toISOString(),
+        ended_at: s.ended_at,
+      };
+    });
+
+    const merged = [...heygenSessions, ...voiceSessions].sort(
+      (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+    );
+    setSessions(merged);
     setLoading(false);
   }, []);
 
-  const loadAnalysis = useCallback(async (sid: string) => {
+  const loadAnalysis = useCallback(async (sid: string, source?: string) => {
     setLoading(true);
     setError(null);
     const supabase = createClient();
 
+    // Voice session: load from simulation_coaching
+    if (source === "voice") {
+      const { data: session } = await supabase
+        .from("simulation_sessions")
+        .select("id, scenario_id, scenario_table, started_at, ended_at, duration_s")
+        .eq("id", sid)
+        .single();
+
+      const { data: coaching } = await supabase
+        .from("simulation_coaching")
+        .select("overall_score, discovery_score, objection_score, empathy_score, missed_opportunities, recommendations")
+        .eq("session_id", sid)
+        .single();
+
+      if (!session) { setError("Session not found"); setLoading(false); return; }
+
+      if (coaching) {
+        const voiceAnalysis: Analysis = {
+          overall_score: coaching.overall_score ?? 0,
+          breakdown: {
+            metrics: coaching.discovery_score ?? 0,
+            economic_buyer: coaching.empathy_score ?? 0,
+            decision_criteria: 0,
+            decision_process: 0,
+            identify_pain: coaching.objection_score ?? 0,
+            champion: 0,
+          },
+          strengths: (coaching.recommendations ?? []).slice(0, 3),
+          weaknesses: coaching.missed_opportunities ?? [],
+          missed_opportunities: coaching.missed_opportunities ?? [],
+          coaching_recommendations: coaching.recommendations ?? [],
+          coaching_moments: [],
+        };
+        setAnalysis(voiceAnalysis);
+        setCurrentSession({
+          id: session.id,
+          scenario_name: "Voice Simulation",
+          duration_s: session.duration_s ?? null,
+          started_at: session.started_at ?? new Date().toISOString(),
+          ended_at: session.ended_at,
+        } as SessionSummary);
+        setLoading(false);
+        return;
+      }
+
+      setError("No analysis available for this session. The call may have ended before feedback was generated.");
+      setLoading(false);
+      return;
+    }
+
+    // HeyGen video session
     const { data: session } = await supabase
       .from("heygen_sessions")
       .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
@@ -114,11 +195,12 @@ function AnalysisContent() {
 
   useEffect(() => {
     if (sessionId) {
-      loadAnalysis(sessionId);
+      const source = searchParams.get("source") ?? undefined;
+      loadAnalysis(sessionId, source ?? undefined);
     } else {
       loadSessions();
     }
-  }, [sessionId, loadAnalysis, loadSessions]);
+  }, [sessionId, loadAnalysis, loadSessions, searchParams]);
 
   const radarData = analysis
     ? [
