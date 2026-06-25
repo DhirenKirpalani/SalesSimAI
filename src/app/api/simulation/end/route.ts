@@ -35,9 +35,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Calculate duration from started_at
+    const { data: sessionStart } = await supabase
+      .from("simulation_sessions")
+      .select("started_at")
+      .eq("id", sessionId)
+      .single();
+
+    const endedAt = new Date();
+    const startedAt = sessionStart?.started_at ? new Date(sessionStart.started_at) : endedAt;
+    const durationS = Math.max(0, Math.round((endedAt.getTime() - startedAt.getTime()) / 1000));
+
     await supabase
       .from("simulation_sessions")
-      .update({ status: "completed", ended_at: new Date().toISOString() })
+      .update({ status: "completed", ended_at: endedAt.toISOString(), duration_s: durationS })
       .eq("id", sessionId);
 
     return NextResponse.json({ ok: true });

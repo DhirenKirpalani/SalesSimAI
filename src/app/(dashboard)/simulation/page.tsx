@@ -4,6 +4,11 @@ import { useRef, useState, useCallback, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { createClient } from "@/lib/supabase/client";
+import { useVoiceCall, VoiceStatus } from "@/hooks/useVoiceCall";
+import { useCoaching } from "@/hooks/useCoaching";
+import { VoiceCallPanel } from "@/components/VoiceCallPanel";
+import { CoachingOverlay } from "@/components/CoachingOverlay";
+import { Video, Mic } from "lucide-react";
 
 type Status = "idle" | "connecting" | "connected" | "paused" | "error";
 
@@ -21,6 +26,8 @@ interface TranscriptEntry {
   role: "avatar" | "user";
   text: string;
   time: string;
+  emotion?: string;
+  intent?: string;
 }
 
 interface CoachingMoment {
@@ -28,6 +35,28 @@ interface CoachingMoment {
   signal: string;
   what_they_should_have_said: string;
 }
+
+// Map buyer emotion → mood delta (coaching overlay)
+const emotionMap: Record<string, number> = {
+  frustrated: -3,
+  annoyed: -2,
+  skeptical: -1,
+  neutral: 0,
+  curious: 1,
+  interested: 2,
+  excited: 3,
+  satisfied: 2,
+};
+
+// Map buyer intent → trust delta (coaching overlay)
+const intentMap: Record<string, number> = {
+  objection: -2,
+  redirect: -1,
+  question: 1,
+  answer: 2,
+  share: 2,
+  confirm: 1,
+};
 
 interface FeedbackResult {
   overall_score: number;
@@ -80,19 +109,30 @@ function HeyGenTestInner() {
   const [logOpen, setLogOpen] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [resolvedScenarioName, setResolvedScenarioName] = useState<string | null>(null);
+  const [resolvedPersonaName, setResolvedPersonaName] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [feedback, setFeedback] = useState<FeedbackResult | null>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
 
+  // Voice call + coaching state
+  const [callMode, setCallMode] = useState<"video" | "voice">("video");
+  const [showAvatarVideo, setShowAvatarVideo] = useState(true); // toggle avatar video visibility
+  const [voiceSessionId, setVoiceSessionId] = useState<string | null>(null);
+  const [coachingOpen, setCoachingOpen] = useState(true);
+  const voiceCall = useVoiceCall();
+  const coaching = useCoaching();
+  const coachingAnalyzeRef = useRef(coaching.analyze);
+  coachingAnalyzeRef.current = coaching.analyze;
+
   const addLog = useCallback((msg: string) => {
     console.log("[heygen-test]", msg);
     setLog((prev) => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 99)]);
   }, []);
 
-  const addTranscript = useCallback((role: "avatar" | "user", text: string) => {
-    const entry: TranscriptEntry = { role, text, time: new Date().toLocaleTimeString() };
+  const addTranscript = useCallback((role: "avatar" | "user", text: string, emotion?: string, intent?: string) => {
+    const entry: TranscriptEntry = { role, text, time: new Date().toLocaleTimeString(), emotion, intent };
     transcriptRef.current = [...transcriptRef.current, entry];
     setTranscript((prev) => [...prev, entry]);
   }, []);
@@ -348,6 +388,52 @@ function HeyGenTestInner() {
     }
   }, [addLog, addTranscript, scenarioId, scenarioTable, avatarId]);
 
+  // Voice call start — creates a simulation session and begins voice loop
+  const startVoice = useCallback(async () => {
+    setStatus("connecting");
+    setError(null);
+    setTranscript([]);
+    setFeedback(null);
+    transcriptRef.current = [];
+    addLog("Starting voice call session…");
+    coaching.reset();
+
+    try {
+      const res = await fetch("/api/simulation/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenarioId, scenarioTable }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.session) throw new Error(data.error ?? "Failed to create session");
+
+      const session = data.session;
+      setVoiceSessionId(session.id);
+      setResolvedScenarioName(session.scenario_name ?? resolvedScenarioName);
+      addLog(`✅ Voice session: ${session.id}`);
+
+      // Start timer
+      const durationSec = (session.duration_min ?? 5) * 60;
+      defaultDurationRef.current = durationSec;
+      setTimeLeft(durationSec);
+      timerRef.current = setInterval(() => {
+        setTimeLeft((t) => {
+          if (t === null || t <= 1) return 0;
+          return t - 1;
+        });
+      }, 1000);
+
+      setStatus("connected");
+      voiceCall.start(session.id);
+      addLog("🎙️ Voice call started");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      setStatus("error");
+      addLog("❌ " + msg);
+    }
+  }, [addLog, scenarioId, scenarioTable, resolvedScenarioName, voiceCall, coaching]);
+
   const toggleMic = useCallback(async () => {
     const room = roomRef.current;
     if (!room) return;
@@ -387,6 +473,9 @@ function HeyGenTestInner() {
     setStatus("idle");
     setMicOn(false);
     localStorage.removeItem("heygen-active-session");
+    // Voice cleanup
+    voiceCall.stop();
+    setVoiceSessionId(null);
     addLog("Session stopped");
     // Stop recording
     const recorder = recorderRef.current;
@@ -428,6 +517,8 @@ function HeyGenTestInner() {
     resumeTimeLeftRef.current = timeLeftRef.current; // preserve remaining time for resume
     setStatus("paused");
     setMicOn(false);
+    // Voice pause
+    voiceCall.togglePause();
     addLog("⏸️ Session paused");
     const recorder = recorderRef.current;
     if (recorder && recorder.state !== "inactive") {
@@ -466,6 +557,8 @@ function HeyGenTestInner() {
   const handleEnd = useCallback(async () => {
     const currentTranscript = [...transcriptRef.current];
     const recordedChunks = [...recordedChunksRef.current];
+    const currentCallMode = callMode;
+    const currentVoiceSessionId = voiceSessionId;
     await stop();
 
     // Upload recording if available
@@ -492,21 +585,76 @@ function HeyGenTestInner() {
     if (currentTranscript.length >= 2) {
       setFeedbackLoading(true);
       try {
-        const res = await fetch("/api/heygen-test/feedback", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-          transcript: currentTranscript,
-          scenarioName: resolvedScenarioName ?? "Simulation",
-          heygenSessionId: heygenSessionDbIdRef.current,
-          startedAt: startedAtRef.current,
-        }),
-        });
-        setFeedback(await res.json());
+        // For voice calls, run the new coaching evaluator
+        if (currentCallMode === "voice" && currentVoiceSessionId) {
+          const [coachRes] = await Promise.all([
+            fetch("/api/simulation/coach", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionId: currentVoiceSessionId }),
+            }),
+            // Mark session as completed so it appears in dashboard/overview pages
+            fetch("/api/simulation/end", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionId: currentVoiceSessionId }),
+            }),
+          ]);
+          // Ingest conversation into vector store for RAG (fire-and-forget)
+          fetch("/api/simulation/vector/ingest", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId: currentVoiceSessionId }),
+          }).catch(() => {});
+
+          const coachData = await coachRes.json();
+          if (coachData.evaluation) {
+            // Map to existing FeedbackResult shape for unified display
+            setFeedback({
+              overall_score: coachData.evaluation.overall_score,
+              breakdown: {
+                metrics: coachData.evaluation.discovery_score,
+                economic_buyer: coachData.evaluation.empathy_score,
+                decision_criteria: 0,
+                decision_process: 0,
+                identify_pain: coachData.evaluation.objection_score,
+                champion: 0,
+              },
+              strengths: coachData.evaluation.recommendations.slice(0, 3),
+              weaknesses: coachData.evaluation.missed_opportunities,
+              missed_opportunities: coachData.evaluation.missed_opportunities,
+              coaching_recommendations: coachData.evaluation.recommendations,
+              coaching_moments: [],
+            });
+          }
+        } else {
+          // Existing HeyGen video feedback
+          const res = await fetch("/api/heygen-test/feedback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              transcript: currentTranscript,
+              scenarioName: resolvedScenarioName ?? "Simulation",
+              heygenSessionId: heygenSessionDbIdRef.current,
+              startedAt: startedAtRef.current,
+            }),
+          });
+          setFeedback(await res.json());
+
+          // Ingest HeyGen conversation into vector store for RAG (fire-and-forget)
+          const heygenSessionId = sessionRef.current?.session_id;
+          if (heygenSessionId) {
+            fetch("/api/simulation/vector/ingest", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionId: heygenSessionId }),
+            }).catch(() => {});
+          }
+        }
       } catch { /* ignore */ }
       finally { setFeedbackLoading(false); }
     }
-  }, [stop, resolvedScenarioName, addLog]);
+  }, [stop, resolvedScenarioName, addLog, callMode, voiceSessionId]);
 
   // Restore active session refs from localStorage after refresh
   useEffect(() => {
@@ -530,6 +678,80 @@ function HeyGenTestInner() {
   useEffect(() => {
     timeLeftRef.current = timeLeft;
   }, [timeLeft]);
+
+  // Load scenario details and set coaching context
+  useEffect(() => {
+    if (!scenarioId || !scenarioTable) return;
+    const load = async () => {
+      try {
+        const supabase = createClient();
+        const { data: scenario } = await supabase
+          .from(scenarioTable)
+          .select("seller_company, seller_product, custom_persona, context_note, preset_persona_id, scenario_type")
+          .eq("id", scenarioId)
+          .single();
+        if (scenario) {
+          const persona = scenario.custom_persona as any;
+          setResolvedPersonaName(persona?.name ?? null);
+          coaching.setScenarioContext({
+            sellerCompany: scenario.seller_company ?? undefined,
+            sellerProduct: scenario.seller_product ?? undefined,
+            buyerName: persona?.name ?? undefined,
+            buyerTitle: persona?.jobTitle ?? undefined,
+            buyerCompany: persona?.company ?? undefined,
+            buyerIndustry: persona?.industry ?? undefined,
+            buyerPainPoints: persona?.painPoints ?? undefined,
+            contextNote: scenario.context_note ?? undefined,
+            scenarioType: scenario.scenario_type ?? undefined,
+          });
+        }
+      } catch { /* ignore */ }
+    };
+    load();
+  }, [scenarioId, scenarioTable, coaching]);
+
+  // Sync voice call transcripts into the page transcript (shows in Conversation modal)
+  useEffect(() => {
+    if (callMode !== "voice" || voiceCall.transcript.length === 0) return;
+    const last = voiceCall.transcript[voiceCall.transcript.length - 1];
+    const pageRole = last.role === "buyer" ? "avatar" : "user";
+    const alreadyHas = transcript.length > 0 && transcript[transcript.length - 1].text === last.text;
+    if (!alreadyHas) {
+      addTranscript(pageRole, last.text, last.emotion, last.intent);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceCall.transcript, callMode]);
+
+  // Analyze turns for coaching (both video and voice modes)
+  useEffect(() => {
+    if (callMode === "voice") {
+      if (voiceCall.transcript.length === 0) return;
+      const lastTwo = voiceCall.transcript.slice(-2);
+      const sellerEntry = lastTwo.find((t) => t.role === "user");
+      const buyerEntry = lastTwo.find((t) => t.role === "buyer");
+      if (sellerEntry && buyerEntry) {
+        // Dynamic mood/trust based on buyer's actual emotion from the AI
+        const emotion = buyerEntry.emotion ?? "neutral";
+        const intent = buyerEntry.intent ?? "answer";
+        const moodDelta = emotionMap[emotion] ?? 0;
+        const trustDelta = intentMap[intent] ?? 0;
+        coachingAnalyzeRef.current(sellerEntry.text, buyerEntry.text, trustDelta, moodDelta);
+      }
+    } else {
+      // Video mode: use main transcript (role is "avatar" for buyer)
+      if (transcript.length === 0) return;
+      const lastTwo = transcript.slice(-2);
+      const sellerEntry = lastTwo.find((t) => t.role === "user");
+      const buyerEntry = lastTwo.find((t) => t.role === "avatar");
+      if (sellerEntry && buyerEntry) {
+        const emotion = buyerEntry.emotion ?? "neutral";
+        const intent = buyerEntry.intent ?? "answer";
+        const moodDelta = emotionMap[emotion] ?? 0;
+        const trustDelta = intentMap[intent] ?? 0;
+        coachingAnalyzeRef.current(sellerEntry.text, buyerEntry.text, trustDelta, moodDelta);
+      }
+    }
+  }, [voiceCall.transcript, transcript, callMode]);
 
   // Cleanup on unmount
   useEffect(() => () => { stop(); }, [stop]);
@@ -564,15 +786,18 @@ function HeyGenTestInner() {
 
       {/* Main Call Area — video fills the entire space */}
       <div className="flex-1 relative overflow-hidden">
-        <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-contain" />
+        {/* Hidden video element for LiveKit track attachment (audio still plays) */}
+        {callMode === "video" ? (
+          <video ref={videoRef} autoPlay playsInline hidden={!showAvatarVideo} className={`absolute inset-0 w-full h-full object-contain ${showAvatarVideo ? "" : "hidden"}`} />
+        ) : null}
 
-        {/* Idle / Connecting Overlay */}
-        {status !== "connected" && (
+        {/* Avatar image shown when video is hidden or not connected */}
+        {(callMode === "video" && status === "connected" && !showAvatarVideo) || status !== "connected" ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B0E14]">
             <div className="text-center space-y-4">
               <div className="w-20 h-20 rounded-full mx-auto ring-1 ring-white/10 overflow-hidden bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
                 {avatarImageUrl ? (
-                  <img src={avatarImageUrl} alt={avatarNameParam ?? "Avatar"} className="w-full h-full object-cover object-top" />
+                  <img src={avatarImageUrl} alt={resolvedPersonaName ?? avatarNameParam ?? "Avatar"} className="w-full h-full object-cover object-top" />
                 ) : (
                   <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
@@ -581,7 +806,7 @@ function HeyGenTestInner() {
               </div>
               <div>
                 <p className="text-gray-300 font-medium">
-                  {status === "connecting" ? `Connecting to ${avatarNameParam ?? "avatar"}…` :
+                  {status === "connecting" ? `Connecting to ${resolvedPersonaName ?? avatarNameParam ?? "avatar"}…` :
                    status === "error" ? "Connection failed" :
                    status === "paused" ? "Session paused" :
                    "Ready to practice"}
@@ -590,7 +815,51 @@ function HeyGenTestInner() {
                   <p className="text-xs text-gray-500 mt-1">{resolvedScenarioName}</p>
                 )}
               </div>
+              {/* Mode Toggle when idle */}
+              {status === "idle" && (
+                <div className="flex items-center justify-center gap-2 bg-white/5 rounded-full p-1 border border-white/10">
+                  <button
+                    onClick={() => setCallMode("video")}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors ${
+                      callMode === "video" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    Video Call
+                  </button>
+                  <button
+                    onClick={() => setCallMode("voice")}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors ${
+                      callMode === "voice" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    <Mic className="w-3.5 h-3.5" />
+                    Voice Call
+                  </button>
+                </div>
+              )}
             </div>
+          </div>
+        ) : null}
+
+        {/* Voice Call Panel (when voice mode is active) */}
+        {callMode === "voice" && status === "connected" && (
+          <div className="absolute inset-0">
+            <VoiceCallPanel
+              status={voiceCall.status as VoiceStatus}
+              currentBuyerText={voiceCall.currentBuyerText}
+              error={voiceCall.error}
+              volume={voiceCall.volume}
+              isSpeaking={voiceCall.isSpeaking}
+              avatarName={resolvedPersonaName ?? avatarNameParam ?? "Buyer"}
+              avatarImageUrl={avatarImageUrl}
+              audioEnergyRef={voiceCall.audioEnergyRef}
+              micEnergyRef={voiceCall.micEnergyRef}
+              onToggleMic={voiceCall.togglePause}
+              onTogglePause={voiceCall.togglePause}
+              onSetVolume={voiceCall.setVolume}
+              onEndCall={handleEnd}
+            />
           </div>
         )}
 
@@ -653,64 +922,99 @@ function HeyGenTestInner() {
           </svg>
           Transcript
         </button>
-      </div>
 
-      {/* Floating Control Bar */}
-      <div className="flex items-center justify-center gap-2 pb-3 pt-1.5 px-4 shrink-0">
-        {status === "idle" || status === "error" ? (
-          <button onClick={start} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-8 py-3 rounded-full shadow-lg shadow-blue-900/30 transition-all hover:scale-105 active:scale-95">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-            </svg>
-            Start Call
-          </button>
-        ) : status === "connecting" ? (
-          <div className="flex items-center gap-2 bg-gray-700/50 text-gray-400 px-8 py-3 rounded-full">
-            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            Connecting…
-          </div>
-        ) : status === "paused" ? (
-          <div className="flex items-center gap-2">
-            <button onClick={start} className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white font-semibold px-6 py-2.5 rounded-full shadow-lg shadow-green-900/30 transition-all hover:scale-105 active:scale-95">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              Resume
-            </button>
-            <button onClick={handleEnd} className="w-10 h-10 rounded-full bg-red-500/90 text-white flex items-center justify-center hover:bg-red-600 transition-all hover:scale-105 active:scale-95" title="End call">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z" /></svg>
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <button onClick={toggleMic} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${
-              micOn ? "bg-gray-700/80 text-white" : "bg-red-500/90 text-white"
-            }`} title={micOn ? "Mute" : "Unmute"}>
-              {micOn ? (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
-              )}
-            </button>
-            <button onClick={toggleCamera} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${
-              cameraOn ? "bg-gray-700/80 text-white" : "bg-gray-700/40 text-gray-400"
-            }`} title={cameraOn ? "Turn off camera" : "Turn on camera"}>
-              {cameraOn ? (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18" /></svg>
-              )}
-            </button>
-            <button onClick={pause} className="w-11 h-11 rounded-full bg-yellow-500/90 text-white flex items-center justify-center hover:bg-yellow-600 transition-all hover:scale-105 active:scale-95" title="Pause session">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </button>
-            <button onClick={handleEnd} className="w-11 h-11 rounded-full bg-red-500/90 text-white flex items-center justify-center hover:bg-red-600 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-red-900/20" title="End call">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z" /></svg>
-            </button>
+        {/* Coaching Overlay — bottom sheet on mobile, left panel on desktop */}
+        {status === "connected" && (
+          <div className="absolute bottom-20 left-0 right-0 px-3 z-10 sm:top-3 sm:left-3 sm:right-auto sm:bottom-auto sm:w-64 sm:px-0">
+            <CoachingOverlay
+              state={coaching.state}
+              stepTip={coaching.stepTip}
+              moodEmoji={coaching.moodEmoji}
+              moodLabel={coaching.moodLabel}
+              progressPercent={coaching.progressPercent}
+              isOpen={coachingOpen}
+              onToggle={() => setCoachingOpen((o) => !o)}
+            />
           </div>
         )}
       </div>
+
+      {/* Floating Control Bar — hidden in voice mode when connected (VoiceCallPanel has its own) */}
+      {!(callMode === "voice" && status === "connected") && (
+        <div className="flex items-center justify-center gap-2 pb-3 pt-1.5 px-4 shrink-0">
+          {status === "idle" || status === "error" ? (
+            <button onClick={callMode === "voice" ? startVoice : start} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-8 py-3 rounded-full shadow-lg shadow-blue-900/30 transition-all hover:scale-105 active:scale-95">
+              {callMode === "voice" ? (
+                <>
+                  <Mic className="w-5 h-5" />
+                  Start Voice Call
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  Start Video Call
+                </>
+              )}
+            </button>
+          ) : status === "connecting" ? (
+            <div className="flex items-center gap-2 bg-gray-700/50 text-gray-400 px-8 py-3 rounded-full">
+              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Connecting…
+            </div>
+          ) : status === "paused" ? (
+            <div className="flex items-center gap-2">
+              <button onClick={start} className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white font-semibold px-6 py-2.5 rounded-full shadow-lg shadow-green-900/30 transition-all hover:scale-105 active:scale-95">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Resume
+              </button>
+              <button onClick={handleEnd} className="w-10 h-10 rounded-full bg-red-500/90 text-white flex items-center justify-center hover:bg-red-600 transition-all hover:scale-105 active:scale-95" title="End call">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z" /></svg>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button onClick={toggleMic} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${
+                micOn ? "bg-gray-700/80 text-white" : "bg-red-500/90 text-white"
+              }`} title={micOn ? "Mute" : "Unmute"}>
+                {micOn ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+                )}
+              </button>
+              <button onClick={toggleCamera} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${
+                cameraOn ? "bg-gray-700/80 text-white" : "bg-gray-700/40 text-gray-400"
+              }`} title={cameraOn ? "Turn off camera" : "Turn on camera"}>
+                {cameraOn ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18" /></svg>
+                )}
+              </button>
+              <button onClick={pause} className="w-11 h-11 rounded-full bg-yellow-500/90 text-white flex items-center justify-center hover:bg-yellow-600 transition-all hover:scale-105 active:scale-95" title="Pause session">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </button>
+              {callMode === "video" && (
+                <button onClick={() => setShowAvatarVideo(v => !v)} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${showAvatarVideo ? "bg-gray-700/80 text-white" : "bg-gray-700/40 text-gray-400"}`} title={showAvatarVideo ? "Hide avatar video" : "Show avatar video"}>
+                  {showAvatarVideo ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.858a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                  )}
+                </button>
+              )}
+              <button onClick={handleEnd} className="w-11 h-11 rounded-full bg-red-500/90 text-white flex items-center justify-center hover:bg-red-600 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-red-900/20" title="End call">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z" /></svg>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Error Toast */}
       {error && (
