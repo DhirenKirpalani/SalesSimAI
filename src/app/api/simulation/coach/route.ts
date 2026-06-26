@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     const { data: scenario } = await supabase
       .from(session.scenario_table)
-      .select("name, context_note, seller_company, seller_product, custom_persona")
+      .select("name, context_note, seller_company, seller_product, custom_persona, scoring_criteria, evaluation_framework")
       .eq("id", session.scenario_id)
       .single();
 
@@ -59,6 +59,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "OPENAI_API_KEY not set" }, { status: 500 });
     }
 
+    const framework = scenario?.evaluation_framework || "";
+    const customCriteria = scenario?.scoring_criteria || "";
+
+    const frameworkSection = framework
+      ? `EVALUATION FRAMEWORK: Use the ${framework} framework to guide your assessment.`
+      : "";
+    const criteriaSection = customCriteria
+      ? `WHAT GOOD LOOKS LIKE FOR THIS COMPANY:\n${customCriteria}`
+      : "";
+
     const prompt = `You are an expert sales coach evaluating a B2B sales discovery call simulation.
 
 Evaluate the salesperson's performance in this conversation.
@@ -67,6 +77,8 @@ SCENARIO: ${scenario?.name ?? "Sales simulation"}
 COMPANY: ${scenario?.seller_company ?? "Unknown"}
 PRODUCT: ${scenario?.seller_product ?? "Unknown"}
 CONTEXT: ${scenario?.context_note ?? ""}
+${frameworkSection}
+${criteriaSection}
 
 TRANSCRIPT:
 ${transcript}
@@ -79,7 +91,7 @@ EVALUATE on these dimensions (0-100 score each):
 
 3. EMPATHY_SCORE: Did the seller show genuine curiosity, use the buyer's language, and make the buyer feel heard?
 
-4. OVERALL_SCORE: Weighted average with emphasis on discovery.
+4. OVERALL_SCORE: Weighted average with emphasis on discovery. ${customCriteria ? "Consider 'What Good Looks Like' above." : ""}
 
 Also provide:
 - MISSED_OPPORTUNITIES: Specific questions or tactics the seller failed to use (max 5)

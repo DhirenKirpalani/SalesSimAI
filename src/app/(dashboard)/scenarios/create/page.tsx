@@ -58,6 +58,22 @@ const SCENARIO_TYPES = [
 const DIFFICULTIES = ["Beginner", "Intermediate", "Advanced", "Expert"] as const;
 const DURATIONS = [5, 10, 15, 20];
 
+const EVALUATION_FRAMEWORKS = [
+  { value: "", label: "Standard (Discovery-based)" },
+  { value: "MEDDIC", label: "MEDDIC" },
+  { value: "BANT", label: "BANT" },
+  { value: "SPIN", label: "SPIN Selling" },
+  { value: "Challenger", label: "Challenger Sale" },
+  { value: "Sandler", label: "Sandler" },
+  { value: "ValueSelling", label: "ValueSelling" },
+  { value: "Custom", label: "Custom" },
+];
+
+const KNOWN_FRAMEWORK_VALUES = new Set(EVALUATION_FRAMEWORKS.map((f) => f.value));
+function isKnownFramework(value: string | null | undefined): boolean {
+  return !!value && KNOWN_FRAMEWORK_VALUES.has(value);
+}
+
 type Difficulty = typeof DIFFICULTIES[number];
 
 interface FormState {
@@ -71,9 +87,15 @@ interface FormState {
   customPersonaCompany: string;
   customPersonaIndustry: string;
   customPersonaPersonality: string;
+  customPersonaPersonalityTraits: string;
   customPersonaPainPoints: string;
+  customPersonaPainPointsProcess: string;
+  customPersonaPainPointsImpact: string;
   customPersonaGoals: string;
+  customPersonaCompanyGoal: string;
+  customPersonaPersonalMotivation: string;
   customPersonaCommStyle: string;
+  customPersonaCommLanguage: string;
   customPersonaPriorVendor: string;
   customPersonaDecisionCriteria: string;
   customPersonaHiddenConcern: string;
@@ -87,6 +109,9 @@ interface FormState {
   avatarId: string;
   avatarName: string;
   voiceId: string;
+  scoringCriteria: string;
+  evaluationFramework: string;
+  customEvaluationFramework: string;
 }
 
 const LS_KEY = "salesSimAI_createScenario";
@@ -102,9 +127,15 @@ const INITIAL: FormState = {
   customPersonaCompany: "",
   customPersonaIndustry: "",
   customPersonaPersonality: "",
+  customPersonaPersonalityTraits: "",
   customPersonaPainPoints: "",
+  customPersonaPainPointsProcess: "",
+  customPersonaPainPointsImpact: "",
   customPersonaGoals: "",
+  customPersonaCompanyGoal: "",
+  customPersonaPersonalMotivation: "",
   customPersonaCommStyle: "",
+  customPersonaCommLanguage: "",
   customPersonaPriorVendor: "",
   customPersonaDecisionCriteria: "",
   customPersonaHiddenConcern: "",
@@ -118,6 +149,9 @@ const INITIAL: FormState = {
   avatarId: "",
   avatarName: "",
   voiceId: "",
+  scoringCriteria: "",
+  evaluationFramework: "",
+  customEvaluationFramework: "",
 };
 
 function loadFromStorage(): { step: number; form: FormState } | null {
@@ -138,11 +172,21 @@ function CreateScenarioPage() {
   const editTable = searchParams.get("editTable") || "custom_scenarios";
   const isEditMode = !!editId;
 
-  const [step, setStep] = useState(() => (isEditMode ? 1 : loadFromStorage()?.step ?? 1));
-  const [form, setForm] = useState<FormState>(() => (isEditMode ? INITIAL : loadFromStorage()?.form ?? INITIAL));
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState<FormState>(INITIAL);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [loadingEdit, setLoadingEdit] = useState(isEditMode);
+
+  // Restore from localStorage on client mount (avoid hydration mismatch)
+  useEffect(() => {
+    if (isEditMode) return;
+    const saved = loadFromStorage();
+    if (saved) {
+      setStep(saved.step);
+      setForm(saved.form);
+    }
+  }, [isEditMode]);
 
   // Load existing scenario in edit mode
   useEffect(() => {
@@ -165,9 +209,15 @@ function CreateScenarioPage() {
           customPersonaCompany: cp?.company ? String(cp.company) : "",
           customPersonaIndustry: cp?.industry ? String(cp.industry) : "",
           customPersonaPersonality: cp?.personality ? String(cp.personality) : "",
+          customPersonaPersonalityTraits: Array.isArray(cp?.personalityTraits) ? (cp.personalityTraits as string[]).join("\n") : (cp?.personalityTraits ? String(cp.personalityTraits) : ""),
           customPersonaPainPoints: Array.isArray(cp?.painPoints) ? (cp.painPoints as string[]).join("\n") : "",
+          customPersonaPainPointsProcess: cp?.painPointsCurrentProcess ? String(cp.painPointsCurrentProcess) : "",
+          customPersonaPainPointsImpact: cp?.painPointsImpact ? String(cp.painPointsImpact) : "",
           customPersonaGoals: Array.isArray(cp?.goals) ? (cp.goals as string[]).join("\n") : "",
+          customPersonaCompanyGoal: cp?.companyGoal ? String(cp.companyGoal) : "",
+          customPersonaPersonalMotivation: cp?.personalMotivation ? String(cp.personalMotivation) : "",
           customPersonaCommStyle: cp?.communicationStyle ? String(cp.communicationStyle) : "",
+          customPersonaCommLanguage: cp?.communicationLanguage ? String(cp.communicationLanguage) : "",
           customPersonaPriorVendor: cp?.priorVendorExperience ? String(cp.priorVendorExperience) : "",
           customPersonaDecisionCriteria: cp?.decisionCriteria ? String(cp.decisionCriteria) : "",
           customPersonaHiddenConcern: cp?.hiddenConcern ? String(cp.hiddenConcern) : "",
@@ -179,8 +229,11 @@ function CreateScenarioPage() {
           duration: data.duration ?? 5,
           contextNote: data.context_note ?? "",
           avatarId: data.avatar_id ?? "",
-          avatarName: "",
+          avatarName: data.avatar_name ?? "",
           voiceId: data.voice_id ?? "",
+          scoringCriteria: data.scoring_criteria ?? "",
+          evaluationFramework: isKnownFramework(data.evaluation_framework) ? data.evaluation_framework : "Custom",
+          customEvaluationFramework: isKnownFramework(data.evaluation_framework) ? "" : (data.evaluation_framework ?? ""),
         });
       }
       setLoadingEdit(false);
@@ -233,9 +286,15 @@ function CreateScenarioPage() {
         company: form.customPersonaCompany,
         industry: form.customPersonaIndustry,
         personality: form.customPersonaPersonality,
+        personalityTraits: form.customPersonaPersonalityTraits.split("\n").map((s) => s.trim()).filter(Boolean),
         painPoints: form.customPersonaPainPoints.split("\n").map((s) => s.trim()).filter(Boolean),
+        painPointsCurrentProcess: form.customPersonaPainPointsProcess || undefined,
+        painPointsImpact: form.customPersonaPainPointsImpact || undefined,
         goals: form.customPersonaGoals.split("\n").map((s) => s.trim()).filter(Boolean),
+        companyGoal: form.customPersonaCompanyGoal || undefined,
+        personalMotivation: form.customPersonaPersonalMotivation || undefined,
         communicationStyle: form.customPersonaCommStyle || undefined,
+        communicationLanguage: form.customPersonaCommLanguage || undefined,
         priorVendorExperience: form.customPersonaPriorVendor || undefined,
         decisionCriteria: form.customPersonaDecisionCriteria || undefined,
         hiddenConcern: form.customPersonaHiddenConcern || undefined,
@@ -250,6 +309,10 @@ function CreateScenarioPage() {
       avatar_id: form.avatarId || null,
       avatar_name: form.avatarName || null,
       voice_id: form.voiceId || null,
+      scoring_criteria: form.scoringCriteria || null,
+      evaluation_framework: form.evaluationFramework === "Custom"
+        ? (form.customEvaluationFramework || "Custom")
+        : (form.evaluationFramework || null),
     };
 
     if (isEditMode && editId) {
@@ -448,20 +511,53 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Personality / Behaviour</Label>
-                      <Input className="rounded-xl" placeholder="e.g. Analytical, skeptical, asks for data before committing" value={form.customPersonaPersonality} onChange={(e) => set("customPersonaPersonality", e.target.value)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Pain Points <span className="font-normal text-muted-foreground">(one per line)</span></Label>
+                      <Label className="text-xs font-medium">Personality / Behaviour <span className="font-normal text-muted-foreground">(one per line)</span></Label>
                       <Textarea
                         className="rounded-xl text-sm min-h-[80px]"
-                        placeholder={"Finance processes are manual and error-prone\nLack of visibility into team spend\nAudit prep takes weeks"}
+                        placeholder={"Analytical and detail-oriented\nProfessional but slightly skeptical\nDoes not reveal problems immediately\nWill answer when asked good discovery questions\nPushes back on vague claims"}
+                        value={form.customPersonaPersonalityTraits}
+                        onChange={(e) => set("customPersonaPersonalityTraits", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Current Process</Label>
+                      <Textarea
+                        className="rounded-xl text-sm min-h-[60px]"
+                        placeholder={"Expenses approved through email and spreadsheets\nFinance manually reconciles transactions monthly\nLimited visibility into department spending"}
+                        value={form.customPersonaPainPointsProcess}
+                        onChange={(e) => set("customPersonaPainPointsProcess", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Impact</Label>
+                      <Textarea
+                        className="rounded-xl text-sm min-h-[60px]"
+                        placeholder={"Finance team spends too much time on admin\nErrors happen during reconciliation\nReporting takes longer than it should"}
+                        value={form.customPersonaPainPointsImpact}
+                        onChange={(e) => set("customPersonaPainPointsImpact", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Other Pain Points <span className="font-normal text-muted-foreground">(one per line)</span></Label>
+                      <Textarea
+                        className="rounded-xl text-sm min-h-[60px]"
+                        placeholder={"Lack of visibility into team spend\nAudit prep takes weeks"}
                         value={form.customPersonaPainPoints}
                         onChange={(e) => set("customPersonaPainPoints", e.target.value)}
                       />
                     </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Company Goal</Label>
+                        <Input className="rounded-xl text-sm" placeholder="Improve finance operations" value={form.customPersonaCompanyGoal} onChange={(e) => set("customPersonaCompanyGoal", e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium">Personal Motivation</Label>
+                        <Input className="rounded-xl text-sm" placeholder="Reduce manual work and look more strategic to CFO" value={form.customPersonaPersonalMotivation} onChange={(e) => set("customPersonaPersonalMotivation", e.target.value)} />
+                      </div>
+                    </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Goals <span className="font-normal text-muted-foreground">(one per line)</span></Label>
+                      <Label className="text-xs font-medium">Other Goals <span className="font-normal text-muted-foreground">(one per line)</span></Label>
                       <Textarea
                         className="rounded-xl text-sm min-h-[60px]"
                         placeholder={"Get budget approval by Q3\nUnderstand integration requirements"}
@@ -473,11 +569,22 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
                     {/* Advanced persona fields */}
                     <div className="pt-2">
                       <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Advanced (for realism)</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] font-medium">Communication Language / Environment</Label>
+                          <Textarea
+                            className="rounded-xl text-sm min-h-[60px]"
+                            placeholder={"Singapore business environment\nProfessional casual communication\nShort responses\nMay naturally mix English with Singlish/Bahasa\nMatch seller's language\nDoes not overshare information\nPolite but skeptical"}
+                            value={form.customPersonaCommLanguage}
+                            onChange={(e) => set("customPersonaCommLanguage", e.target.value)}
+                          />
+                        </div>
                         <div className="space-y-1.5">
                           <Label className="text-[11px] font-medium">Communication Style</Label>
                           <Input className="rounded-xl text-sm" placeholder="Short sentences, never volunteers numbers..." value={form.customPersonaCommStyle} onChange={(e) => set("customPersonaCommStyle", e.target.value)} />
                         </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                         <div className="space-y-1.5">
                           <Label className="text-[11px] font-medium">Prior Vendor Experience</Label>
                           <Input className="rounded-xl text-sm" placeholder="Tried Expensify 2 years ago..." value={form.customPersonaPriorVendor} onChange={(e) => set("customPersonaPriorVendor", e.target.value)} />
@@ -611,6 +718,52 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
                     onChange={(e) => set("contextNote", e.target.value)}
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Evaluation Framework <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                  <Select value={form.evaluationFramework} onValueChange={(v) => set("evaluationFramework", v ?? "")}>
+                    <SelectTrigger className="rounded-xl w-full">
+                      <SelectValue placeholder="Select a framework" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border shadow-lg">
+                      {EVALUATION_FRAMEWORKS.map((f) => (
+                        <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.evaluationFramework === "Custom" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="customEvaluationFramework" className="text-xs font-medium">Custom Framework Name</Label>
+                    <Input
+                      id="customEvaluationFramework"
+                      className="rounded-xl"
+                      placeholder="e.g. Force Management, Command of the Message"
+                      value={form.customEvaluationFramework}
+                      onChange={(e) => set("customEvaluationFramework", e.target.value)}
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="scoringCriteria" className="text-xs font-medium">
+                    What Good Looks Like <span className="font-normal text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Textarea
+                    id="scoringCriteria"
+                    className="rounded-xl text-sm min-h-[120px]"
+                    placeholder={`Describe what success looks like for this scenario. This shapes how the AI evaluates your sales reps.
+
+Examples:
+• Uncovered the buyer's real pain (not just surface complaints)
+• Mapped the full decision process and timeline
+• Identified 2+ business metrics they care about
+• Handled budget objection without discounting
+• Gained commitment to a next step with a specific date`}
+                    value={form.scoringCriteria}
+                    onChange={(e) => set("scoringCriteria", e.target.value)}
+                  />
+                </div>
               </CardContent>
             </Card>
           )}
@@ -685,6 +838,24 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
                   <div className="rounded-xl border p-3 space-y-1 bg-primary/5 border-primary/20">
                     <p className="text-xs font-medium text-primary uppercase tracking-wide">Backstory</p>
                     <p className="text-xs text-muted-foreground">{form.contextNote}</p>
+                  </div>
+                )}
+
+                {/* Evaluation */}
+                {form.evaluationFramework && (
+                  <div className="rounded-xl border p-3 space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Evaluation Framework</p>
+                    <p className="text-sm font-medium">
+                      {form.evaluationFramework === "Custom"
+                        ? (form.customEvaluationFramework || "Custom")
+                        : (EVALUATION_FRAMEWORKS.find(f => f.value === form.evaluationFramework)?.label || form.evaluationFramework)}
+                    </p>
+                  </div>
+                )}
+                {form.scoringCriteria && (
+                  <div className="rounded-xl border p-3 space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">What Good Looks Like</p>
+                    <p className="text-xs text-muted-foreground whitespace-pre-line">{form.scoringCriteria}</p>
                   </div>
                 )}
 

@@ -25,6 +25,10 @@ create table if not exists public.custom_scenarios (
   -- Derived display fields
   name               text not null,
 
+  -- Scoring / Evaluation
+  scoring_criteria   text,
+  evaluation_framework text,
+
   created_at         timestamptz not null default now()
 );
 

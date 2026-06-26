@@ -124,7 +124,7 @@ export default function CompanyKnowledgePage() {
 
   // Settings
   const [logoUrl, setLogoUrl] = useState("");
-  const [themeColor, setThemeColor] = useState("#0f172a");
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [emailDomain, setEmailDomain] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsStatus, setSettingsStatus] = useState<"idle" | "success" | "error">("idle");
@@ -160,7 +160,6 @@ export default function CompanyKnowledgePage() {
         setIsOrgAdmin(data.isAdmin ?? false);
         if (data.organization) {
           setLogoUrl(data.organization.logo_url ?? "");
-          setThemeColor(data.organization.theme_color ?? "#0f172a");
           setEmailDomain(data.organization.email_domain ?? "");
           if (data.organization.source_urls?.length > 0) {
             setOnboardingUrls(data.organization.source_urls);
@@ -349,7 +348,6 @@ export default function CompanyKnowledgePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           logo_url: logoUrl || null,
-          theme_color: themeColor,
           email_domain: emailDomain || null,
         }),
       });
@@ -382,59 +380,7 @@ export default function CompanyKnowledgePage() {
     });
 
     setLogoUrl(dataUrl);
-
-    // Extract dominant color from logo
-    try {
-      const color = await extractDominantColor(dataUrl);
-      if (color) setThemeColor(color);
-    } catch {
-      // ignore extraction failures
-    }
-  }
-
-  function extractDominantColor(dataUrl: string): Promise<string | null> {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return resolve(null);
-
-        const size = 50;
-        canvas.width = size;
-        canvas.height = size;
-        ctx.drawImage(img, 0, 0, size, size);
-
-        const pixels = ctx.getImageData(0, 0, size, size).data;
-        const colorCounts = new Map<string, number>();
-
-        for (let i = 0; i < pixels.length; i += 4) {
-          const r = pixels[i];
-          const g = pixels[i + 1];
-          const b = pixels[i + 2];
-          const a = pixels[i + 3];
-          if (a < 128) continue; // skip transparent
-          // skip near-white and near-black
-          if (r > 240 && g > 240 && b > 240) continue;
-          if (r < 15 && g < 15 && b < 15) continue;
-          const key = `${Math.round(r / 10) * 10},${Math.round(g / 10) * 10},${Math.round(b / 10) * 10}`;
-          colorCounts.set(key, (colorCounts.get(key) ?? 0) + 1);
-        }
-
-        let bestColor = "#0f172a";
-        let bestCount = 0;
-        for (const [key, count] of colorCounts.entries()) {
-          if (count > bestCount) {
-            bestCount = count;
-            bestColor = "#" + key.split(",").map((c) => parseInt(c).toString(16).padStart(2, "0")).join("");
-          }
-        }
-        resolve(bestColor);
-      };
-      img.onerror = () => resolve(null);
-      img.src = dataUrl;
-    });
+    if (logoInputRef.current) logoInputRef.current.value = "";
   }
 
   // ── Member Management ──────────────────────────────────────────────
@@ -895,40 +841,40 @@ export default function CompanyKnowledgePage() {
                         <img
                           src={logoUrl}
                           alt="Logo preview"
-                          className="w-12 h-12 rounded-lg object-contain border"
+                          className="w-12 h-12 rounded-lg object-contain border shrink-0"
                         />
                       )}
-                      <Input
+                      <input
+                        ref={logoInputRef}
                         type="file"
                         accept="image/*"
                         onChange={handleLogoFileSelect}
-                        className="flex-1"
+                        className="hidden"
                       />
+                      <div
+                        onClick={() => logoInputRef.current?.click()}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md border border-input bg-background text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
+                      >
+                        <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="truncate flex-1">
+                          {logoUrl ? "Change logo" : "Click to choose a file"}
+                        </span>
+                        {logoUrl && (
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLogoUrl("");
+                              if (logoInputRef.current) logoInputRef.current.value = "";
+                            }}
+                            className="ml-auto text-muted-foreground hover:text-red-500 cursor-pointer shrink-0"
+                          >
+                            <X className="w-3 h-3" />
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       Upload a PNG/JPG logo. It will be shown on the company page.
-                    </p>
-                  </div>
-
-                  {/* Theme Color */}
-                  <div>
-                    <Label className="text-xs mb-1 block">Theme Color</Label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="color"
-                        value={themeColor}
-                        onChange={(e) => setThemeColor(e.target.value)}
-                        className="w-10 h-10 rounded-md border cursor-pointer"
-                      />
-                      <Input
-                        value={themeColor}
-                        onChange={(e) => setThemeColor(e.target.value)}
-                        className="flex-1 font-mono text-sm"
-                        placeholder="#0f172a"
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      This color personalizes the dashboard background for your team.
                     </p>
                   </div>
 

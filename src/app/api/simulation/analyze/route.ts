@@ -3,19 +3,87 @@ import { createClient } from "@/lib/supabase/server";
 import { SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
 
-const SYSTEM_PROMPT = `You are an expert B2B sales coach analyzing a sales call transcript.
-Evaluate the salesperson's performance using the MEDDIC framework and provide actionable feedback.
+function buildSystemPrompt(framework: string, customCriteria: string): string {
+  const frameworkLower = framework.toLowerCase();
+
+  let frameworkSection = "";
+  if (frameworkLower === "meddic") {
+    frameworkSection = `Evaluate the salesperson's performance using the MEDDIC framework.
+
+MEDDIC scoring guidance:
+- Metrics: Did they quantify business impact and ROI?
+- Economic Buyer: Did they identify and engage the decision maker?
+- Decision Criteria: Did they uncover evaluation criteria?
+- Decision Process: Did they map the buying process and timeline?
+- Identify Pain: Did they discover and probe specific pain points?
+- Champion: Did they build a relationship and internal advocate?`;
+  } else if (frameworkLower === "bant") {
+    frameworkSection = `Evaluate the salesperson's performance using the BANT framework.
+
+BANT scoring guidance:
+- Budget: Did they confirm the buyer has budget allocated?
+- Authority: Did they identify the true decision maker?
+- Need: Did they uncover a clear, urgent need?
+- Timeline: Did they establish a realistic purchase timeline?`;
+  } else if (frameworkLower === "spin") {
+    frameworkSection = `Evaluate the salesperson's performance using the SPIN Selling framework.
+
+SPIN scoring guidance:
+- Situation: Did they understand the buyer's current context?
+- Problem: Did they identify specific problems the buyer faces?
+- Implication: Did they explore the consequences of not solving those problems?
+- Need-payoff: Did they help the buyer articulate the value of solving the problem?`;
+  } else if (frameworkLower === "challenger") {
+    frameworkSection = `Evaluate the salesperson's performance using the Challenger Sale framework.
+
+Challenger scoring guidance:
+- Teaching: Did they teach the buyer something new about their business?
+- Tailoring: Did they tailor the message to the buyer's specific situation?
+- Taking Control: Did they confidently guide the conversation toward a next step?
+- Constructive Tension: Did they challenge the buyer's assumptions respectfully?`;
+  } else if (frameworkLower === "sandler") {
+    frameworkSection = `Evaluate the salesperson's performance using the Sandler framework.
+
+Sandler scoring guidance:
+- Bonding & Rapport: Did they build genuine rapport early?
+- Pain: Did they uncover real pain (not just surface problems)?
+- Budget: Did they discuss budget openly?
+- Decision: Did they understand the buyer's decision process?
+- Fulfillment: Did they present their solution as the answer to the pain?
+- Post-sell: Did they secure the next step and prevent buyer's remorse?`;
+  } else if (frameworkLower === "valueselling") {
+    frameworkSection = `Evaluate the salesperson's performance using the ValueSelling framework.
+
+ValueSelling scoring guidance:
+- Differentiation: Did they differentiate from competitors clearly?
+- Value: Did they articulate quantifiable business value?
+- Power Questions: Did they ask questions that advanced the sale?
+- Proof: Did they provide proof points and references?`;
+  } else {
+    frameworkSection = `Evaluate the salesperson's performance using a discovery-based standard framework.
+
+Standard scoring guidance:
+- Discovery: Did they uncover the buyer's real pain points, process, and impact?
+- Objection Handling: When the buyer pushed back, did they validate, reframe, and offer a path forward?
+- Empathy: Did they show genuine curiosity, use the buyer's language, and make the buyer feel heard?
+- Closing / Next Steps: Did they gain commitment to a clear next step?`;
+  }
+
+  const criteriaSection = customCriteria
+    ? `\nWHAT GOOD LOOKS LIKE FOR THIS COMPANY:\n${customCriteria}\nUse these criteria to guide your scoring and feedback.`
+    : "";
+
+  return `You are an expert B2B sales coach analyzing a sales call transcript.
+${frameworkSection}
+${criteriaSection}
 
 Return ONLY valid JSON in this exact shape:
 {
   "overall_score": <0-100>,
   "breakdown": {
-    "metrics": <0-100>,
-    "economic_buyer": <0-100>,
-    "decision_criteria": <0-100>,
-    "decision_process": <0-100>,
-    "identify_pain": <0-100>,
-    "champion": <0-100>
+    "dimension_1": <0-100>,
+    "dimension_2": <0-100>,
+    ... (use framework-relevant dimension names)
   },
   "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
   "weaknesses": ["<weakness 1>", "<weakness 2>", "<weakness 3>"],
@@ -30,19 +98,12 @@ Return ONLY valid JSON in this exact shape:
   ]
 }
 
-MEDDIC scoring guidance:
-- Metrics: Did they quantify business impact and ROI?
-- Economic Buyer: Did they identify and engage the decision maker?
-- Decision Criteria: Did they uncover evaluation criteria?
-- Decision Process: Did they map the buying process and timeline?
-- Identify Pain: Did they discover and probe specific pain points?
-- Champion: Did they build a relationship and internal advocate?
-
 COACHING MOMENTS rules:
 - Pick 3-5 real moments from the transcript where the buyer said something significant.
 - For each, explain what signal that statement sends (objection, buying signal, etc.).
 - Provide an exact script the seller should have used — not generic advice, word-for-word what to say.
 - Be honest and specific. Reference actual moments from the transcript.`;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -80,7 +141,7 @@ export async function POST(req: NextRequest) {
 
     const { data: scenario } = await supabase
       .from(session.scenario_table)
-      .select("name, custom_persona, preset_persona_id, context_note, seller_description, scenario_type, seller_company, seller_product")
+      .select("name, custom_persona, preset_persona_id, context_note, seller_description, scenario_type, seller_company, seller_product, scoring_criteria, evaluation_framework")
       .eq("id", session.scenario_id)
       .single();
 
@@ -106,12 +167,16 @@ export async function POST(req: NextRequest) {
       .filter(([, v]) => v)
       .map(([k]) => k);
 
+    const criteriaBlock = scenario?.scoring_criteria
+      ? `\nWHAT GOOD LOOKS LIKE FOR THIS COMPANY:\n${scenario.scoring_criteria}`
+      : "";
+
     const contextBlock = `
 SCENARIO: ${scenario?.name ?? "Unknown"}
 CALL TYPE: ${scenario?.scenario_type ?? "Discovery Call"}
 BUYER: ${personaName}${personaRole ? `, ${personaRole}` : ""}${personaCompany ? ` at ${personaCompany}` : ""}
 WHAT WAS BEING SOLD: ${scenario?.seller_description ?? ""}
-CALL CONTEXT: ${scenario?.context_note ?? ""}
+CALL CONTEXT: ${scenario?.context_note ?? ""}${criteriaBlock}
 
 SESSION OUTCOME:
 - Final trust level: ${state.trust_level}/100
@@ -126,6 +191,11 @@ ${transcript}`;
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
 
+    const systemPrompt = buildSystemPrompt(
+      scenario?.evaluation_framework || "",
+      scenario?.scoring_criteria || ""
+    );
+
     const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -135,7 +205,7 @@ ${transcript}`;
       body: JSON.stringify({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: systemPrompt },
           { role: "user", content: contextBlock },
         ],
         response_format: { type: "json_object" },

@@ -58,7 +58,7 @@ interface UseVoiceCallReturn {
   micMuted: boolean;
   audioEnergyRef: React.MutableRefObject<number>;
   micEnergyRef: React.MutableRefObject<number>;
-  start: (sessionId: string) => void;
+  start: (sessionId: string, voiceId?: string) => void;
   stop: () => void;
   toggleMic: () => void;
   togglePause: () => void;
@@ -75,6 +75,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
   const [micMuted, setMicMuted] = useState(false);
 
   const sessionIdRef = useRef<string | null>(null);
+  const voiceIdRef = useRef<string | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioQueueRef = useRef<string[]>([]); // base64 mp3 data URLs
@@ -244,7 +245,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
       const res = await fetch("/api/simulation/voice-turn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, transcript: text }),
+        body: JSON.stringify({ sessionId, transcript: text, voiceId: voiceIdRef.current }),
       });
 
       if (!res.ok || !res.body) {
@@ -308,7 +309,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
     }
   }, [addTranscript, playNextAudio, stopListening]);
 
-  const start = useCallback((sessionId: string) => {
+  const start = useCallback((sessionId: string, voiceId?: string) => {
     abortRef.current = false;
     setError(null);
     setTranscript([]);
@@ -316,6 +317,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
     setCurrentBuyerText("");
     audioQueueRef.current = [];
     sessionIdRef.current = sessionId;
+    voiceIdRef.current = voiceId ?? null;
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -329,7 +331,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = "en-US";
+    recognition.lang = "en";
     recognition.maxAlternatives = 1;
 
     let finalTranscript = "";
