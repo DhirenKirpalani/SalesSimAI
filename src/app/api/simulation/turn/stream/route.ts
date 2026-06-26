@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     if (preset) persona = { name: preset.name, jobTitle: preset.jobTitle, company: preset.company, industry: preset.industry, personality: preset.personality, painPoints: preset.painPoints, goals: preset.goals };
   }
   if (!persona) {
-    persona = { name: "Alex", jobTitle: "VP of Operations", company: scenario?.seller_company ?? "the company", industry: "Technology", personality: "analytical, skeptical", painPoints: ["efficiency", "cost"] };
+    persona = { name: "Alex", jobTitle: "VP of Operations", company: "a different company", industry: "Technology", personality: "analytical, skeptical", painPoints: ["efficiency", "cost"] };
   }
 
   const { data: recentMessages } = await supabase

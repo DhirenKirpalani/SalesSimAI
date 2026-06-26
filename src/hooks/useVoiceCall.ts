@@ -55,10 +55,12 @@ interface UseVoiceCallReturn {
   error: string | null;
   volume: number;
   isSpeaking: boolean;
+  micMuted: boolean;
   audioEnergyRef: React.MutableRefObject<number>;
   micEnergyRef: React.MutableRefObject<number>;
   start: (sessionId: string) => void;
   stop: () => void;
+  toggleMic: () => void;
   togglePause: () => void;
   setVolume: (v: number) => void;
 }
@@ -70,6 +72,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
   const [error, setError] = useState<string | null>(null);
   const [volume, setVolumeState] = useState(1.0);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [micMuted, setMicMuted] = useState(false);
 
   const sessionIdRef = useRef<string | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -415,6 +418,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
   const stop = useCallback(() => {
     abortRef.current = true;
     micMutedRef.current = false;
+    setMicMuted(false);
     turnAddedRef.current = false;
     stopListening();
     stopEnergyLoop();
@@ -435,17 +439,46 @@ export function useVoiceCall(): UseVoiceCallReturn {
     setIsSpeaking(false);
   }, [stopListening, stopEnergyLoop]);
 
+  const toggleMic = useCallback(() => {
+    if (micMutedRef.current) {
+      micMutedRef.current = false;
+      setMicMuted(false);
+      if (status !== "paused") {
+        setStatus("listening");
+        startListening();
+      }
+    } else {
+      micMutedRef.current = true;
+      setMicMuted(true);
+      stopListening();
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    }
+  }, [status, startListening, stopListening]);
+
   const togglePause = useCallback(() => {
     if (status === "paused") {
       micMutedRef.current = false;
       setStatus("listening");
       startListening();
+      // Resume any queued audio that was interrupted by pause
+      if (audioQueueRef.current.length > 0 && !isPlayingRef.current) {
+        playNextAudio();
+      }
     } else {
       micMutedRef.current = true;
       stopListening();
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      // Pause audio playback but PRESERVE queue and text for resume
+      if (currentAudioSourceRef.current) {
+        try { currentAudioSourceRef.current.stop(); } catch { /* already stopped */ }
+        currentAudioSourceRef.current = null;
+      }
+      isPlayingRef.current = false;
+      setIsSpeaking(false);
+      // Do NOT clear audioQueueRef or currentBuyerText — conversation continues on resume
       setStatus("paused");
     }
-  }, [status, startListening, stopListening]);
+  }, [status, startListening, stopListening, playNextAudio]);
 
   const setVolume = useCallback((v: number) => {
     setVolumeState(v);
@@ -471,10 +504,12 @@ export function useVoiceCall(): UseVoiceCallReturn {
     error,
     volume,
     isSpeaking,
+    micMuted,
     audioEnergyRef,
     micEnergyRef,
     start,
     stop,
+    toggleMic,
     togglePause,
     setVolume,
   };

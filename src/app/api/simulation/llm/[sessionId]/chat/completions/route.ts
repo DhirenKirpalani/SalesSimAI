@@ -10,7 +10,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { processTurn, applyStateUpdates } from "@/lib/buyer-brain";
-import { buildRagContext } from "@/lib/vector-store";
 import { CustomPersona } from "@/types";
 import { SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
@@ -85,7 +84,7 @@ export async function POST(
 
     const { data: scenario } = await supabase
       .from(session.scenario_table)
-      .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product, difficulty, scenario_type")
+      .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product, difficulty, scenario_type, duration")
       .eq("id", session.scenario_id)
       .single();
 
@@ -111,7 +110,7 @@ export async function POST(
       }
     }
     if (!persona) {
-      persona = { name: "Alex", jobTitle: "VP of Operations", company: scenario?.seller_company ?? "the company", industry: "Technology", personality: "analytical, skeptical", painPoints: ["efficiency", "cost"] };
+      persona = { name: "Alex", jobTitle: "VP of Operations", company: "a different company", industry: "Technology", personality: "analytical, skeptical", painPoints: ["efficiency", "cost"] };
     }
 
     const contextParts: string[] = [];
@@ -122,14 +121,12 @@ export async function POST(
     const state = session.state as SimulationState;
     const sellerInfo = { name: profile?.full_name, position: profile?.position, company: profile?.company };
 
-    // Query vector store for similar past buyer responses (RAG)
-    const ragContext = await buildRagContext(
-      userText,
-      session.user_id,
-      scenario?.scenario_type ?? undefined
-    ).catch(() => "");
+    // Time awareness for buyer
+    const sessionStart = new Date(session.created_at ?? Date.now());
+    const elapsedMin = Math.max(0, Math.round((Date.now() - sessionStart.getTime()) / 60000));
+    const durationMin = scenario?.duration ?? undefined;
 
-    console.log("[llm-proxy] running buyer brain for session:", sessionId, "msg:", userText.slice(0, 60));
+    console.log("[llm-proxy] running buyer brain for session:", sessionId, "msg:", userText.slice(0, 60), "elapsed:", elapsedMin, "min");
 
     // Run buyer brain (GPT-4o)
     const buyerResponse = await processTurn(
@@ -142,7 +139,9 @@ export async function POST(
       sellerInfo,
       scenario?.difficulty ?? undefined,
       scenario?.scenario_type ?? undefined,
-      ragContext || undefined
+      undefined,
+      durationMin,
+      elapsedMin
     );
 
     const newState = applyStateUpdates(state, buyerResponse.state_updates, (recentMessages?.length ?? 0) + 1);

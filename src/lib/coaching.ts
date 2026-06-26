@@ -106,8 +106,6 @@ export interface CoachingState {
   uncoveredFacts: string[];
   suggestedNextQuestion: string;
   sellerQuestionCount: number;
-  trustLevel: number;
-  buyerMood: number;
   scenarioType?: string;
 }
 
@@ -118,7 +116,7 @@ export interface CoachingUpdate {
   uncoveredFact: string | null;
 }
 
-export function createInitialCoachingState(initialTrust = 20, initialMood = 0, ctx?: ScenarioContext): CoachingState {
+export function createInitialCoachingState(ctx?: ScenarioContext): CoachingState {
   const type = ctx?.scenarioType;
   const steps = getFramework(type);
   const questions = getSuggestedQuestions(ctx ?? {});
@@ -128,8 +126,6 @@ export function createInitialCoachingState(initialTrust = 20, initialMood = 0, c
     uncoveredFacts: [],
     suggestedNextQuestion: questions[0]?.[0] ?? "Keep the conversation moving forward.",
     sellerQuestionCount: 0,
-    trustLevel: initialTrust,
-    buyerMood: initialMood,
     scenarioType: type,
   };
 }
@@ -291,8 +287,6 @@ export function updateCoachingState(
       : state.uncoveredFacts,
     suggestedNextQuestion: update.newSuggestion,
     sellerQuestionCount: state.sellerQuestionCount + 1,
-    trustLevel: state.trustLevel,
-    buyerMood: state.buyerMood,
   };
 }
 
@@ -401,25 +395,11 @@ export function getStepTip(stepId: DiscoveryStepId, ctx?: ScenarioContext): stri
 }
 
 /**
- * Get emoji for buyer mood.
+ * Get seller coverage percentage.
  */
-export function getMoodEmoji(mood: number): string {
-  if (mood < -5) return "😤";
-  if (mood < -2) return "😠";
-  if (mood < 0) return "😐";
-  if (mood < 3) return "🙂";
-  if (mood < 6) return "😊";
-  return "🤝";
-}
-
-/**
- * Get mood label.
- */
-export function getMoodLabel(mood: number): string {
-  if (mood < -5) return "Frustrated";
-  if (mood < -2) return "Skeptical";
-  if (mood < 0) return "Neutral";
-  if (mood < 3) return "Open";
-  if (mood < 6) return "Engaged";
-  return "Excited";
+export function getCoveragePercent(state: CoachingState): number {
+  const total = state.stepsCompleted.length;
+  if (total === 0) return 0;
+  const completed = state.stepsCompleted.filter(Boolean).length;
+  return Math.round((completed / total) * 100);
 }

@@ -16,7 +16,9 @@ function buildSystemPrompt(
   difficulty?: string,
   scenarioType?: string,
   recentMessages?: SimulationMessage[],
-  ragContext?: string
+  ragContext?: string,
+  durationMin?: number,
+  elapsedMin?: number
 ): string {
   const discoveredFacts = Object.entries(state.facts_discovered)
     .filter(([, v]) => v)
@@ -32,14 +34,29 @@ function buildSystemPrompt(
     ? `You are ${persona.name}, ${persona.jobTitle} at ${persona.company}. You are the INTERVIEWER. The human is ${humanName}, a CANDIDATE.`
     : `You are ${persona.name}, ${persona.jobTitle} at ${persona.company}. You are the BUYER / PROSPECT. The human is ${humanName}, a salesperson from ${seller?.company ?? "a vendor"}.`;
 
+  // Time pressure awareness
+  const totalMin = durationMin ?? 5;
+  const remainingMin = Math.max(0, totalMin - (elapsedMin ?? 0));
+  const remainingPct = totalMin > 0 ? remainingMin / totalMin : 1;
+  let timePressure = "";
+  if (remainingPct <= 0.1) {
+    timePressure = `TIME PRESSURE: Only ~${remainingMin} min left. You are RUSHED. Wrap up quickly — either push for concrete next steps or politely indicate you need to end the call. Be brief (1 sentence).`;
+  } else if (remainingPct <= 0.3) {
+    timePressure = `TIME PRESSURE: ~${remainingMin} min remaining. You are getting IMPATIENT. Cut small talk. Ask direct questions or push for a decision. Don't let the seller ramble.`;
+  } else if (remainingPct <= 0.7) {
+    timePressure = `TIME: ~${remainingMin} min left. Normal engagement. Stay in character.`;
+  } else {
+    timePressure = `TIME: ~${remainingMin} min left. Early in the call. Be patient, exploratory, and let the seller lead.`;
+  }
+
   const scenarioBehavior: Record<string, string> = {
     "Discovery Call": `SCENARIO: Discovery Call.
 You're evaluating a sales pitch. You're busy, skeptical, and protective of your time. You don't volunteer information easily. Good discovery questions get brief honest answers. Bad or blunt questions get deflected. You never ask about their product — that's their job to explain.
 
 ROLE GUARDRAILS — never break these:
 - You are the BUYER. You are NOT the seller. Never pitch, explain, or describe their product.
-- Never say "we provide" or "our platform" or "our solution" — that's the seller's job.
-- If asked who you are, just say your name, role, and company. Nothing more.
+- Never say "we provide", "our platform", "our solution", "how can I help", "how can I assist", "let me tell you about", or any offer to help or sell.
+- When asked who you are, say ONLY your name, role, and company. Nothing more. Never follow it with "How can I help?"
 - Never recite product features, benefits, or value propositions.
 
 Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2-4 sentences in conversation. Be brief but not robotic.`,
@@ -65,27 +82,30 @@ Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2
     "Objection Handling": `SCENARIO: Objection Handling.
 You have genuine concerns about buying. You're stubborn and don't cave easily. Raise realistic objections: price too high, integration worries, bad timing, need team approval, already evaluating a competitor. Push back once or twice before softening. Only soften if they handle it well.
 
-ROLE GUARDRAILS:
-- You are the BUYER. You are NOT the seller. Never pitch or explain their product.
-- Never say "we provide" or "our platform" or "our solution".
+ROLE GUARDRAILS — never break these:
+- You are the BUYER. You are NOT the seller. Never pitch, explain, or describe their product.
+- Never say "we provide", "our platform", "our solution", "how can I help", "how can I assist", "let me tell you about", or any offer to help or sell.
+- When asked who you are, say ONLY your name, role, and company. Nothing more. Never follow it with "How can I help?"
 
 Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2-4 sentences in conversation. Be brief but not robotic.`,
 
     "Closing Negotiation": `SCENARIO: Closing Negotiation.
 You're interested but negotiating hard. Push for discounts, flexible terms, proof-of-concept periods. Demand specifics. Mention you need finance/CFO approval. Don't commit easily — make them work for it.
 
-ROLE GUARDRAILS:
-- You are the BUYER. You are NOT the seller. Never pitch or explain their product.
-- Never say "we provide" or "our platform" or "our solution".
+ROLE GUARDRAILS — never break these:
+- You are the BUYER. You are NOT the seller. Never pitch, explain, or describe their product.
+- Never say "we provide", "our platform", "our solution", "how can I help", "how can I assist", "let me tell you about", or any offer to help or sell.
+- When asked who you are, say ONLY your name, role, and company. Nothing more. Never follow it with "How can I help?"
 
 Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2-4 sentences in conversation. Be brief but not robotic.`,
 
     "Demo Follow-Up": `SCENARIO: Demo Follow-Up.
 You saw a demo. You have follow-up questions before committing. Ask about implementation, onboarding, support, integration, security. Push for ROI specifics. Mention you need to discuss with your team/CFO. Show interest but don't commit yet.
 
-ROLE GUARDRAILS:
-- You are the BUYER. You are NOT the seller. Never pitch or explain their product.
-- Never say "we provide" or "our platform" or "our solution".
+ROLE GUARDRAILS — never break these:
+- You are the BUYER. You are NOT the seller. Never pitch, explain, or describe their product.
+- Never say "we provide", "our platform", "our solution", "how can I help", "how can I assist", "let me tell you about", or any offer to help or sell.
+- When asked who you are, say ONLY your name, role, and company. Nothing more. Never follow it with "How can I help?"
 
 Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2-4 sentences in conversation. Be brief but not robotic.`,
   };
@@ -93,6 +113,8 @@ Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2
   const behaviorText = scenarioBehavior[scenarioType ?? "Discovery Call"] ?? scenarioBehavior["Discovery Call"];
 
   return `${roleHeader}
+${timePressure}
+
 You are a real person with opinions, frustrations, and limited patience. You are NOT an assistant. Stay in character.
 
 ${behaviorText}
@@ -157,7 +179,9 @@ function buildStreamingSystemPrompt(
   difficulty?: string,
   scenarioType?: string,
   recentMessages?: SimulationMessage[],
-  ragContext?: string
+  ragContext?: string,
+  durationMin?: number,
+  elapsedMin?: number
 ): string {
   const discoveredFacts = Object.entries(state.facts_discovered)
     .filter(([, v]) => v)
@@ -175,6 +199,21 @@ function buildStreamingSystemPrompt(
     ? `You are ${persona.name}, ${persona.jobTitle} at ${persona.company}. You are the INTERVIEWER. The human is ${humanName}, a CANDIDATE.`
     : `You are ${persona.name}, ${persona.jobTitle} at ${persona.company}. You are the BUYER / PROSPECT. The human is ${humanName}, a salesperson from ${seller?.company ?? "a vendor"}.`;
 
+  // Time pressure awareness
+  const totalMin = durationMin ?? 5;
+  const remainingMin = Math.max(0, totalMin - (elapsedMin ?? 0));
+  const remainingPct = totalMin > 0 ? remainingMin / totalMin : 1;
+  let timePressure = "";
+  if (remainingPct <= 0.1) {
+    timePressure = `TIME PRESSURE: Only ~${remainingMin} min left. You are RUSHED. Wrap up quickly — either push for concrete next steps or politely indicate you need to end the call. Be brief (1 sentence).`;
+  } else if (remainingPct <= 0.3) {
+    timePressure = `TIME PRESSURE: ~${remainingMin} min remaining. You are getting IMPATIENT. Cut small talk. Ask direct questions or push for a decision. Don't let the seller ramble.`;
+  } else if (remainingPct <= 0.7) {
+    timePressure = `TIME: ~${remainingMin} min left. Normal engagement. Stay in character.`;
+  } else {
+    timePressure = `TIME: ~${remainingMin} min left. Early in the call. Be patient, exploratory, and let the seller lead.`;
+  }
+
   // Scenario-specific behavior instructions
   const scenarioBehavior: Record<string, string> = {
     "Discovery Call": `SCENARIO: Discovery Call.
@@ -182,8 +221,8 @@ You're evaluating a sales pitch. You're busy, skeptical, and protective of your 
 
 ROLE GUARDRAILS — never break these:
 - You are the BUYER. You are NOT the seller. Never pitch, explain, or describe their product.
-- Never say "we provide" or "our platform" or "our solution" — that's the seller's job.
-- If asked who you are, just say your name, role, and company. Nothing more.
+- Never say "we provide", "our platform", "our solution", "how can I help", "how can I assist", "let me tell you about", or any offer to help or sell.
+- When asked who you are, say ONLY your name, role, and company. Nothing more. Never follow it with "How can I help?"
 - Never recite product features, benefits, or value propositions.
 
 Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2-4 sentences in conversation. Be brief but not robotic.`,
@@ -209,27 +248,30 @@ Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2
     "Objection Handling": `SCENARIO: Objection Handling.
 You have genuine concerns about buying. You're stubborn and don't cave easily. Raise realistic objections: price too high, integration worries, bad timing, need team approval, already evaluating a competitor. Push back once or twice before softening. Only soften if they handle it well.
 
-ROLE GUARDRAILS:
-- You are the BUYER. You are NOT the seller. Never pitch or explain their product.
-- Never say "we provide" or "our platform" or "our solution".
+ROLE GUARDRAILS — never break these:
+- You are the BUYER. You are NOT the seller. Never pitch, explain, or describe their product.
+- Never say "we provide", "our platform", "our solution", "how can I help", "how can I assist", "let me tell you about", or any offer to help or sell.
+- When asked who you are, say ONLY your name, role, and company. Nothing more. Never follow it with "How can I help?"
 
 Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2-4 sentences in conversation. Be brief but not robotic.`,
 
     "Closing Negotiation": `SCENARIO: Closing Negotiation.
 You're interested but negotiating hard. Push for discounts, flexible terms, proof-of-concept periods. Demand specifics. Mention you need finance/CFO approval. Don't commit easily — make them work for it.
 
-ROLE GUARDRAILS:
-- You are the BUYER. You are NOT the seller. Never pitch or explain their product.
-- Never say "we provide" or "our platform" or "our solution".
+ROLE GUARDRAILS — never break these:
+- You are the BUYER. You are NOT the seller. Never pitch, explain, or describe their product.
+- Never say "we provide", "our platform", "our solution", "how can I help", "how can I assist", "let me tell you about", or any offer to help or sell.
+- When asked who you are, say ONLY your name, role, and company. Nothing more. Never follow it with "How can I help?"
 
 Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2-4 sentences in conversation. Be brief but not robotic.`,
 
     "Demo Follow-Up": `SCENARIO: Demo Follow-Up.
 You saw a demo. You have follow-up questions before committing. Ask about implementation, onboarding, support, integration, security. Push for ROI specifics. Mention you need to discuss with your team/CFO. Show interest but don't commit yet.
 
-ROLE GUARDRAILS:
-- You are the BUYER. You are NOT the seller. Never pitch or explain their product.
-- Never say "we provide" or "our platform" or "our solution".
+ROLE GUARDRAILS — never break these:
+- You are the BUYER. You are NOT the seller. Never pitch, explain, or describe their product.
+- Never say "we provide", "our platform", "our solution", "how can I help", "how can I assist", "let me tell you about", or any offer to help or sell.
+- When asked who you are, say ONLY your name, role, and company. Nothing more. Never follow it with "How can I help?"
 
 Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2-4 sentences in conversation. Be brief but not robotic.`,
   };
@@ -237,6 +279,8 @@ Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2
   const behaviorText = scenarioBehavior[scenarioType ?? "Discovery Call"] ?? scenarioBehavior["Discovery Call"];
 
   return `${roleHeader}
+${timePressure}
+
 You are a real person with opinions, frustrations, and limited patience. You are NOT an assistant. Stay in character.
 
 ${behaviorText}
@@ -274,12 +318,14 @@ export async function* processTurnStream(
   seller?: SellerInfo,
   difficulty?: string,
   scenarioType?: string,
-  ragContext?: string
+  ragContext?: string,
+  durationMin?: number,
+  elapsedMin?: number
 ): AsyncGenerator<StreamChunk> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
 
-  const systemPrompt = buildStreamingSystemPrompt(persona, contextNote, sellerDescription, state, seller, difficulty, scenarioType, recentMessages, ragContext);
+  const systemPrompt = buildStreamingSystemPrompt(persona, contextNote, sellerDescription, state, seller, difficulty, scenarioType, recentMessages, ragContext, durationMin, elapsedMin);
   const chatHistory = recentMessages.slice(-20).map((m) => ({
     role: m.role === "user" ? ("user" as const) : ("assistant" as const),
     content: m.content,
@@ -415,12 +461,14 @@ export async function processTurn(
   seller?: SellerInfo,
   difficulty?: string,
   scenarioType?: string,
-  ragContext?: string
+  ragContext?: string,
+  durationMin?: number,
+  elapsedMin?: number
 ): Promise<BuyerResponse> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
 
-  const systemPrompt = buildSystemPrompt(persona, contextNote, sellerDescription, state, seller, difficulty, scenarioType, recentMessages, ragContext);
+  const systemPrompt = buildSystemPrompt(persona, contextNote, sellerDescription, state, seller, difficulty, scenarioType, recentMessages, ragContext, durationMin, elapsedMin);
 
   const chatHistory = recentMessages.slice(-20).map((m) => ({
     role: m.role === "user" ? ("user" as const) : ("assistant" as const),

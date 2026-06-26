@@ -36,27 +36,6 @@ interface CoachingMoment {
   what_they_should_have_said: string;
 }
 
-// Map buyer emotion → mood delta (coaching overlay)
-const emotionMap: Record<string, number> = {
-  frustrated: -3,
-  annoyed: -2,
-  skeptical: -1,
-  neutral: 0,
-  curious: 1,
-  interested: 2,
-  excited: 3,
-  satisfied: 2,
-};
-
-// Map buyer intent → trust delta (coaching overlay)
-const intentMap: Record<string, number> = {
-  objection: -2,
-  redirect: -1,
-  question: 1,
-  answer: 2,
-  share: 2,
-  confirm: 1,
-};
 
 interface FeedbackResult {
   overall_score: number;
@@ -730,12 +709,7 @@ function HeyGenTestInner() {
       const sellerEntry = lastTwo.find((t) => t.role === "user");
       const buyerEntry = lastTwo.find((t) => t.role === "buyer");
       if (sellerEntry && buyerEntry) {
-        // Dynamic mood/trust based on buyer's actual emotion from the AI
-        const emotion = buyerEntry.emotion ?? "neutral";
-        const intent = buyerEntry.intent ?? "answer";
-        const moodDelta = emotionMap[emotion] ?? 0;
-        const trustDelta = intentMap[intent] ?? 0;
-        coachingAnalyzeRef.current(sellerEntry.text, buyerEntry.text, trustDelta, moodDelta);
+        coachingAnalyzeRef.current(sellerEntry.text, buyerEntry.text);
       }
     } else {
       // Video mode: use main transcript (role is "avatar" for buyer)
@@ -744,14 +718,34 @@ function HeyGenTestInner() {
       const sellerEntry = lastTwo.find((t) => t.role === "user");
       const buyerEntry = lastTwo.find((t) => t.role === "avatar");
       if (sellerEntry && buyerEntry) {
-        const emotion = buyerEntry.emotion ?? "neutral";
-        const intent = buyerEntry.intent ?? "answer";
-        const moodDelta = emotionMap[emotion] ?? 0;
-        const trustDelta = intentMap[intent] ?? 0;
-        coachingAnalyzeRef.current(sellerEntry.text, buyerEntry.text, trustDelta, moodDelta);
+        coachingAnalyzeRef.current(sellerEntry.text, buyerEntry.text);
       }
     }
   }, [voiceCall.transcript, transcript, callMode]);
+
+  // Sync VoiceCallPanel pause/resume with page-level status and timer
+  useEffect(() => {
+    if (callMode !== "voice") return;
+    if (voiceCall.status === "paused" && status === "connected") {
+      // Voice was paused via VoiceCallPanel — pause page timer
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      resumeTimeLeftRef.current = timeLeftRef.current;
+      setStatus("paused");
+    } else if ((voiceCall.status === "listening" || voiceCall.status === "idle") && status === "paused") {
+      // Voice was resumed via VoiceCallPanel — resume page timer
+      const startTime = resumeTimeLeftRef.current ?? defaultDurationRef.current;
+      resumeTimeLeftRef.current = null;
+      setTimeLeft(startTime);
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev === null || prev <= 0) return 0;
+          return prev - 1;
+        });
+      }, 1000);
+      setStatus("connected");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceCall.status, callMode, status]);
 
   // Cleanup on unmount
   useEffect(() => () => { stop(); }, [stop]);
@@ -851,11 +845,12 @@ function HeyGenTestInner() {
               error={voiceCall.error}
               volume={voiceCall.volume}
               isSpeaking={voiceCall.isSpeaking}
+              micMuted={voiceCall.micMuted}
               avatarName={resolvedPersonaName ?? avatarNameParam ?? "Buyer"}
               avatarImageUrl={avatarImageUrl}
               audioEnergyRef={voiceCall.audioEnergyRef}
               micEnergyRef={voiceCall.micEnergyRef}
-              onToggleMic={voiceCall.togglePause}
+              onToggleMic={voiceCall.toggleMic}
               onTogglePause={voiceCall.togglePause}
               onSetVolume={voiceCall.setVolume}
               onEndCall={handleEnd}
@@ -929,8 +924,7 @@ function HeyGenTestInner() {
             <CoachingOverlay
               state={coaching.state}
               stepTip={coaching.stepTip}
-              moodEmoji={coaching.moodEmoji}
-              moodLabel={coaching.moodLabel}
+              coveragePercent={coaching.coveragePercent}
               progressPercent={coaching.progressPercent}
               isOpen={coachingOpen}
               onToggle={() => setCoachingOpen((o) => !o)}

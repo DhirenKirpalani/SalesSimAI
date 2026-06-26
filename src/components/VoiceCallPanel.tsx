@@ -11,6 +11,7 @@ interface VoiceCallPanelProps {
   error: string | null;
   volume: number;
   isSpeaking: boolean;
+  micMuted: boolean;
   avatarName?: string;
   avatarImageUrl?: string | null;
   audioEnergyRef?: React.MutableRefObject<number>;
@@ -47,6 +48,7 @@ export function VoiceCallPanel({
   error,
   volume,
   isSpeaking,
+  micMuted,
   avatarName = "Buyer",
   avatarImageUrl,
   audioEnergyRef,
@@ -177,12 +179,12 @@ export function VoiceCallPanel({
               onClick={onToggleMic}
               className={cn(
                 "w-14 h-14 rounded-full flex items-center justify-center transition-all hover:scale-105",
-                status === "listening"
+                !micMuted
                   ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
                   : "bg-white/10 text-white hover:bg-white/20"
               )}
             >
-              {status === "listening" ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
+              {!micMuted ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
             </button>
 
             {/* Pause */}

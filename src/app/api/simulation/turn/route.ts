@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       persona = {
         name: "Alex Buyer",
         jobTitle: "VP of Operations",
-        company: scenario.seller_company ?? "a mid-market company",
+        company: "a different company",
         industry: "Technology",
         personality: "analytical, skeptical, busy",
         painPoints: ["efficiency", "cost control", "vendor reliability"],
