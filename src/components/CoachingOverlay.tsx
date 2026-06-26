@@ -1,14 +1,13 @@
 "use client";
 
-import { Lightbulb, ChevronRight, Users, TrendingUp, Smile } from "lucide-react";
+import { Lightbulb, ChevronRight, Users, Target, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getCoachingSteps, CoachingState } from "@/lib/coaching";
 
 interface CoachingOverlayProps {
   state: CoachingState;
   stepTip: string;
-  moodEmoji: string;
-  moodLabel: string;
+  coveragePercent: number;
   progressPercent: number;
   isOpen: boolean;
   onToggle: () => void;
@@ -48,8 +47,7 @@ function StepDot({
 export function CoachingOverlay({
   state,
   stepTip,
-  moodEmoji,
-  moodLabel,
+  coveragePercent,
   progressPercent,
   isOpen,
   onToggle,
@@ -130,32 +128,32 @@ export function CoachingOverlay({
             <span className="font-medium text-foreground">Tip:</span> {stepTip}
           </div>
 
-          {/* Buyer state */}
+          {/* Seller performance */}
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-muted/50 rounded-lg p-2.5 space-y-1">
               <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                <TrendingUp className="w-3 h-3" />
-                Trust Level
+                <CheckCircle className="w-3 h-3" />
+                Framework Coverage
               </div>
               <div className="w-full h-1.5 bg-muted-foreground/10 rounded-full overflow-hidden">
                 <div
                   className={cn(
                     "h-full rounded-full transition-all",
-                    state.trustLevel > 70 ? "bg-emerald-500" : state.trustLevel > 40 ? "bg-amber-500" : "bg-red-400"
+                    coveragePercent > 70 ? "bg-emerald-500" : coveragePercent > 40 ? "bg-amber-500" : "bg-red-400"
                   )}
-                  style={{ width: `${state.trustLevel}%` }}
+                  style={{ width: `${coveragePercent}%` }}
                 />
               </div>
-              <p className="text-xs font-medium">{state.trustLevel}/100</p>
+              <p className="text-xs font-medium">{state.stepsCompleted.filter(Boolean).length}/{state.stepsCompleted.length} steps</p>
             </div>
 
             <div className="bg-muted/50 rounded-lg p-2.5 space-y-1">
               <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                <Smile className="w-3 h-3" />
-                Buyer Mood
+                <Target className="w-3 h-3" />
+                Seller Focus
               </div>
-              <p className="text-sm">
-                {moodEmoji} {moodLabel}
+              <p className="text-xs font-medium text-foreground">
+                {getCoachingSteps(state.scenarioType)[state.currentStep]?.name ?? "Discovery"}
               </p>
             </div>
           </div>
