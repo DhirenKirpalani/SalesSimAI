@@ -21,15 +21,18 @@ interface UseCoachingReturn {
   stepTip: string;
   coveragePercent: number;
   progressPercent: number;
+  lastTurnResult: CoachingUpdate | null;
 }
 
 export function useCoaching(): UseCoachingReturn {
   const [state, setState] = useState<CoachingState>(() => createInitialCoachingState());
   const [scenarioCtx, setScenarioCtx] = useState<ScenarioContext>({});
+  const [lastTurnResult, setLastTurnResult] = useState<CoachingUpdate | null>(null);
 
   const analyze = useCallback((sellerText: string, buyerText: string) => {
     setState((prev) => {
       const update = analyzeTurn(sellerText, buyerText, prev, scenarioCtx);
+      setLastTurnResult(update);
       return updateCoachingState(prev, update);
     });
   }, [scenarioCtx]);
@@ -56,5 +59,6 @@ export function useCoaching(): UseCoachingReturn {
     stepTip: getStepTip(state.currentStep, scenarioCtx),
     coveragePercent,
     progressPercent,
+    lastTurnResult,
   };
 }

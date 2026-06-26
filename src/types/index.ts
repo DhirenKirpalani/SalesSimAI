@@ -99,9 +99,15 @@ export interface CustomPersona {
   company: string;
   industry: string;
   personality: string;
+  personalityTraits?: string[];
   painPoints: string[];
+  painPointsCurrentProcess?: string;
+  painPointsImpact?: string;
   goals?: string[];
+  companyGoal?: string;
+  personalMotivation?: string;
   communicationStyle?: string;
+  communicationLanguage?: string;
   priorVendorExperience?: string;
   decisionCriteria?: string;
   hiddenConcern?: string;
@@ -126,5 +132,7 @@ export interface CustomScenario {
   avatar_id: string | null;
   avatar_name: string | null;
   voice_id: string | null;
+  scoring_criteria: string | null;
+  evaluation_framework: string | null;
   created_at: string;
 }

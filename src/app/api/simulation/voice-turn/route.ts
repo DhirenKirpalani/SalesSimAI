@@ -1,13 +1,13 @@
 /**
  * Voice Call Turn API
  * Receives user transcript, runs direct GPT-4o with persona prompt,
- * TTS the response, returns SSE with text + audio.
+ * TTS the response (ElevenLabs preferred, OpenAI fallback), returns SSE with text + audio.
  *
  * Flow:
  *   User speaks → Web Speech API → POST here
  *   → Build persona system prompt inline
  *   → GPT-4o direct call (plain text, no JSON mode)
- *   → Single TTS call on full response
+ *   → ElevenLabs TTS (or OpenAI fallback) on full response
  *   → SSE: {type:"text"} + {type:"audio", data: base64}
  *   → Persist messages to simulation_messages
  */
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   const readable = new ReadableStream({
     async start(controller) {
       try {
-        const { sessionId, transcript } = await req.json();
+        const { sessionId, transcript, voiceId } = await req.json();
 
         if (!sessionId || !transcript?.trim()) {
           controller.enqueue(encoder.encode(sseLine({ type: "error", message: "Missing sessionId or transcript" })));
@@ -168,6 +168,7 @@ ROLE GUARDRAILS — never break these:
 - Be skeptical. Ask tough questions. Don't volunteer information.
 - Respond naturally in 1-3 sentences.
 - Your behavior MUST shift based on remaining time (see TIME PRESSURE above).
+- LANGUAGE: Mirror the seller's language, accent, and style exactly. Match their vocabulary, tone, slang, and sentence structure. If they switch language mid-conversation, switch with them seamlessly. Never default to generic American English.
 
 RESPOND IN JSON:
 {"message":"your spoken response","emotion":"neutral|skeptical|interested|frustrated","intent":"answer|objection|question|redirect"}`;
@@ -234,8 +235,46 @@ RESPOND IN JSON:
         // Send text immediately
         controller.enqueue(encoder.encode(sseLine({ type: "text", content: buyerText })));
 
-        // Single TTS call on the full response
-        if (openAiKey) {
+        // TTS — ElevenLabs preferred, OpenAI fallback
+        const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
+        const ttsInput = buyerText.slice(0, 4096);
+        let audioSent = false;
+
+        if (elevenLabsKey) {
+          try {
+            const effectiveVoiceId = voiceId || selectElevenLabsVoice(persona.personality);
+            const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${effectiveVoiceId}`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "xi-api-key": elevenLabsKey,
+              },
+              body: JSON.stringify({
+                text: ttsInput,
+                model_id: "eleven_flash_v2_5",
+                voice_settings: {
+                  stability: 0.5,
+                  similarity_boost: 0.75,
+                  speed: 1.1,
+                },
+                output_format: "mp3_44100_128",
+              }),
+            });
+            if (ttsRes.ok) {
+              const audioBuffer = await ttsRes.arrayBuffer();
+              const base64 = Buffer.from(audioBuffer).toString("base64");
+              controller.enqueue(encoder.encode(sseLine({ type: "audio", data: base64, format: "mp3" })));
+              audioSent = true;
+            } else {
+              console.error("[voice-turn] ElevenLabs error:", await ttsRes.text());
+            }
+          } catch (ttsErr) {
+            console.error("[voice-turn] ElevenLabs exception:", ttsErr);
+          }
+        }
+
+        // OpenAI fallback (or if ElevenLabs failed)
+        if (!audioSent && openAiKey) {
           try {
             const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
               method: "POST",
@@ -246,7 +285,7 @@ RESPOND IN JSON:
               body: JSON.stringify({
                 model: "tts-1",
                 voice: selectVoice(persona.personality),
-                input: buyerText.slice(0, 4096),
+                input: ttsInput,
                 response_format: "mp3",
                 speed: 1.15,
               }),
@@ -257,7 +296,7 @@ RESPOND IN JSON:
               controller.enqueue(encoder.encode(sseLine({ type: "audio", data: base64, format: "mp3" })));
             }
           } catch (ttsErr) {
-            console.error("[voice-turn] TTS error:", ttsErr);
+            console.error("[voice-turn] OpenAI TTS error:", ttsErr);
           }
         }
 
@@ -306,4 +345,20 @@ function selectVoice(personality: string): string {
   if (p.includes("young") || p.includes("energetic")) return "shimmer";
   if (p.includes("storyteller") || p.includes("creative")) return "fable";
   return "alloy";
+}
+
+function selectElevenLabsVoice(personality: string): string {
+  const p = personality.toLowerCase();
+  // Josh — deep, serious, authoritative
+  if (p.includes("aggressive") || p.includes("direct") || p.includes("assertive")) return "TxGEqnHWrfWFTfGW9XjX";
+  // Rachel — warm, natural, friendly
+  if (p.includes("friendly") || p.includes("warm") || p.includes("collaborative")) return "21m00Tcm4TlvDq8ikWAM";
+  // Antoni — calm, thoughtful, analytical
+  if (p.includes("analytical") || p.includes("skeptical") || p.includes("cautious")) return "ErXwobaYiN019PkySvjV";
+  // Elli — young, bright, energetic
+  if (p.includes("young") || p.includes("energetic")) return "MF3mGyEYCl7XYWbV9V6O";
+  // Sarah — soft, creative, storyteller
+  if (p.includes("storyteller") || p.includes("creative")) return "EXAVITQu4vr4xnSDxMaL";
+  // Default: Rachel
+  return "21m00Tcm4TlvDq8ikWAM";
 }

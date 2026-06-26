@@ -25,6 +25,10 @@ create table if not exists public.platform_scenarios (
   -- Display
   name               text not null,
 
+  -- Scoring / Evaluation
+  scoring_criteria   text,
+  evaluation_framework text,
+
   created_at         timestamptz not null default now()
 );
 

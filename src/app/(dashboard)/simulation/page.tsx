@@ -8,7 +8,7 @@ import { useVoiceCall, VoiceStatus } from "@/hooks/useVoiceCall";
 import { useCoaching } from "@/hooks/useCoaching";
 import { VoiceCallPanel } from "@/components/VoiceCallPanel";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
-import { Video, Mic } from "lucide-react";
+import { Video, Mic, MessageSquare, Send } from "lucide-react";
 
 type Status = "idle" | "connecting" | "connected" | "paused" | "error";
 
@@ -54,6 +54,67 @@ interface FeedbackResult {
   coaching_moments?: CoachingMoment[];
 }
 
+// Draggable coaching overlay wrapper
+function DraggableCoaching({
+  coaching,
+  coachingOpen,
+  setCoachingOpen,
+}: {
+  coaching: ReturnType<typeof useCoaching>;
+  coachingOpen: boolean;
+  setCoachingOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
+}) {
+  const [pos, setPos] = useState({ x: 16, y: 12 });
+  const draggingRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0, startX: 0, startY: 0 });
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    // Only drag from the toggle button area, not the expanded content
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-coach-toggle]")) {
+      draggingRef.current = true;
+      dragStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        startX: pos.x,
+        startY: pos.y,
+      };
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    }
+  }, [pos]);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+    setPos({ x: dragStartRef.current.startX + dx, y: dragStartRef.current.startY + dy });
+  }, []);
+
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    draggingRef.current = false;
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+  }, []);
+
+  return (
+    <div
+      className="absolute z-20 w-64"
+      style={{ left: pos.x, top: pos.y }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+    >
+      <CoachingOverlay
+        state={coaching.state}
+        stepTip={coaching.stepTip}
+        coveragePercent={coaching.coveragePercent}
+        progressPercent={coaching.progressPercent}
+        isOpen={coachingOpen}
+        onToggle={() => setCoachingOpen((o) => !o)}
+      />
+    </div>
+  );
+}
+
 function HeyGenTestInner() {
   const searchParams = useSearchParams();
   const scenarioId = searchParams.get("scenarioId") ?? undefined;
@@ -73,6 +134,7 @@ function HeyGenTestInner() {
   const audioElemsRef = useRef<HTMLAudioElement[]>([]);
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+  const textMessagesEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeLeftRef = useRef<number | null>(null);
   const resumeTimeLeftRef = useRef<number | null>(null);
@@ -89,20 +151,65 @@ function HeyGenTestInner() {
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [resolvedScenarioName, setResolvedScenarioName] = useState<string | null>(null);
   const [resolvedPersonaName, setResolvedPersonaName] = useState<string | null>(null);
+  const [resolvedPersonaRole, setResolvedPersonaRole] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [feedback, setFeedback] = useState<FeedbackResult | null>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
 
-  // Voice call + coaching state
-  const [callMode, setCallMode] = useState<"video" | "voice">("video");
+  // Call mode + coaching state
+  const [callMode, setCallMode] = useState<"video" | "voice" | "text">("video");
   const [showAvatarVideo, setShowAvatarVideo] = useState(true); // toggle avatar video visibility
   const [voiceSessionId, setVoiceSessionId] = useState<string | null>(null);
+  const [textSessionId, setTextSessionId] = useState<string | null>(null);
+  const [textInput, setTextInput] = useState("");
+  const [textLoading, setTextLoading] = useState(false);
   const [coachingOpen, setCoachingOpen] = useState(true);
   const voiceCall = useVoiceCall();
   const coaching = useCoaching();
+
+  // Voice selector (ElevenLabs voices)
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string>("21m00Tcm4TlvDq8ikWAM");
+  const voiceOptions = [
+    { id: "21m00Tcm4TlvDq8ikWAM", label: "Rachel — Warm & Natural" },
+    { id: "TxGEqnHWrfWFTfGW9XjX", label: "Josh — Deep & Authoritative" },
+    { id: "ErXwobaYiN019PkySvjV", label: "Antoni — Calm & Thoughtful" },
+    { id: "MF3mGyEYCl7XYWbV9V6O", label: "Elli — Young & Energetic" },
+    { id: "EXAVITQu4vr4xnSDxMaL", label: "Sarah — Soft & Expressive" },
+    { id: "pNInz6obpgDQGcFmaJgB", label: "Adam — Professional & Neutral" },
+    { id: "XB0fDUnXU5powFXSHcV", label: "Bella — Professional & Calm" },
+  ];
   const coachingAnalyzeRef = useRef(coaching.analyze);
+
+  // Live nudge bubbles — ephemeral coaching feedback after each turn
+  const [liveNudge, setLiveNudge] = useState<{ message: string; type: "success" | "info" | "warning" } | null>(null);
+  const nudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!coaching.lastTurnResult || status !== "connected") return;
+    const update = coaching.lastTurnResult;
+
+    let nudge: { message: string; type: "success" | "info" | "warning" } | null = null;
+
+    if (update.stepCompleted) {
+      nudge = { message: "Good job! You advanced the conversation.", type: "success" };
+    } else if (update.uncoveredFact) {
+      nudge = { message: `Insight uncovered: ${update.uncoveredFact}`, type: "info" };
+    } else if (update.newSuggestion) {
+      nudge = { message: `Try: ${update.newSuggestion.slice(0, 100)}${update.newSuggestion.length > 100 ? "…" : ""}`, type: "warning" };
+    }
+
+    if (nudge) {
+      setLiveNudge(nudge);
+      if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
+      nudgeTimerRef.current = setTimeout(() => setLiveNudge(null), 6000);
+    }
+
+    return () => {
+      if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
+    };
+  }, [coaching.lastTurnResult, status]);
   coachingAnalyzeRef.current = coaching.analyze;
 
   const addLog = useCallback((msg: string) => {
@@ -111,7 +218,7 @@ function HeyGenTestInner() {
   }, []);
 
   const addTranscript = useCallback((role: "avatar" | "user", text: string, emotion?: string, intent?: string) => {
-    const entry: TranscriptEntry = { role, text, time: new Date().toLocaleTimeString(), emotion, intent };
+    const entry: TranscriptEntry = { role, text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }), emotion, intent };
     transcriptRef.current = [...transcriptRef.current, entry];
     setTranscript((prev) => [...prev, entry]);
   }, []);
@@ -403,7 +510,7 @@ function HeyGenTestInner() {
       }, 1000);
 
       setStatus("connected");
-      voiceCall.start(session.id);
+      voiceCall.start(session.id, selectedVoiceId);
       addLog("🎙️ Voice call started");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -411,7 +518,91 @@ function HeyGenTestInner() {
       setStatus("error");
       addLog("❌ " + msg);
     }
-  }, [addLog, scenarioId, scenarioTable, resolvedScenarioName, voiceCall, coaching]);
+  }, [addLog, scenarioId, scenarioTable, resolvedScenarioName, voiceCall, coaching, selectedVoiceId]);
+
+  // Text chat start — creates a simulation session for typed conversation
+  const startText = useCallback(async () => {
+    setStatus("connecting");
+    setError(null);
+    setTranscript([]);
+    setFeedback(null);
+    transcriptRef.current = [];
+    addLog("Starting text chat session…");
+    coaching.reset();
+
+    try {
+      const res = await fetch("/api/simulation/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenarioId, scenarioTable }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.session) throw new Error(data.error ?? "Failed to create session");
+
+      const session = data.session;
+      setTextSessionId(session.id);
+      setResolvedScenarioName(session.scenario_name ?? resolvedScenarioName);
+      addLog(`✅ Text session: ${session.id}`);
+
+      // Start timer
+      const durationSec = (session.duration_min ?? 5) * 60;
+      defaultDurationRef.current = durationSec;
+      setTimeLeft(durationSec);
+      timerRef.current = setInterval(() => {
+        setTimeLeft((t) => {
+          if (t === null || t <= 1) return 0;
+          return t - 1;
+        });
+      }, 1000);
+
+      setStatus("connected");
+      addLog("📝 Text chat started");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      setStatus("error");
+      addLog("❌ " + msg);
+    }
+  }, [addLog, scenarioId, scenarioTable, resolvedScenarioName, coaching]);
+
+  // Send a typed message in text mode
+  const sendTextMessage = useCallback(async () => {
+    const message = textInput.trim();
+    const sessionId = textSessionId;
+    if (!message || !sessionId || textLoading) return;
+
+    setTextInput("");
+    setTextLoading(true);
+    addTranscript("user", message);
+
+    try {
+      const res = await fetch("/api/simulation/turn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, message }),
+      });
+      const data = await res.json();
+      console.log("[text] turn response:", data);
+      if (!res.ok) throw new Error(data.error ?? "Turn failed");
+
+      const buyerMsg = data.buyer_response?.message ?? data.response?.message ?? "";
+      const buyerEmotion = data.buyer_response?.emotion ?? data.response?.emotion;
+      const buyerIntent = data.buyer_response?.intent ?? data.response?.intent;
+      if (buyerMsg) {
+        addTranscript("avatar", buyerMsg, buyerEmotion, buyerIntent);
+      } else {
+        console.warn("[text] no message in response:", data);
+      }
+      if (data.new_state || data.buyer_response?.state_updates) {
+        coachingAnalyzeRef.current(message, buyerMsg);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      addLog("❌ Text turn failed: " + msg);
+    } finally {
+      setTextLoading(false);
+    }
+  }, [textInput, textSessionId, textLoading, addTranscript, addLog, coachingAnalyzeRef]);
 
   const toggleMic = useCallback(async () => {
     const room = roomRef.current;
@@ -455,6 +646,10 @@ function HeyGenTestInner() {
     // Voice cleanup
     voiceCall.stop();
     setVoiceSessionId(null);
+    // Text cleanup
+    setTextSessionId(null);
+    setTextInput("");
+    setTextLoading(false);
     addLog("Session stopped");
     // Stop recording
     const recorder = recorderRef.current;
@@ -538,6 +733,7 @@ function HeyGenTestInner() {
     const recordedChunks = [...recordedChunksRef.current];
     const currentCallMode = callMode;
     const currentVoiceSessionId = voiceSessionId;
+    const currentTextSessionId = textSessionId;
     await stop();
 
     // Upload recording if available
@@ -564,22 +760,20 @@ function HeyGenTestInner() {
     if (currentTranscript.length >= 2) {
       setFeedbackLoading(true);
       try {
-        // For voice calls, run the new coaching evaluator
         if (currentCallMode === "voice" && currentVoiceSessionId) {
+          // Voice calls — run coaching evaluator
           const [coachRes] = await Promise.all([
             fetch("/api/simulation/coach", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ sessionId: currentVoiceSessionId }),
             }),
-            // Mark session as completed so it appears in dashboard/overview pages
             fetch("/api/simulation/end", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ sessionId: currentVoiceSessionId }),
             }),
           ]);
-          // Ingest conversation into vector store for RAG (fire-and-forget)
           fetch("/api/simulation/vector/ingest", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -588,7 +782,6 @@ function HeyGenTestInner() {
 
           const coachData = await coachRes.json();
           if (coachData.evaluation) {
-            // Map to existing FeedbackResult shape for unified display
             setFeedback({
               overall_score: coachData.evaluation.overall_score,
               breakdown: {
@@ -606,6 +799,30 @@ function HeyGenTestInner() {
               coaching_moments: [],
             });
           }
+        } else if (currentCallMode === "text" && currentTextSessionId) {
+          // Text chat — run MEDDIC analysis
+          const [analyzeRes] = await Promise.all([
+            fetch("/api/simulation/analyze", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionId: currentTextSessionId }),
+            }),
+            fetch("/api/simulation/end", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionId: currentTextSessionId }),
+            }),
+          ]);
+          fetch("/api/simulation/vector/ingest", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId: currentTextSessionId }),
+          }).catch(() => {});
+
+          const analyzeData = await analyzeRes.json();
+          if (analyzeData.analysis) {
+            setFeedback(analyzeData.analysis);
+          }
         } else {
           // Existing HeyGen video feedback
           const res = await fetch("/api/heygen-test/feedback", {
@@ -620,7 +837,6 @@ function HeyGenTestInner() {
           });
           setFeedback(await res.json());
 
-          // Ingest HeyGen conversation into vector store for RAG (fire-and-forget)
           const heygenSessionId = sessionRef.current?.session_id;
           if (heygenSessionId) {
             fetch("/api/simulation/vector/ingest", {
@@ -633,7 +849,7 @@ function HeyGenTestInner() {
       } catch { /* ignore */ }
       finally { setFeedbackLoading(false); }
     }
-  }, [stop, resolvedScenarioName, addLog, callMode, voiceSessionId]);
+  }, [stop, resolvedScenarioName, addLog, callMode, voiceSessionId, textSessionId]);
 
   // Restore active session refs from localStorage after refresh
   useEffect(() => {
@@ -672,6 +888,8 @@ function HeyGenTestInner() {
         if (scenario) {
           const persona = scenario.custom_persona as any;
           setResolvedPersonaName(persona?.name ?? null);
+          setResolvedPersonaRole(persona?.jobTitle ?? null);
+
           coaching.setScenarioContext({
             sellerCompany: scenario.seller_company ?? undefined,
             sellerProduct: scenario.seller_product ?? undefined,
@@ -746,6 +964,13 @@ function HeyGenTestInner() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiceCall.status, callMode, status]);
+
+  // Auto-scroll text chat to bottom on new messages
+  useEffect(() => {
+    if (callMode === "text" && textMessagesEndRef.current) {
+      textMessagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [transcript, textLoading, callMode]);
 
   // Cleanup on unmount
   useEffect(() => () => { stop(); }, [stop]);
@@ -830,6 +1055,40 @@ function HeyGenTestInner() {
                     <Mic className="w-3.5 h-3.5" />
                     Voice Call
                   </button>
+                  <button
+                    onClick={() => setCallMode("text")}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors ${
+                      callMode === "text" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    Text Chat
+                  </button>
+                </div>
+              )}
+              {/* Voice Selector — shown in voice mode when idle */}
+              {status === "idle" && callMode === "voice" && (
+                <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 border border-white/10">
+                  <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                  <div className="relative">
+                    <select
+                      value={selectedVoiceId}
+                      onChange={(e) => setSelectedVoiceId(e.target.value)}
+                      className="appearance-none bg-transparent text-xs text-gray-300 focus:outline-none cursor-pointer pr-5 min-w-[180px]"
+                      style={{ colorScheme: "dark" }}
+                    >
+                      {voiceOptions.map((v) => (
+                        <option key={v.id} value={v.id} className="bg-[#111827] text-gray-200">
+                          {v.label}
+                        </option>
+                      ))}
+                    </select>
+                    <svg className="w-3 h-3 text-gray-400 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
                 </div>
               )}
             </div>
@@ -855,6 +1114,172 @@ function HeyGenTestInner() {
               onSetVolume={voiceCall.setVolume}
               onEndCall={handleEnd}
             />
+          </div>
+        )}
+
+        {/* Live Nudge Toast — floats above video/voice calls */}
+        {liveNudge && status === "connected" && callMode !== "text" && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 max-w-md w-[90%] animate-in fade-in slide-in-from-top-2 duration-300">
+            <div
+              className={`rounded-xl px-4 py-3 shadow-xl border backdrop-blur-sm flex items-start gap-3 ${
+                liveNudge.type === "success"
+                  ? "bg-emerald-500/15 border-emerald-400/30 text-emerald-100"
+                  : liveNudge.type === "warning"
+                  ? "bg-amber-500/15 border-amber-400/30 text-amber-100"
+                  : "bg-blue-500/15 border-blue-400/30 text-blue-100"
+              }`}
+            >
+              <div className="mt-0.5 shrink-0">
+                {liveNudge.type === "success" ? (
+                  <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : liveNudge.type === "warning" ? (
+                  <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium leading-snug">{liveNudge.message}</p>
+              </div>
+              <button
+                onClick={() => setLiveNudge(null)}
+                className="shrink-0 text-white/60 hover:text-white transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Text Chat Panel (when text mode is active) */}
+        {callMode === "text" && status === "connected" && (
+          <div className="absolute inset-0 flex flex-col bg-[#0B0E14]">
+            {/* WhatsApp-style Header */}
+            <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-white/10 bg-[#111827]">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  {avatarImageUrl ? (
+                    <img src={avatarImageUrl} alt="" className="w-10 h-10 rounded-full object-cover bg-gray-700" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                      </svg>
+                    </div>
+                  )}
+                  <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#111827]" />
+                </div>
+                <div className="leading-tight">
+                  <p className="text-sm font-medium text-white">{resolvedPersonaName ?? "Buyer"}</p>
+                  <p className="text-xs text-gray-400">{resolvedPersonaRole ?? "AI Buyer"}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleEnd}
+                className="flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z" />
+                </svg>
+                End
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-1">
+              {transcript.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center space-y-4">
+                  {/* Date divider — WhatsApp style */}
+                  <div className="bg-[#1E293B]/60 px-4 py-1.5 rounded-lg">
+                    <p className="text-[11px] text-gray-400 font-medium">
+                      {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                    </p>
+                  </div>
+                  <div className="text-center space-y-1">
+                    <p className="text-gray-500 text-sm">Start the conversation</p>
+                    <p className="text-gray-600 text-xs">Say hi to {resolvedPersonaName ?? "the buyer"}</p>
+                  </div>
+                </div>
+              )}
+              {/* Date separator when messages exist */}
+              {transcript.length > 0 && (
+                <div className="flex justify-center mb-4">
+                  <div className="bg-[#1E293B]/60 px-4 py-1 rounded-lg">
+                    <p className="text-[11px] text-gray-400 font-medium">Today</p>
+                  </div>
+                </div>
+              )}
+              {transcript.map((entry, i) => (
+                <div key={i} className={`flex ${entry.role === "user" ? "justify-end" : "justify-start"} mb-3`}>
+                  <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-sm ${
+                    entry.role === "user"
+                      ? "bg-blue-600 text-white rounded-br-md"
+                      : "bg-[#1E293B] text-gray-100 rounded-bl-md"
+                  }`}>
+                    <p>{entry.text}</p>
+                    <div className={`flex items-center gap-1 mt-1 ${entry.role === "user" ? "justify-end" : "justify-start"}`}>
+                      <p className={`text-[10px] ${entry.role === "user" ? "text-blue-200" : "text-gray-500"}`}>
+                        {entry.time}
+                      </p>
+                      {entry.role === "user" && (
+                        <span className="text-blue-200 text-[10px]">✓✓</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {/* Typing indicator — WhatsApp style */}
+              {textLoading && (
+                <div className="flex justify-start mb-3">
+                  <div className="bg-[#1E293B] rounded-2xl rounded-bl-md px-5 py-4 shadow-sm min-w-[72px]">
+                    <div className="flex gap-1.5 items-center h-5">
+                      <div className="w-2.5 h-2.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms", animationDuration: "900ms" }} />
+                      <div className="w-2.5 h-2.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "200ms", animationDuration: "900ms" }} />
+                      <div className="w-2.5 h-2.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "400ms", animationDuration: "900ms" }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* Auto-scroll anchor */}
+              <div ref={textMessagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="shrink-0 p-3 border-t border-white/10 bg-[#111827]">
+              <div className="flex items-center gap-2 max-w-2xl mx-auto">
+                <input
+                  type="text"
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendTextMessage(); } }}
+                  placeholder="Type a message…"
+                  disabled={textLoading}
+                  className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 disabled:opacity-50"
+                />
+                <button
+                  onClick={sendTextMessage}
+                  disabled={textLoading || !textInput.trim()}
+                  className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 shadow-lg shadow-blue-900/20"
+                >
+                  {textLoading ? (
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -904,44 +1329,49 @@ function HeyGenTestInner() {
           </div>
         </div>
 
-        {/* Transcript Toggle */}
-        <button
-          onClick={() => setTranscriptOpen((o) => !o)}
-          className={`absolute top-3 right-3 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/15 rounded-full px-3 py-1.5 text-xs font-medium text-white transition-all z-10 ${
-            transcriptOpen ? "opacity-0 pointer-events-none" : "opacity-100"
-          }`}
-          title="View transcript"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z" />
-          </svg>
-          Transcript
-        </button>
+        {/* Transcript Toggle — hidden in text mode */}
+        {callMode !== "text" && (
+          <button
+            onClick={() => setTranscriptOpen((o) => !o)}
+            className={`absolute top-3 right-3 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/15 rounded-full px-3 py-1.5 text-xs font-medium text-white transition-all z-10 ${
+              transcriptOpen ? "opacity-0 pointer-events-none" : "opacity-100"
+            }`}
+            title="View transcript"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z" />
+            </svg>
+            Transcript
+          </button>
+        )}
 
-        {/* Coaching Overlay — bottom sheet on mobile, left panel on desktop */}
+        {/* Coaching Overlay — bottom sheet on mobile, draggable on desktop */}
         {status === "connected" && (
-          <div className="absolute bottom-20 left-0 right-0 px-3 z-10 sm:top-3 sm:left-3 sm:right-auto sm:bottom-auto sm:w-64 sm:px-0">
-            <CoachingOverlay
-              state={coaching.state}
-              stepTip={coaching.stepTip}
-              coveragePercent={coaching.coveragePercent}
-              progressPercent={coaching.progressPercent}
-              isOpen={coachingOpen}
-              onToggle={() => setCoachingOpen((o) => !o)}
-            />
-          </div>
+          <DraggableCoaching
+            coaching={coaching}
+            coachingOpen={coachingOpen}
+            setCoachingOpen={setCoachingOpen}
+          />
         )}
       </div>
 
-      {/* Floating Control Bar — hidden in voice mode when connected (VoiceCallPanel has its own) */}
-      {!(callMode === "voice" && status === "connected") && (
+      {/* Floating Control Bar — hidden in voice/text mode when connected (they have their own controls) */}
+      {!(callMode === "voice" && status === "connected") && !(callMode === "text" && status === "connected") && (
         <div className="flex items-center justify-center gap-2 pb-3 pt-1.5 px-4 shrink-0">
           {status === "idle" || status === "error" ? (
-            <button onClick={callMode === "voice" ? startVoice : start} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-8 py-3 rounded-full shadow-lg shadow-blue-900/30 transition-all hover:scale-105 active:scale-95">
+            <button
+              onClick={callMode === "voice" ? startVoice : callMode === "text" ? startText : start}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-8 py-3 rounded-full shadow-lg shadow-blue-900/30 transition-all hover:scale-105 active:scale-95"
+            >
               {callMode === "voice" ? (
                 <>
                   <Mic className="w-5 h-5" />
                   Start Voice Call
+                </>
+              ) : callMode === "text" ? (
+                <>
+                  <MessageSquare className="w-5 h-5" />
+                  Start Text Chat
                 </>
               ) : (
                 <>
