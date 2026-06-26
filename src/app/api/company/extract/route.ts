@@ -374,14 +374,20 @@ async function extractWithLLM(text: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { url, successStoriesUrl } = await req.json();
-    if (!url) return NextResponse.json({ error: "URL is required" }, { status: 400 });
+    const { url, urls, successStoriesUrl } = await req.json();
+    const mainUrl = url || (Array.isArray(urls) && urls.length > 0 ? urls[0] : "");
+    if (!mainUrl) return NextResponse.json({ error: "URL is required" }, { status: 400 });
 
-    const extraUrls = successStoriesUrl ? [successStoriesUrl] : undefined;
+    // Build extra URLs from urls array (skip first which is main) + successStoriesUrl
+    const extraUrls: string[] = [];
+    if (Array.isArray(urls) && urls.length > 1) {
+      extraUrls.push(...urls.slice(1));
+    }
+    if (successStoriesUrl) extraUrls.push(successStoriesUrl);
     
     // STEP 1: Scrape — crawl multiple pages and extract all raw content
-    console.log(`[company/extract] Starting comprehensive crawl of ${url}`);
-    const scrapedContent = await crawlWebsite(url, extraUrls);
+    console.log(`[company/extract] Starting comprehensive crawl of ${mainUrl}`);
+    const scrapedContent = await crawlWebsite(mainUrl, extraUrls.length > 0 ? extraUrls : undefined);
     console.log(`[company/extract] Scraped ${scrapedContent.size} pages`);
     
     if (scrapedContent.size === 0) {

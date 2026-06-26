@@ -70,9 +70,17 @@ function buildDistData(sessions: UnifiedSession[]) {
   return Object.entries(buckets).map(([range, count]) => ({ range, count }));
 }
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function DashboardPage() {
   const [sessions, setSessions] = useState<UnifiedSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [firstName, setFirstName] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +90,7 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
 
-      const [{ data: heygenData }, { data: voiceData }] = await Promise.all([
+      const [{ data: heygenData }, { data: voiceData }, { data: profile }] = await Promise.all([
         supabase
           .from("heygen_sessions")
           .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
@@ -94,7 +102,16 @@ export default function DashboardPage() {
           .eq("user_id", user.id)
           .eq("status", "completed")
           .order("started_at", { ascending: false }),
+        supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .single(),
       ]);
+
+      if (profile?.full_name) {
+        setFirstName(profile.full_name.split(" ")[0]);
+      }
 
       const heygenSessions: UnifiedSession[] = (heygenData ?? []).map((s) => ({
         ...s,
@@ -150,7 +167,9 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {firstName ? `${getGreeting()}, ${firstName}` : getGreeting()}
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Track your readiness and performance across sales simulations.
           </p>

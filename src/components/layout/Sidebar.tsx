@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -21,10 +22,14 @@ import { useRole } from "@/hooks/useRole";
 const baseNavItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Scenarios", href: "/scenarios", icon: Library },
-  { label: "AI Onboarding", href: "/company-onboarding", icon: Sparkles },
   { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
   { label: "Profile", href: "/profile", icon: User },
+];
+
+const adminNavItems = [
+  { label: "Company Knowledge", href: "/company-knowledge", icon: BookOpen },
+  { label: "Admin", href: "/admin", icon: ShieldCheck },
 ];
 
 export function Sidebar() {
@@ -33,7 +38,7 @@ export function Sidebar() {
   const { isAdmin } = useRole();
 
   const navItems = isAdmin
-    ? [...baseNavItems, { label: "Admin", href: "/admin", icon: ShieldCheck }]
+    ? [...baseNavItems, ...adminNavItems]
     : baseNavItems;
 
   return (

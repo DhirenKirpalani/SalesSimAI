@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CustomPersona } from "@/types";
 import { SimulationMessage } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
+import { buildCompanyRagContext } from "@/lib/vector-store";
 
 function sseLine(data: unknown): string {
   return `data: ${JSON.stringify(data)}\n\n`;
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
         // Load session + scenario + profile in parallel
         const [{ data: session, error: sessionError }, { data: profile }, { data: recentMessages }] = await Promise.all([
           supabase.from("simulation_sessions").select("*").eq("id", sessionId).eq("user_id", user.id).single(),
-          supabase.from("profiles").select("full_name, position, company").eq("id", user.id).single(),
+          supabase.from("profiles").select("full_name, position, company, organization_id").eq("id", user.id).single(),
           supabase
             .from("simulation_messages")
             .select("*")
@@ -136,6 +137,16 @@ export async function POST(req: NextRequest) {
 
         const richContextNote = contextParts.join("\n");
 
+        // Company RAG — fetch relevant docs from the org's knowledge base
+        let companyRag = "";
+        if (profile?.organization_id) {
+          try {
+            companyRag = await buildCompanyRagContext(transcript.trim(), profile.organization_id, { limit: 3 });
+          } catch (e) {
+            console.warn("[voice-turn] company RAG failed:", e);
+          }
+        }
+
         const messages: SimulationMessage[] = (recentMessages ?? []) as SimulationMessage[];
 
         const systemPrompt = `You are ${persona.name}, ${persona.jobTitle} at ${persona.company}.
@@ -146,7 +157,7 @@ Goals: ${persona.goals?.join(", ") || "unspecified"}
 
 ${richContextNote}
 
-SELLER INFO (you do NOT know this in detail):
+${companyRag ? companyRag + "\n\n" : ""}SELLER INFO (you do NOT know this in detail):
 ${scenario.seller_description || "A sales rep is calling you."}
 
 ROLE GUARDRAILS — never break these:

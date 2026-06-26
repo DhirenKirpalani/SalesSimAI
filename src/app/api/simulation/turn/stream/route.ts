@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { processTurnStream, applyStateUpdates } from "@/lib/buyer-brain";
+import { buildCompanyRagContext } from "@/lib/vector-store";
 import { CustomPersona } from "@/types";
 import { SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   const [{ data: session }, { data: profile }] = await Promise.all([
     supabase.from("simulation_sessions").select("*").eq("id", sessionId).eq("user_id", user.id).single(),
-    supabase.from("profiles").select("full_name, position, company").eq("id", user.id).single(),
+    supabase.from("profiles").select("full_name, position, company, organization_id").eq("id", user.id).single(),
   ]);
 
   if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 });
@@ -63,6 +64,16 @@ export async function POST(req: NextRequest) {
   const state = session.state as SimulationState;
   const sellerInfo = { name: profile?.full_name, position: profile?.position, company: profile?.company };
 
+  // Company RAG — fetch relevant docs from the org's knowledge base
+  let companyRag = "";
+  if (profile?.organization_id) {
+    try {
+      companyRag = await buildCompanyRagContext(message.trim(), profile.organization_id, { limit: 3 });
+    } catch (e) {
+      console.warn("[simulation/turn/stream] company RAG failed:", e);
+    }
+  }
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -78,7 +89,8 @@ export async function POST(req: NextRequest) {
 
         for await (const chunk of processTurnStream(
           persona, contextParts.join("\n"), scenario?.seller_description ?? "",
-          state, recentMessages ?? [], message.trim(), sellerInfo
+          state, recentMessages ?? [], message.trim(), sellerInfo,
+          undefined, undefined, companyRag
         )) {
           if (chunk.type === "sentence") {
             sentences.push(chunk.text);
