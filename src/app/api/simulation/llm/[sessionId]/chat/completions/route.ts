@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { processTurn, applyStateUpdates } from "@/lib/buyer-brain";
+import { buildCompanyRagContext } from "@/lib/vector-store";
 import { CustomPersona } from "@/types";
 import { SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
@@ -90,7 +91,7 @@ export async function POST(
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, position, company")
+      .select("full_name, position, company, organization_id")
       .eq("id", session.user_id)
       .single();
 
@@ -126,6 +127,16 @@ export async function POST(
     const elapsedMin = Math.max(0, Math.round((Date.now() - sessionStart.getTime()) / 60000));
     const durationMin = scenario?.duration ?? undefined;
 
+    // Company RAG — fetch relevant docs from the org's knowledge base
+    let companyRag = "";
+    if (profile?.organization_id) {
+      try {
+        companyRag = await buildCompanyRagContext(userText, profile.organization_id, { limit: 3 });
+      } catch (e) {
+        console.warn("[llm-proxy] company RAG failed:", e);
+      }
+    }
+
     console.log("[llm-proxy] running buyer brain for session:", sessionId, "msg:", userText.slice(0, 60), "elapsed:", elapsedMin, "min");
 
     // Run buyer brain (GPT-4o)
@@ -139,7 +150,7 @@ export async function POST(
       sellerInfo,
       scenario?.difficulty ?? undefined,
       scenario?.scenario_type ?? undefined,
-      undefined,
+      companyRag,
       durationMin,
       elapsedMin
     );

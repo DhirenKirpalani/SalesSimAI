@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { processTurn, applyStateUpdates } from "@/lib/buyer-brain";
+import { buildCompanyRagContext } from "@/lib/vector-store";
 import { CustomPersona } from "@/types";
 import { SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
 
     const [{ data: session, error: sessionError }, { data: profile }] = await Promise.all([
       supabase.from("simulation_sessions").select("*").eq("id", sessionId).eq("user_id", user.id).single(),
-      supabase.from("profiles").select("full_name, position, company").eq("id", user.id).single(),
+      supabase.from("profiles").select("full_name, position, company, organization_id").eq("id", user.id).single(),
     ]);
 
     if (sessionError || !session) {
@@ -100,6 +101,16 @@ export async function POST(req: NextRequest) {
       company: profile?.company ?? undefined,
     };
 
+    // Company RAG — fetch relevant docs from the org's knowledge base
+    let companyRag = "";
+    if (profile?.organization_id) {
+      try {
+        companyRag = await buildCompanyRagContext(message.trim(), profile.organization_id, { limit: 3 });
+      } catch (e) {
+        console.warn("[simulation/turn] company RAG failed:", e);
+      }
+    }
+
     console.log("[simulation/turn] calling buyer-brain…", { sessionId, msgCount: messages.length, trust: state.trust_level, persona: persona.name, seller: sellerInfo.name });
     const buyerResponse = await processTurn(
       persona,
@@ -108,7 +119,10 @@ export async function POST(req: NextRequest) {
       state,
       messages,
       message.trim(),
-      sellerInfo
+      sellerInfo,
+      undefined,
+      undefined,
+      companyRag
     );
     console.log("[simulation/turn] buyer-brain response:", buyerResponse.message.slice(0, 100));
 

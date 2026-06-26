@@ -160,3 +160,73 @@ These are examples of how you reacted before. Stay consistent with your persona,
     return "";
   }
 }
+
+interface CompanyDocChunk {
+  id: string;
+  name: string;
+  content: string;
+  doc_type: string;
+  similarity: number;
+}
+
+/**
+ * Query company documents for semantic similarity.
+ * Returns relevant chunks from the organization's knowledge base.
+ */
+export async function queryCompanyDocuments(
+  queryText: string,
+  organizationId: string,
+  opts?: {
+    docType?: string;
+    limit?: number;
+    minSimilarity?: number;
+  }
+): Promise<CompanyDocChunk[]> {
+  const supabase = await createClient();
+  const embedding = await embedText(queryText);
+
+  const { data, error } = await supabase.rpc("match_company_docs", {
+    query_embedding: embedding,
+    match_threshold: opts?.minSimilarity ?? 0.65,
+    match_count: opts?.limit ?? 5,
+    filter_org_id: organizationId,
+  });
+
+  if (error) {
+    console.error("[queryCompanyDocuments] RPC error:", error);
+    return [];
+  }
+
+  return (data ?? []) as CompanyDocChunk[];
+}
+
+/**
+ * Build a RAG context string from company documents.
+ * Injects relevant company knowledge (pricing, objections, product info) into the buyer prompt.
+ */
+export async function buildCompanyRagContext(
+  queryText: string,
+  organizationId: string,
+  opts?: {
+    docType?: string;
+    limit?: number;
+    minSimilarity?: number;
+  }
+): Promise<string> {
+  try {
+    const chunks = await queryCompanyDocuments(queryText, organizationId, opts);
+    if (chunks.length === 0) return "";
+
+    const lines = chunks
+      .map((c) => `[${c.doc_type}] ${c.name}:\n${c.content}`)
+      .join("\n\n---\n\n");
+
+    return `COMPANY KNOWLEDGE — relevant documents for context:
+${lines}
+
+Use this information to respond accurately when the seller asks about your company's products, pricing, or policies. You are the BUYER; you may reference this knowledge naturally, but do not volunteer it unprompted.`;
+  } catch (err) {
+    console.error("[buildCompanyRagContext] error:", err);
+    return "";
+  }
+}

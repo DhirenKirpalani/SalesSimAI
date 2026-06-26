@@ -17,7 +17,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { Users, Building2, BookOpen, Activity, Database } from "lucide-react";
+import { Users, Building2, BookOpen, Activity, Database, Mic2, Trophy, Clock, TrendingUp } from "lucide-react";
 import { StatCard } from "@/components/cards/StatCard";
 
 const activityData = [
@@ -36,10 +36,31 @@ const orgData = [
   { plan: "Starter", count: 1 },
 ];
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+interface MemberPerf {
+  id: string;
+  name: string;
+  email: string;
+  simulations: number;
+  avgScore: number;
+  bestScore: number;
+  trainingMins: number;
+  lastActive: string | null;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const { isAdmin, loading } = useRole();
   const [stats, setStats] = useState({ scenarios: 0, simulations: 0 });
+  const [firstName, setFirstName] = useState("");
+  const [members, setMembers] = useState<MemberPerf[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
 
   useEffect(() => {
     if (!loading && !isAdmin) {
@@ -50,16 +71,101 @@ export default function AdminPage() {
   useEffect(() => {
     if (!isAdmin) return;
     const supabase = createClient();
-    Promise.all([
-      supabase.from("custom_scenarios").select("id", { count: "exact", head: true }),
-      supabase.from("platform_scenarios").select("id", { count: "exact", head: true }),
-      supabase.from("heygen_sessions").select("id", { count: "exact", head: true }).not("ended_at", "is", null),
-    ]).then(([custom, platform, sessions]) => {
+
+    async function load() {
+      // Platform stats
+      const [custom, platform, sessions] = await Promise.all([
+        supabase.from("custom_scenarios").select("id", { count: "exact", head: true }),
+        supabase.from("platform_scenarios").select("id", { count: "exact", head: true }),
+        supabase.from("heygen_sessions").select("id", { count: "exact", head: true }).not("ended_at", "is", null),
+      ]);
       setStats({
         scenarios: (custom.count ?? 0) + (platform.count ?? 0),
         simulations: sessions.count ?? 0,
       });
-    });
+
+      // User greeting
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).single();
+        if (profile?.full_name) {
+          setFirstName(profile.full_name.split(" ")[0]);
+        }
+      }
+
+      // Org members performance
+      const { data: orgData } = await supabase.from("profiles").select("organization_id").eq("id", user?.id ?? "").single();
+      if (!orgData?.organization_id) {
+        setMembersLoading(false);
+        return;
+      }
+
+      const { data: memberProfiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .eq("organization_id", orgData.organization_id);
+
+      if (!memberProfiles?.length) {
+        setMembersLoading(false);
+        return;
+      }
+
+      const memberPerf: MemberPerf[] = [];
+      for (const m of memberProfiles) {
+        const [heygenRes, simRes] = await Promise.all([
+          supabase
+            .from("heygen_sessions")
+            .select("analysis, duration_s, ended_at")
+            .eq("user_id", m.id)
+            .not("ended_at", "is", null),
+          supabase
+            .from("simulation_sessions")
+            .select("duration_s, ended_at, simulation_coaching(overall_score)")
+            .eq("user_id", m.id)
+            .eq("status", "completed"),
+        ]);
+
+        const heygen = heygenRes.data ?? [];
+        const sims = simRes.data ?? [];
+
+        const allScores: number[] = [];
+        for (const h of heygen) {
+          const score = (h.analysis as { overall_score?: number } | null)?.overall_score;
+          if (typeof score === "number") allScores.push(score);
+        }
+        for (const s of sims) {
+          const coaching = s.simulation_coaching as { overall_score?: number } | null;
+          const score = coaching?.overall_score;
+          if (typeof score === "number") allScores.push(score);
+        }
+
+        const totalMins = [...heygen, ...sims].reduce(
+          (sum, s) => sum + Math.max(0, Math.round((s.duration_s ?? 0) / 60)),
+          0
+        );
+
+        const lastDates = [...heygen, ...sims]
+          .map((s) => s.ended_at)
+          .filter(Boolean) as string[];
+        lastDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+        memberPerf.push({
+          id: m.id,
+          name: m.full_name || m.email.split("@")[0],
+          email: m.email,
+          simulations: heygen.length + sims.length,
+          avgScore: allScores.length ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0,
+          bestScore: allScores.length ? Math.max(...allScores) : 0,
+          trainingMins: totalMins,
+          lastActive: lastDates[0] ?? null,
+        });
+      }
+
+      setMembers(memberPerf);
+      setMembersLoading(false);
+    }
+
+    load();
   }, [isAdmin]);
 
   if (loading) {
@@ -74,7 +180,9 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Admin Dashboard</h1>
+        <h1 className="text-2xl font-bold tracking-tight">
+          {firstName ? `${getGreeting()}, ${firstName}` : getGreeting()}
+        </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Overview of users, organizations, and platform activity.
         </p>
@@ -185,6 +293,81 @@ export default function AdminPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Member Performance */}
+      <Card className="rounded-2xl border bg-card shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            Team Performance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {membersLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : members.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No team members found.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="text-left font-medium py-2 px-3">Member</th>
+                    <th className="text-center font-medium py-2 px-3">
+                      <Mic2 className="w-3.5 h-3.5 inline mr-1" />
+                      Calls
+                    </th>
+                    <th className="text-center font-medium py-2 px-3">
+                      <TrendingUp className="w-3.5 h-3.5 inline mr-1" />
+                      Avg Score
+                    </th>
+                    <th className="text-center font-medium py-2 px-3">
+                      <Trophy className="w-3.5 h-3.5 inline mr-1" />
+                      Best
+                    </th>
+                    <th className="text-center font-medium py-2 px-3">
+                      <Clock className="w-3.5 h-3.5 inline mr-1" />
+                      Training
+                    </th>
+                    <th className="text-right font-medium py-2 px-3">Last Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {members.map((m) => (
+                    <tr key={m.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                      <td className="py-3 px-3">
+                        <div>
+                          <p className="font-medium">{m.name}</p>
+                          <p className="text-xs text-muted-foreground">{m.email}</p>
+                        </div>
+                      </td>
+                      <td className="text-center py-3 px-3 font-semibold">{m.simulations}</td>
+                      <td className="text-center py-3 px-3">
+                        <span className={m.avgScore >= 70 ? "text-green-600 font-semibold" : "text-amber-600 font-semibold"}>
+                          {m.avgScore || "—"}
+                        </span>
+                      </td>
+                      <td className="text-center py-3 px-3 font-semibold">{m.bestScore || "—"}</td>
+                      <td className="text-center py-3 px-3 text-muted-foreground">
+                        {m.trainingMins < 60 ? `${m.trainingMins}m` : `${Math.floor(m.trainingMins / 60)}h ${m.trainingMins % 60}m`}
+                      </td>
+                      <td className="text-right py-3 px-3 text-muted-foreground text-xs">
+                        {m.lastActive
+                          ? new Date(m.lastActive).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
     </div>
   );
