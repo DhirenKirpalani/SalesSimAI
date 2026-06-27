@@ -138,6 +138,84 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const CHUNK_SIZE = 3000; // ~3000 chars per chunk (roughly 750 tokens)
 const CHUNK_OVERLAP = 200;
 
+const DOCUMENT_TYPES = [
+  "icp",
+  "value_prop",
+  "competitive",
+  "objection_handling",
+  "product_pricing",
+  "process_methodology",
+];
+
+async function classifyDocumentType(text: string, fileName: string): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return "icp";
+
+  const sample = text.slice(0, 4000);
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are a document classifier for a B2B fintech sales knowledge base.
+
+Read the file name and text, then classify the document into exactly one bucket:
+- ICP: Ideal Customer Profile, target buyer personas, buyer profiles
+- Value Prop: Value proposition, benefits, ROI, why buy
+- Competitive: Competitive analysis, competitor comparison, battlecards
+- Objection Handling: Objection handling, common objections, rebuttals
+- Product/Pricing: Product features, pricing, packages, tiers
+- Process/Methodology: Sales process, methodology, playbooks, workflows
+
+Respond with only a JSON object:
+{
+  "bucket": "exactly one of: ICP, Value Prop, Competitive, Objection Handling, Product/Pricing, Process/Methodology",
+  "confidence": 0.0-1.0,
+  "summary": "one sentence about what the document contains"
+}
+
+No other text.`,
+        },
+        {
+          role: "user",
+          content: `File name: ${fileName}\n\nText:\n${sample}`,
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    console.error("[classifyDocumentType] OpenAI error:", await response.text());
+    return "icp";
+  }
+
+  try {
+    const data = await response.json();
+    const result = JSON.parse(data.choices?.[0]?.message?.content ?? "{}");
+    const bucketMap: Record<string, string> = {
+      ICP: "icp",
+      "Value Prop": "value_prop",
+      Competitive: "competitive",
+      "Objection Handling": "objection_handling",
+      "Product/Pricing": "product_pricing",
+      "Process/Methodology": "process_methodology",
+    };
+    const mapped = bucketMap[result.bucket];
+    if (mapped && DOCUMENT_TYPES.includes(mapped)) return mapped;
+  } catch (e) {
+    console.error("[classifyDocumentType] parse error:", e);
+  }
+  return "icp";
+}
+
 /**
  * POST /api/company/documents
  * Upload documents via FormData, extract text, chunk, embed, store
@@ -147,6 +225,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const productType = formData.get("productType") as string;
     const documentType = formData.get("documentType") as string;
+    const bulkUpload = formData.get("bulkUpload") === "true";
     const files: File[] = [];
 
     formData.forEach((value, key) => {
@@ -155,8 +234,12 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    if (!productType || !documentType || files.length === 0) {
-      return NextResponse.json({ error: "productType, documentType and files are required" }, { status: 400 });
+    if (!productType || files.length === 0) {
+      return NextResponse.json({ error: "productType and files are required" }, { status: 400 });
+    }
+
+    if (!bulkUpload && !documentType) {
+      return NextResponse.json({ error: "documentType is required for manual upload" }, { status: 400 });
     }
 
     const allowedProductTypes = ["payment", "eor", "cards"];
@@ -165,7 +248,7 @@ export async function POST(req: NextRequest) {
     }
 
     const allowedDocumentTypes = ["icp", "value_prop", "competitive", "objection_handling", "product_pricing", "process_methodology"];
-    if (!allowedDocumentTypes.includes(documentType)) {
+    if (!bulkUpload && !allowedDocumentTypes.includes(documentType)) {
       return NextResponse.json({ error: "Invalid documentType" }, { status: 400 });
     }
 
@@ -198,10 +281,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `No text content extracted from ${name}` }, { status: 400 });
       }
 
+      // In bulk mode, let AI classify the document type based on the text
+      const effectiveDocumentType = bulkUpload
+        ? await classifyDocumentType(textContent.trim(), name)
+        : documentType;
+
       // Upload the actual file to the shared knowledge-base bucket under the org's folder
       let filePath: string;
       try {
-        filePath = await uploadToOrgFolder(orgId, orgName, productType, documentType, name, fileBuffer, mimeType);
+        filePath = await uploadToOrgFolder(orgId, orgName, productType, effectiveDocumentType, name, fileBuffer, mimeType);
       } catch (err: any) {
         console.error("[api/company/documents] storage upload error:", err);
         return NextResponse.json({ error: err.message || "Storage upload failed" }, { status: 500 });
@@ -218,7 +306,7 @@ export async function POST(req: NextRequest) {
           name: name.trim(),
           content: "",
           doc_type: productType,
-          document_type: documentType,
+          document_type: effectiveDocumentType,
           file_path: filePath,
           created_by: user.id,
         })

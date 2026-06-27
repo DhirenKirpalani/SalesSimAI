@@ -11,7 +11,14 @@ async function extractPdf(buffer: Buffer): Promise<string> {
       const pdfParser = new PDFParser();
       pdfParser.on("pdfParser_dataReady", (pdfData: any) => {
         const text = pdfData?.Pages?.map((page: any) =>
-          page.Texts?.map((t: any) => decodeURIComponent(t.R?.[0]?.T ?? "")).join(" ")
+          page.Texts?.map((t: any) => {
+            const raw = t.R?.[0]?.T ?? "";
+            try {
+              return decodeURIComponent(raw);
+            } catch {
+              return raw;
+            }
+          }).join(" ")
         ).join("\n") ?? "";
         resolve(text.trim());
       });
