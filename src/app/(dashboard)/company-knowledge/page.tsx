@@ -18,6 +18,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Loader2,
   Upload,
   Trash2,
@@ -69,26 +77,34 @@ interface Document {
   id: string;
   name: string;
   doc_type: string;
+  document_type: string;
   file_path: string | null;
   created_at: string;
   creator_name: string | null;
   creator_email: string | null;
+  creator_role: string | null;
+  chunk_count: number;
 }
 
-const DOC_TYPE_LABELS: Record<string, string> = {
-  pricing: "Pricing",
-  objection_handling: "Objection Handling",
-  product_knowledge: "Product Knowledge",
-  eor_rules: "EoR Rules",
-  general: "General",
+const PRODUCT_TYPE_LABELS: Record<string, string> = {
+  payment: "Payment",
+  eor: "EoR",
+  cards: "Cards",
 };
 
-const DOC_TYPE_COLORS: Record<string, string> = {
-  pricing: "bg-green-100 text-green-800",
-  objection_handling: "bg-red-100 text-red-800",
-  product_knowledge: "bg-blue-100 text-blue-800",
-  eor_rules: "bg-purple-100 text-purple-800",
-  general: "bg-gray-100 text-gray-800",
+const PRODUCT_TYPE_COLORS: Record<string, string> = {
+  payment: "bg-blue-100 text-blue-800",
+  eor: "bg-purple-100 text-purple-800",
+  cards: "bg-green-100 text-green-800",
+};
+
+const DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  icp: "ICP",
+  value_prop: "Value Prop",
+  competitive: "Competitive",
+  objection_handling: "Objection Handling",
+  product_pricing: "Product/Pricing",
+  process_methodology: "Process/Methodology",
 };
 
 export default function CompanyKnowledgePage() {
@@ -114,8 +130,9 @@ export default function CompanyKnowledgePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "success" | "error">("idle");
   const [uploadMessage, setUploadMessage] = useState("");
-  const [selectedDocType, setSelectedDocType] = useState("general");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedProductType, setSelectedProductType] = useState("payment");
+  const [selectedDocumentType, setSelectedDocumentType] = useState("icp");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Create org form
@@ -129,6 +146,11 @@ export default function CompanyKnowledgePage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsStatus, setSettingsStatus] = useState<"idle" | "success" | "error">("idle");
   const [settingsMessage, setSettingsMessage] = useState("");
+  const [deletingOrg, setDeletingOrg] = useState(false);
+  const [deleteOrgOpen, setDeleteOrgOpen] = useState(false);
+  const [deleteOrgError, setDeleteOrgError] = useState<string | null>(null);
+  const [docToDelete, setDocToDelete] = useState<string | null>(null);
+  const [deleteDocOpen, setDeleteDocOpen] = useState(false);
 
   // Onboarding URLs
   const [onboardingUrls, setOnboardingUrls] = useState<string[]>([]);
@@ -271,45 +293,43 @@ export default function CompanyKnowledgePage() {
 
   // ── Upload Document ──────────────────────────────────────────────────
   function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    setSelectedFile(file);
+    const files = Array.from(e.target.files ?? []);
+    setSelectedFiles(files);
     setUploadStatus("idle");
+    setUploadMessage("");
+  }
+
+  function handleClearFiles() {
+    setSelectedFiles([]);
+    setUploadStatus("idle");
+    setUploadMessage("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function handleUpload() {
-    if (!selectedFile) return;
+    if (selectedFiles.length === 0) return;
 
     setUploading(true);
     setUploadStatus("idle");
 
-    try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          const base64Content = result.includes(",") ? result.split(",")[1] : result;
-          resolve(base64Content);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(selectedFile);
-      });
+    const formData = new FormData();
+    formData.append("productType", selectedProductType);
+    formData.append("documentType", selectedDocumentType);
+    for (const file of selectedFiles) {
+      formData.append("files", file);
+    }
 
+    try {
       const res = await fetch("/api/company/documents", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: selectedFile.name,
-          content: base64,
-          docType: selectedDocType,
-          mimeType: selectedFile.type || "text/plain",
-        }),
+        body: formData,
       });
 
       const data = await res.json();
       if (res.ok) {
         setUploadStatus("success");
-        setUploadMessage(`Uploaded ${data.chunks} chunk(s)`);
-        setSelectedFile(null);
+        setUploadMessage(`Uploaded ${selectedFiles.length} file(s), ${data.chunks} chunk(s)`);
+        setSelectedFiles([]);
         fetchDocs();
       } else {
         setUploadStatus("error");
@@ -325,11 +345,24 @@ export default function CompanyKnowledgePage() {
   }
 
   // ── Delete Document ──────────────────────────────────────────────────
-  async function handleDeleteDoc(docId: string) {
-    if (!confirm("Delete this document?")) return;
+  function handleDeleteDoc(filePath: string | null) {
+    if (!filePath) return;
+    setDocToDelete(filePath);
+    setDeleteDocOpen(true);
+  }
+
+  async function confirmDeleteDoc() {
+    if (!docToDelete) return;
     try {
-      const res = await fetch(`/api/company/documents?id=${docId}`, { method: "DELETE" });
+      const res = await fetch(
+        `/api/company/documents?file_path=${encodeURIComponent(docToDelete)}`,
+        { method: "DELETE" }
+      );
       if (res.ok) {
+        setDeleteDocOpen(false);
+        setDocToDelete(null);
+        setUploadStatus("idle");
+        setUploadMessage("");
         fetchDocs();
       }
     } catch (e) {
@@ -365,6 +398,34 @@ export default function CompanyKnowledgePage() {
       setSettingsMessage("Failed to save settings");
     } finally {
       setSavingSettings(false);
+    }
+  }
+
+  function handleDeleteOrg() {
+    setDeleteOrgError(null);
+    setDeleteOrgOpen(true);
+  }
+
+  async function confirmDeleteOrg() {
+    setDeletingOrg(true);
+    setDeleteOrgError(null);
+    try {
+      const res = await fetch("/api/company/org", { method: "DELETE" });
+      if (res.ok) {
+        setOrg(null);
+        setMembers([]);
+        setIsOrgAdmin(false);
+        setDeleteOrgOpen(false);
+        setActiveTab("documents");
+      } else {
+        const data = await res.json();
+        setDeleteOrgError(data.error || "Failed to delete organization");
+      }
+    } catch (e) {
+      console.error("[company-knowledge] delete org error:", e);
+      setDeleteOrgError("Failed to delete organization");
+    } finally {
+      setDeletingOrg(false);
     }
   }
 
@@ -542,17 +603,35 @@ export default function CompanyKnowledgePage() {
             <CardContent className="space-y-4">
               <div className="flex gap-3 items-end">
                 <div className="flex-1">
-                  <Label className="text-xs mb-1 block">Document Type</Label>
-                  <Select value={selectedDocType} onValueChange={(v) => setSelectedDocType(v ?? "general")}>
+                  <Label className="text-xs mb-1 block">Product Type</Label>
+                  <Select value={selectedProductType} onValueChange={(v) => setSelectedProductType(v ?? "payment")}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select type" />
+                      <SelectValue placeholder="Select type">
+                        {PRODUCT_TYPE_LABELS[selectedProductType] || "Select type"}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="general">General</SelectItem>
-                      <SelectItem value="pricing">Pricing</SelectItem>
+                      <SelectItem value="payment">Payment</SelectItem>
+                      <SelectItem value="eor">EoR</SelectItem>
+                      <SelectItem value="cards">Cards</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <Label className="text-xs mb-1 block">Document Type</Label>
+                  <Select value={selectedDocumentType} onValueChange={(v) => setSelectedDocumentType(v ?? "icp")}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select type">
+                        {DOCUMENT_TYPE_LABELS[selectedDocumentType] || "Select type"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="icp">ICP</SelectItem>
+                      <SelectItem value="value_prop">Value Prop</SelectItem>
+                      <SelectItem value="competitive">Competitive</SelectItem>
                       <SelectItem value="objection_handling">Objection Handling</SelectItem>
-                      <SelectItem value="product_knowledge">Product Knowledge</SelectItem>
-                      <SelectItem value="eor_rules">EoR Rules</SelectItem>
+                      <SelectItem value="product_pricing">Product/Pricing</SelectItem>
+                      <SelectItem value="process_methodology">Process/Methodology</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -561,26 +640,28 @@ export default function CompanyKnowledgePage() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".txt,.md,.json,.csv"
+                    accept=".pdf,.docx,.pptx,.txt,.md,.json,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                    multiple
                     onChange={handleFilePick}
                     className="hidden"
                   />
                   <div
-                    onClick={() => !selectedFile && fileInputRef.current?.click()}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-md border border-input bg-background text-sm transition-colors ${
-                      selectedFile ? "cursor-default" : "cursor-pointer hover:bg-accent hover:text-accent-foreground"
-                    } ${uploading ? "opacity-50" : ""}`}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-md border border-input bg-background text-sm transition-colors cursor-pointer hover:bg-accent hover:text-accent-foreground ${
+                      uploading ? "opacity-50" : ""
+                    }`}
                   >
                     <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
                     <span className="truncate flex-1">
-                      {selectedFile ? selectedFile.name : "Click to choose a file"}
+                      {selectedFiles.length === 0
+                        ? "Click to choose files"
+                        : `${selectedFiles.length} file(s) selected`}
                     </span>
-                    {selectedFile && (
+                    {selectedFiles.length > 0 && (
                       <span
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedFile(null);
-                          if (fileInputRef.current) fileInputRef.current.value = "";
+                          handleClearFiles();
                         }}
                         className="ml-auto text-muted-foreground hover:text-red-500 cursor-pointer shrink-0"
                       >
@@ -594,7 +675,7 @@ export default function CompanyKnowledgePage() {
               <div className="flex items-center gap-3">
                 <Button
                   onClick={handleUpload}
-                  disabled={!selectedFile || uploading}
+                  disabled={selectedFiles.length === 0 || uploading}
                   className="min-w-[100px]"
                 >
                   {uploading ? (
@@ -643,44 +724,47 @@ export default function CompanyKnowledgePage() {
                   {docs.map((doc) => (
                     <div
                       key={doc.id}
-                      className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                      className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors gap-3"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{doc.name}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge
-                              className={`text-xs ${
-                                DOC_TYPE_COLORS[doc.doc_type] || DOC_TYPE_COLORS.general
-                              }`}
-                            >
-                              {DOC_TYPE_LABELS[doc.doc_type] || doc.doc_type}
-                            </Badge>
-                            <span className="text-[10px] text-muted-foreground">
-                              {new Date(doc.created_at).toLocaleString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
-                        </div>
+                        <p className="text-sm font-medium truncate">{doc.name}</p>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex flex-col gap-1 items-end">
+                          <Badge
+                            className={`text-xs ${
+                              PRODUCT_TYPE_COLORS[doc.doc_type] || "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {PRODUCT_TYPE_LABELS[doc.doc_type] || doc.doc_type}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">
+                            {DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type}
+                          </span>
+                        </div>
                         <div className="text-right hidden sm:block">
                           <p className="text-xs text-muted-foreground">
                             {doc.creator_name || doc.creator_email?.split("@")[0] || "Unknown"}
+                            {doc.creator_role && (
+                              <span className="ml-1 text-[10px] uppercase tracking-wider opacity-70">
+                                ({doc.creator_role})
+                              </span>
+                            )}
                           </p>
                           <p className="text-[10px] text-muted-foreground/70">
-                            {doc.creator_email}
+                            {new Date(doc.created_at).toLocaleString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                           </p>
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDeleteDoc(doc.id)}
+                          onClick={() => handleDeleteDoc(doc.file_path)}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -692,6 +776,27 @@ export default function CompanyKnowledgePage() {
               )}
             </CardContent>
           </Card>
+
+          {/* ── Delete Document Dialog ─────────────────────────────────────── */}
+          <Dialog open={deleteDocOpen} onOpenChange={setDeleteDocOpen}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="text-base">Delete document?</DialogTitle>
+                <DialogDescription>
+                  This will permanently remove the document and all its indexed chunks from the knowledge base.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" className="rounded-xl" onClick={() => setDeleteDocOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" className="rounded-xl gap-1" onClick={confirmDeleteDoc}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* ── Members Tab ────────────────────────────────────────────── */}
@@ -918,6 +1023,71 @@ export default function CompanyKnowledgePage() {
                 </form>
               </CardContent>
             </Card>
+
+            {/* ── Danger Zone ─────────────────────────────────────────────────── */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base text-red-600">
+                  <AlertCircle className="w-4 h-4" />
+                  Danger Zone
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium">Delete Organization</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Permanently delete this organization. All members will be unlinked and all data will be lost.
+                      This action cannot be undone.
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={deletingOrg}
+                    onClick={handleDeleteOrg}
+                  >
+                    {deletingOrg ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4 mr-1" />
+                    )}
+                    Delete
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ── Delete Confirmation Dialog ─────────────────────────────────── */}
+            <Dialog open={deleteOrgOpen} onOpenChange={setDeleteOrgOpen}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="text-base">Delete organization?</DialogTitle>
+                  <DialogDescription>
+                    This will permanently remove the organization. All members will be unlinked and all data will be lost. This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                {deleteOrgError && (
+                  <div className="text-sm text-red-600 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    {deleteOrgError}
+                  </div>
+                )}
+                <DialogFooter className="gap-2">
+                  <Button variant="outline" className="rounded-xl" onClick={() => setDeleteOrgOpen(false)} disabled={deletingOrg}>
+                    Cancel
+                  </Button>
+                  <Button variant="destructive" className="rounded-xl gap-1" onClick={confirmDeleteOrg} disabled={deletingOrg}>
+                    {deletingOrg ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3.5 h-3.5" />
+                    )}
+                    Delete
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
         )}
       </Tabs>

@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import mammoth from "mammoth";
-import JSZip from "jszip";
-import { DOMParser } from "@xmldom/xmldom";
-
-// pdf2json is CommonJS only
-const PDFParser = require("pdf2json");
+import { extractTextFromBuffer } from "@/lib/extract-text";
 
 const EXTRACTION_PROMPT = `You are an expert B2B sales intelligence analyst. Analyze the following content from uploaded company documents (sales decks, pitch decks, case studies, product sheets, etc.) and extract structured company information.
 
@@ -47,117 +42,9 @@ Rules:
 - If info is missing, infer from context or leave as reasonable guesses based on the industry
 - Be specific and concrete, not generic`;
 
-async function extractPdf(buffer: Buffer): Promise<string> {
-  return new Promise((resolve) => {
-    try {
-      const pdfParser = new PDFParser();
-      pdfParser.on("pdfParser_dataReady", (pdfData: any) => {
-        const text = pdfData?.Pages?.map((page: any) =>
-          page.Texts?.map((t: any) => decodeURIComponent(t.R?.[0]?.T ?? "")).join(" ")
-        ).join("\n") ?? "";
-        resolve(text.trim());
-      });
-      pdfParser.on("pdfParser_dataError", (err: any) => {
-        console.error("[extract-files] PDF parse error:", err);
-        resolve("");
-      });
-      pdfParser.parseBuffer(buffer);
-    } catch (e) {
-      console.error("[extract-files] PDF parse error:", e);
-      resolve("");
-    }
-  });
-}
-
-async function extractDocx(buffer: Buffer): Promise<string> {
-  try {
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value?.trim() ?? "";
-  } catch (e) {
-    console.error("[extract-files] DOCX parse error:", e);
-    return "";
-  }
-}
-
-async function extractPptx(buffer: Buffer): Promise<string> {
-  try {
-    const zip = await JSZip.loadAsync(buffer);
-    const texts: string[] = [];
-
-    // PPTX structure: ppt/slides/slide1.xml, slide2.xml, etc.
-    const slideFiles = Object.keys(zip.files).filter(
-      (name) => name.startsWith("ppt/slides/slide") && name.endsWith(".xml")
-    );
-
-    for (const fileName of slideFiles.sort()) {
-      const file = zip.files[fileName];
-      if (!file) continue;
-      const xml = await file.async("text");
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(xml, "text/xml");
-      // a:t elements contain text in PPTX
-      const textNodes = doc.getElementsByTagName("a:t");
-      for (let i = 0; i < textNodes.length; i++) {
-        const node = textNodes.item(i);
-        if (node?.firstChild?.nodeValue) {
-          texts.push(node.firstChild.nodeValue);
-        }
-      }
-    }
-
-    // Also extract notes if present
-    const noteFiles = Object.keys(zip.files).filter(
-      (name) => name.startsWith("ppt/notesSlides/") && name.endsWith(".xml")
-    );
-    for (const fileName of noteFiles.sort()) {
-      const file = zip.files[fileName];
-      if (!file) continue;
-      const xml = await file.async("text");
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(xml, "text/xml");
-      const textNodes = doc.getElementsByTagName("a:t");
-      for (let i = 0; i < textNodes.length; i++) {
-        const node = textNodes.item(i);
-        if (node?.firstChild?.nodeValue) {
-          texts.push(node.firstChild.nodeValue);
-        }
-      }
-    }
-
-    return texts.join(" ").trim();
-  } catch (e) {
-    console.error("[extract-files] PPTX parse error:", e);
-    return "";
-  }
-}
-
 async function extractTextFromFile(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
-  const type = file.type;
-  const name = file.name.toLowerCase();
-
-  if (type === "application/pdf" || name.endsWith(".pdf")) {
-    return extractPdf(buffer);
-  }
-  if (
-    type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    type === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
-    name.endsWith(".docx")
-  ) {
-    return extractDocx(buffer);
-  }
-  if (
-    type === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
-    name.endsWith(".pptx")
-  ) {
-    return extractPptx(buffer);
-  }
-  if (type === "text/plain" || name.endsWith(".txt")) {
-    return buffer.toString("utf-8").trim();
-  }
-
-  console.warn("[extract-files] Unsupported file type:", type, name);
-  return "";
+  return extractTextFromBuffer(buffer, file.name, file.type);
 }
 
 async function extractWithLLM(text: string) {
@@ -218,7 +105,7 @@ export async function POST(req: NextRequest) {
 
     if (extractedTexts.length === 0) {
       return NextResponse.json(
-        { error: "Could not extract text from any of the uploaded files. Supported: PDF, DOCX, PPTX, TXT" },
+        { error: "Could not extract text from any of the uploaded files. Supported: PDF, DOCX, PPTX, TXT, CSV, JSON, MD" },
         { status: 400 }
       );
     }
