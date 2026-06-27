@@ -91,31 +91,25 @@ create policy "Invitees can accept own invite"
   );
 
 -- 4. Company documents table (knowledge base per org)
--- Stores extracted text from uploaded docs, chunked for RAG
+-- Stores one row per uploaded file (metadata only)
 
 create table if not exists public.company_documents (
   id uuid primary key default uuid_generate_v4(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  name text not null,                        -- "EoR Pricing 2024"
-  content text not null,                     -- extracted text (chunk if large)
-  doc_type text not null default 'general'   -- pricing | objection_handling | product_knowledge | eor_rules | general
-    check (doc_type in ('pricing','objection_handling','product_knowledge','eor_rules','general')),
-  file_path text,                            -- optional: original file in storage bucket
-  embedding vector(1536),                    -- OpenAI text-embedding-3-small
+  name text not null,                        -- "Reviews GPT.pdf"
+  content text not null default '',          -- kept empty; chunks store the text
+  doc_type text not null default 'eor'     -- payment | eor | cards (product type)
+    check (doc_type in ('payment','eor','cards')),
+  document_type text not null default 'icp' -- icp | value_prop | competitive | objection_handling | product_pricing | process_methodology
+    check (document_type in ('icp','value_prop','competitive','objection_handling','product_pricing','process_methodology')),
+  file_path text,                            -- original file in storage bucket
   created_by uuid references auth.users(id),
   created_at timestamptz not null default now()
 );
 
 alter table public.company_documents enable row level security;
 
--- HNSW index for semantic search
--- (if vector extension already enabled via 20250626010000_add_vector_store.sql, skip)
-create index if not exists idx_company_docs_embedding
-  on public.company_documents
-  using hnsw (embedding vector_cosine_ops)
-  with (m = 16, ef_construction = 64);
-
--- Index for org-level filtering before vector search
+-- Index for org-level filtering
 create index if not exists idx_company_docs_org_type
   on public.company_documents using btree (organization_id, doc_type);
 
@@ -148,7 +142,67 @@ create policy "Doc creator or admin can delete"
     )
   );
 
--- 5. PostgreSQL function: semantic search on company_documents
+-- 5. Company document chunks table
+-- Stores text chunks + embeddings for RAG
+
+create table if not exists public.company_document_chunks (
+  id uuid primary key default uuid_generate_v4(),
+  document_id uuid not null references public.company_documents(id) on delete cascade,
+  content text not null,
+  embedding vector(1536),
+  chunk_index int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+alter table public.company_document_chunks enable row level security;
+
+create index if not exists idx_company_document_chunks_document_id
+  on public.company_document_chunks(document_id);
+
+-- HNSW index for semantic search
+create index if not exists idx_company_document_chunks_embedding
+  on public.company_document_chunks
+  using hnsw (embedding vector_cosine_ops)
+  with (m = 16, ef_construction = 64);
+
+-- RLS: only users in the same org can see their document chunks
+drop policy if exists "Users can view org document chunks" on public.company_document_chunks;
+create policy "Users can view org document chunks"
+  on public.company_document_chunks for select using (
+    document_id in (
+      select id from public.company_documents
+      where organization_id in (
+        select organization_id from public.profiles where id = auth.uid()
+      )
+    )
+  );
+
+-- RLS: only org members can insert chunks for their documents
+drop policy if exists "Users can insert org document chunks" on public.company_document_chunks;
+create policy "Users can insert org document chunks"
+  on public.company_document_chunks for insert with check (
+    document_id in (
+      select id from public.company_documents
+      where organization_id in (
+        select organization_id from public.profiles where id = auth.uid()
+      )
+    )
+  );
+
+-- RLS: only doc creator or org admin can delete chunks
+drop policy if exists "Doc creator or admin can delete chunks" on public.company_document_chunks;
+create policy "Doc creator or admin can delete chunks"
+  on public.company_document_chunks for delete using (
+    document_id in (
+      select id from public.company_documents
+      where created_by = auth.uid()
+         or organization_id in (
+           select id from public.organizations where created_by = auth.uid()
+         )
+    )
+  );
+
+-- 6. PostgreSQL function: semantic search on company_document_chunks
 -- Called from vector-store.ts as supabase.rpc('match_company_docs', {...})
 
 create or replace function public.match_company_docs(
@@ -170,13 +224,14 @@ as $$
   select
     d.id,
     d.name,
-    d.content,
+    c.content,
     d.doc_type,
-    1 - (d.embedding <=> query_embedding) as similarity
-  from public.company_documents d
+    1 - (c.embedding <=> query_embedding) as similarity
+  from public.company_document_chunks c
+  join public.company_documents d on d.id = c.document_id
   where d.organization_id = filter_org_id
-    and d.embedding is not null
-    and 1 - (d.embedding <=> query_embedding) > match_threshold
-  order by d.embedding <=> query_embedding
+    and c.embedding is not null
+    and 1 - (c.embedding <=> query_embedding) > match_threshold
+  order by c.embedding <=> query_embedding
   limit match_count;
 $$;
