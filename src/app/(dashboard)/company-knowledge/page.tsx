@@ -135,6 +135,36 @@ export default function CompanyKnowledgePage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // AI bulk upload
+  const [bulkProductType, setBulkProductType] = useState("payment");
+  const [bulkFiles, setBulkFiles] = useState<File[]>([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkUploadStatus, setBulkUploadStatus] = useState<"idle" | "success" | "error">("idle");
+  const [bulkUploadMessage, setBulkUploadMessage] = useState("");
+  const [bulkResults, setBulkResults] = useState<{ name: string; document_type: string }[]>([]);
+  const [bulkStepIndex, setBulkStepIndex] = useState(0);
+  const bulkFileInputRef = useRef<HTMLInputElement>(null);
+
+  const BULK_UPLOAD_STEPS = [
+    "Extracting text",
+    "Classifying document type with AI",
+    "Uploading to storage",
+    "Chunking and embedding",
+    "Saving to knowledge base",
+  ];
+
+  useEffect(() => {
+    if (!bulkUploading) {
+      setBulkStepIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setBulkStepIndex((prev) => Math.min(prev + 1, BULK_UPLOAD_STEPS.length - 1));
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [bulkUploading]);
+
+
   // Create org form
   const [newOrgName, setNewOrgName] = useState("");
   const [creatingOrg, setCreatingOrg] = useState(false);
@@ -344,6 +374,68 @@ export default function CompanyKnowledgePage() {
     }
   }
 
+  function handleBulkFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    setBulkFiles(files);
+    setBulkUploadStatus("idle");
+    setBulkUploadMessage("");
+    setBulkResults([]);
+  }
+
+  function handleBulkClearFiles() {
+    setBulkFiles([]);
+    setBulkUploadStatus("idle");
+    setBulkUploadMessage("");
+    setBulkResults([]);
+    if (bulkFileInputRef.current) bulkFileInputRef.current.value = "";
+  }
+
+  async function handleBulkUpload() {
+    if (bulkFiles.length === 0) return;
+
+    setBulkUploading(true);
+    setBulkUploadStatus("idle");
+    setBulkUploadMessage("");
+    setBulkResults([]);
+
+    const formData = new FormData();
+    formData.append("productType", bulkProductType);
+    formData.append("bulkUpload", "true");
+    for (const file of bulkFiles) {
+      formData.append("files", file);
+    }
+
+    try {
+      const res = await fetch("/api/company/documents", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setBulkUploadStatus("success");
+        setBulkUploadMessage(`AI classified and uploaded ${bulkFiles.length} file(s), ${data.chunks} chunk(s)`);
+        setBulkResults(
+          (data.documents ?? []).map((d: Document) => ({
+            name: d.name,
+            document_type: d.document_type,
+          }))
+        );
+        setBulkFiles([]);
+        fetchDocs();
+      } else {
+        setBulkUploadStatus("error");
+        setBulkUploadMessage(data.error || "Bulk upload failed");
+      }
+    } catch {
+      setBulkUploadStatus("error");
+      setBulkUploadMessage("Bulk upload failed");
+    } finally {
+      setBulkUploading(false);
+      if (bulkFileInputRef.current) bulkFileInputRef.current.value = "";
+    }
+  }
+
   // ── Delete Document ──────────────────────────────────────────────────
   function handleDeleteDoc(filePath: string | null) {
     if (!filePath) return;
@@ -363,6 +455,9 @@ export default function CompanyKnowledgePage() {
         setDocToDelete(null);
         setUploadStatus("idle");
         setUploadMessage("");
+        setBulkUploadStatus("idle");
+        setBulkUploadMessage("");
+        setBulkResults([]);
         fetchDocs();
       }
     } catch (e) {
@@ -703,6 +798,164 @@ export default function CompanyKnowledgePage() {
                   </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* AI Bulk Upload */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="w-4 h-4" />
+                AI Bulk Upload
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Select a product type, upload multiple files, and the AI will classify each file into
+                the right document type automatically.
+              </p>
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <Label className="text-xs mb-1 block">Product Type</Label>
+                  <Select value={bulkProductType} onValueChange={(v) => setBulkProductType(v ?? "payment")}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select type">
+                        {PRODUCT_TYPE_LABELS[bulkProductType] || "Select type"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="payment">Payment</SelectItem>
+                      <SelectItem value="eor">EoR</SelectItem>
+                      <SelectItem value="cards">Cards</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-[2]">
+                  <Label className="text-xs mb-1 block">Files</Label>
+                  <input
+                    ref={bulkFileInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.pptx,.txt,.md,.json,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                    multiple
+                    onChange={handleBulkFilePick}
+                    className="hidden"
+                  />
+                  <div
+                    onClick={() => bulkFileInputRef.current?.click()}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-md border border-input bg-background text-sm transition-colors cursor-pointer hover:bg-accent hover:text-accent-foreground ${
+                      bulkUploading ? "opacity-50" : ""
+                    }`}
+                  >
+                    <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="truncate flex-1">
+                      {bulkFiles.length === 0
+                        ? "Click to choose files"
+                        : `${bulkFiles.length} file(s) selected`}
+                    </span>
+                    {bulkFiles.length > 0 && (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBulkClearFiles();
+                        }}
+                        className="ml-auto text-muted-foreground hover:text-red-500 cursor-pointer shrink-0"
+                      >
+                        <X className="w-3 h-3" />
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={handleBulkUpload}
+                  disabled={bulkFiles.length === 0 || bulkUploading}
+                  className="min-w-[100px]"
+                >
+                  {bulkUploading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-1" />
+                      Upload
+                    </>
+                  )}
+                </Button>
+
+                {bulkUploadStatus !== "idle" && (
+                  <div
+                    className={`flex items-center gap-2 text-sm ${
+                      bulkUploadStatus === "success" ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {bulkUploadStatus === "success" ? (
+                      <CheckCircle className="w-4 h-4" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4" />
+                    )}
+                    {bulkUploadMessage}
+                  </div>
+                )}
+              </div>
+
+              {bulkUploading && (
+                <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Processing {bulkFiles.length} file(s)...
+                  </p>
+                  <div className="space-y-1">
+                    {BULK_UPLOAD_STEPS.map((step, idx) => {
+                      const isActive = idx === bulkStepIndex;
+                      const isPast = idx < bulkStepIndex;
+                      return (
+                        <div
+                          key={step}
+                          className={`flex items-center gap-2 text-xs transition-all duration-300 ${
+                            isActive
+                              ? "text-foreground font-medium"
+                              : isPast
+                              ? "text-muted-foreground/60"
+                              : "text-muted-foreground/40"
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] transition-colors duration-300 ${
+                              isActive
+                                ? "bg-primary text-primary-foreground"
+                                : isPast
+                                ? "bg-green-100 text-green-700"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {isPast ? (
+                              <CheckCircle className="w-3 h-3" />
+                            ) : (
+                              <span>{idx + 1}</span>
+                            )}
+                          </div>
+                          <span className={isActive ? "animate-pulse" : ""}>{step}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {bulkResults.length > 0 && (
+                <div className="rounded-md border p-3 space-y-2">
+                  <p className="text-xs font-medium">AI classification results:</p>
+                  {bulkResults.map((r, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs">
+                      <span className="truncate flex-1 pr-2">{r.name}</span>
+                      <Badge variant="outline" className="text-[10px] shrink-0">
+                        {DOCUMENT_TYPE_LABELS[r.document_type] || r.document_type}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
