@@ -138,7 +138,7 @@ async function requireAdmin(supabase: Awaited<ReturnType<typeof createClient>>) 
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("organization_id")
+    .select("organization_id, role")
     .eq("id", user.id)
     .single();
 
@@ -150,7 +150,8 @@ async function requireAdmin(supabase: Awaited<ReturnType<typeof createClient>>) 
     .eq("id", profile.organization_id)
     .single();
 
-  if (org?.created_by !== user.id) return { error: "Only admin can manage documents", status: 403 };
+  const isOrgAdmin = org?.created_by === user.id || profile.role === "admin";
+  if (!isOrgAdmin) return { error: "Only admin can manage documents", status: 403 };
 
   return { user, orgId: profile.organization_id, orgName: org?.name ?? "" };
 }

@@ -29,7 +29,7 @@ export async function DELETE(req: NextRequest) {
     // Get admin's org
     const { data: adminProfile } = await supabase
       .from("profiles")
-      .select("organization_id")
+      .select("organization_id, role")
       .eq("id", user.id)
       .single();
 
@@ -44,7 +44,8 @@ export async function DELETE(req: NextRequest) {
       .eq("id", adminProfile.organization_id)
       .single();
 
-    if (org?.created_by !== user.id) {
+    const isOrgAdmin = org?.created_by === user.id || adminProfile.role === "admin";
+    if (!isOrgAdmin) {
       return NextResponse.json({ error: "Only admin can remove members" }, { status: 403 });
     }
 
@@ -92,7 +93,7 @@ export async function PATCH(req: NextRequest) {
 
     const { data: adminProfile } = await supabase
       .from("profiles")
-      .select("organization_id")
+      .select("organization_id, role")
       .eq("id", user.id)
       .single();
 
@@ -106,7 +107,8 @@ export async function PATCH(req: NextRequest) {
       .eq("id", adminProfile.organization_id)
       .single();
 
-    if (org?.created_by !== user.id) {
+    const isOrgAdmin = org?.created_by === user.id || adminProfile.role === "admin";
+    if (!isOrgAdmin) {
       return NextResponse.json({ error: "Only admin can update roles" }, { status: 403 });
     }
 

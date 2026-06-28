@@ -86,7 +86,7 @@ export async function GET() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("organization_id")
+      .select("organization_id, role")
       .eq("id", user.id)
       .single();
 
@@ -109,7 +109,7 @@ export async function GET() {
       supabase.from("profiles").select("id, full_name, email").eq("id", org?.created_by ?? "").maybeSingle(),
     ]);
 
-    const isAdmin = org?.created_by === user.id;
+    const isAdmin = org?.created_by === user.id || profile.role === "admin";
 
     return NextResponse.json({ organization: org, members: members ?? [], isAdmin, creator });
   } catch (err) {
@@ -132,7 +132,7 @@ export async function PATCH(req: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("organization_id")
+      .select("organization_id, role")
       .eq("id", user.id)
       .single();
 
@@ -147,7 +147,8 @@ export async function PATCH(req: NextRequest) {
       .eq("id", profile.organization_id)
       .single();
 
-    if (org?.created_by !== user.id) {
+    const isOrgAdmin = org?.created_by === user.id || profile.role === "admin";
+    if (!isOrgAdmin) {
       return NextResponse.json({ error: "Only admin can update organization" }, { status: 403 });
     }
 
@@ -162,7 +163,9 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
-    const { data: updated, error } = await supabase
+    // Use service role to bypass RLS for org admins who are not the creator
+    const svc = serviceSupabase();
+    const { data: updated, error } = await svc
       .from("organizations")
       .update(filtered)
       .eq("id", profile.organization_id)
