@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+
+function serviceSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createSupabaseClient(url, key);
+}
 
 /**
  * DELETE /api/company/org/members?userId={userId}
@@ -46,8 +53,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Cannot remove yourself" }, { status: 400 });
     }
 
-    // Remove member from org
-    const { error } = await supabase
+    // Remove member from org — use service role to bypass RLS
+    const svc = serviceSupabase();
+    const { error } = await svc
       .from("profiles")
       .update({ organization_id: null })
       .eq("id", targetUserId)
@@ -102,7 +110,9 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Only admin can update roles" }, { status: 403 });
     }
 
-    const { error } = await supabase
+    // Update role — use service role to bypass RLS
+    const svc = serviceSupabase();
+    const { error } = await svc
       .from("profiles")
       .update({ role: role as "admin" | "user" })
       .eq("id", userId)

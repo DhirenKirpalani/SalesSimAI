@@ -15,10 +15,11 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { CustomPersona } from "@/types";
-import { SimulationMessage } from "@/types/simulation";
+import { SimulationMessage, SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
 import { buildCompanyRagContext } from "@/lib/vector-store";
 import { VOICE_LANGUAGE_MAP, VoiceLanguage } from "@/lib/voice-language";
+import { buildSystemPrompt, applyStateUpdates } from "@/lib/buyer-brain";
 
 function sseLine(data: unknown): string {
   return `data: ${JSON.stringify(data)}\n\n`;
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
 
         const { data: scenario, error: scenarioError } = await supabase
           .from(session.scenario_table)
-          .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product, scenario_type, difficulty, duration")
+          .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product, scenario_type, difficulty, duration, product_type")
           .eq("id", session.scenario_id)
           .single();
 
@@ -110,33 +111,13 @@ export async function POST(req: NextRequest) {
           };
         }
 
-        // Build persona system prompt inline
+        // Build context note
         const contextParts: string[] = [];
         if (scenario.scenario_type) contextParts.push(`Call type: ${scenario.scenario_type}`);
-        if (scenario.difficulty) contextParts.push(`Difficulty level: ${scenario.difficulty}`);
-        if (scenario.duration) contextParts.push(`Call duration: ${scenario.duration} minutes`);
+        if (scenario.product_type) contextParts.push(`Product category: ${scenario.product_type}`);
         if (scenario.seller_company) contextParts.push(`Selling company: ${scenario.seller_company}`);
         if (scenario.seller_product) contextParts.push(`Product: ${scenario.seller_product}`);
         if (scenario.context_note) contextParts.push(`Backstory: ${scenario.context_note}`);
-
-        // Time pressure awareness
-        const sessionStart = new Date(session.created_at ?? Date.now());
-        const elapsedMin = Math.max(0, Math.round((Date.now() - sessionStart.getTime()) / 60000));
-        const totalMin = scenario.duration ?? 5;
-        const remainingMin = Math.max(0, totalMin - elapsedMin);
-        const remainingPct = totalMin > 0 ? remainingMin / totalMin : 1;
-        let timePressure = "";
-        if (remainingPct <= 0.1) {
-          timePressure = `TIME PRESSURE: Only ~${remainingMin} min left. You are RUSHED. Wrap up quickly — either push for concrete next steps or politely indicate you need to end the call. Be brief (1 sentence).`;
-        } else if (remainingPct <= 0.3) {
-          timePressure = `TIME PRESSURE: ~${remainingMin} min remaining. You are getting IMPATIENT. Cut small talk. Ask direct questions or push for a decision. Don't let the seller ramble.`;
-        } else if (remainingPct <= 0.7) {
-          timePressure = `TIME: ~${remainingMin} min left. Normal engagement. Stay in character.`;
-        } else {
-          timePressure = `TIME: ~${remainingMin} min left. Early in the call. Be patient, exploratory, and let the seller lead.`;
-        }
-        if (timePressure) contextParts.push(timePressure);
-
         const richContextNote = contextParts.join("\n");
 
         // Company RAG — fetch relevant docs from the org's knowledge base
@@ -150,30 +131,29 @@ export async function POST(req: NextRequest) {
         }
 
         const messages: SimulationMessage[] = (recentMessages ?? []) as SimulationMessage[];
+        const state = (session.state ?? { trust_level: 30, buyer_mood: 0, stage: "opening", facts_discovered: { budget: false, decision_maker: false, timeline: false, current_solution: false }, objections_used: [], engagement_level: 30 }) as SimulationState;
+        const sessionStart = new Date(session.created_at ?? Date.now());
+        const elapsedMin = Math.max(0, Math.round((Date.now() - sessionStart.getTime()) / 60000));
+        const sellerInfo = { name: profile?.full_name ?? undefined, position: profile?.position ?? undefined, company: profile?.company ?? undefined };
 
-        const systemPrompt = `You are ${persona.name}, ${persona.jobTitle} at ${persona.company}.
-Industry: ${persona.industry ?? "Technology"}
-Personality: ${persona.personality}
-Pain points: ${persona.painPoints?.join(", ") || "unspecified"}
-Goals: ${persona.goals?.join(", ") || "unspecified"}
+        let systemPrompt = buildSystemPrompt(
+          persona,
+          richContextNote,
+          scenario.seller_description || "",
+          state,
+          sellerInfo,
+          scenario.difficulty ?? undefined,
+          scenario.scenario_type ?? undefined,
+          messages,
+          companyRag,
+          scenario.duration ?? undefined,
+          elapsedMin
+        );
 
-${richContextNote}
-
-${companyRag ? companyRag + "\n\n" : ""}SELLER INFO (you do NOT know this in detail):
-${scenario.seller_description || "A sales rep is calling you."}
-
-ROLE GUARDRAILS — never break these:
-- You are the BUYER / PROSPECT. You are NOT the seller. Never pitch, explain, or describe their product.
-- Never say "we provide", "our platform", "our solution", "how can I help", "how can I assist", "let me tell you about", or any offer to help or sell.
-- When asked who you are, say ONLY your name, role, and company. Nothing more. Never follow it with "How can I help?"
-- You are a real person with opinions, frustrations, and limited patience.
-- Be skeptical. Ask tough questions. Don't volunteer information.
-- Respond naturally in 1-3 sentences.
-- Your behavior MUST shift based on remaining time (see TIME PRESSURE above).
-${voiceLanguage === "auto" ? "- LANGUAGE: Listen to the seller's language and mirror it exactly. Match their vocabulary, tone, slang, accent, and sentence structure. If they switch language mid-conversation, switch with them seamlessly. Never force a language the seller is not using." : `- REQUIRED LANGUAGE: ${VOICE_LANGUAGE_MAP[voiceLanguage].promptName}. Respond in this language even if the seller speaks English. Use natural vocabulary, slang, tone, and sentence structure typical of this language. If the seller switches language, you may switch with them, but default back to ${VOICE_LANGUAGE_MAP[voiceLanguage].promptName}.`}
-
-RESPOND IN JSON:
-{"message":"your spoken response","emotion":"neutral|skeptical|interested|frustrated","intent":"answer|objection|question|redirect"}`;
+        // Voice-specific language override for explicit language selection
+        if (voiceLanguage !== "auto" && voiceLanguage !== "en") {
+          systemPrompt += `\n\nVOICE LANGUAGE OVERRIDE: You MUST respond in ${VOICE_LANGUAGE_MAP[voiceLanguage].promptName} for this call. Use natural vocabulary, slang, tone, and sentence structure typical of this language. If the seller switches language, you may follow, but always default back to ${VOICE_LANGUAGE_MAP[voiceLanguage].promptName}.`;
+        }
 
         // Persist user message immediately
         const userMsgPromise = supabase.from("simulation_messages").insert({
@@ -223,6 +203,10 @@ RESPOND IN JSON:
                 buyerText = parsed.message || parsed.response || raw;
                 buyerEmotion = parsed.emotion || "neutral";
                 buyerIntent = parsed.intent || "answer";
+                if (parsed.state_updates) {
+                  const newState = applyStateUpdates(state, parsed.state_updates, messages.length + 1);
+                  supabase.from("simulation_sessions").update({ state: newState }).eq("id", sessionId).then(() => {});
+                }
               } catch {
                 buyerText = raw;
               }

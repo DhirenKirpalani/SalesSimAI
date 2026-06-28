@@ -15,7 +15,7 @@ interface SessionSummary {
   duration_s: number | null;
   started_at: string;
   ended_at: string | null;
-  source: "heygen" | "voice";
+  source: "voice" | "text" | "video";
 }
 
 function scoreColor(score: number) {
@@ -46,46 +46,34 @@ export default function SimulationsPage() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
-    const [{ data: heygenData }, { data: voiceData }] = await Promise.all([
-      supabase
-        .from("heygen_sessions")
-        .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
-        .eq("user_id", user.id)
-        .not("ended_at", "is", null)
-        .order("started_at", { ascending: false }),
-      supabase
-        .from("simulation_sessions")
-        .select("id, scenario_id, scenario_table, scenario_name, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
-        .eq("user_id", user.id)
-        .eq("status", "completed")
-        .not("ended_at", "is", null)
-        .order("started_at", { ascending: false }),
-    ]);
 
-    const heygenSessions: SessionSummary[] = (heygenData ?? []).map((s) => ({
-      ...s,
-      source: "heygen" as const,
-      scenario_name: s.scenario_name ?? "Simulation",
-    }));
+    const { data } = await supabase
+      .from("simulation_sessions")
+      .select("id, scenario_name, call_mode, analysis, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
+      .eq("user_id", user.id)
+      .or("status.eq.completed,ended_at.not.is.null,analysis.not.is.null")
+      .order("started_at", { ascending: false });
 
-    const voiceSessions: SessionSummary[] = (voiceData ?? []).map((s) => {
+    const mapped: SessionSummary[] = (data ?? []).map((s) => {
       const coachingArr = s.simulation_coaching as Array<{ overall_score?: number }> | null;
       const coaching = coachingArr?.[0] ?? null;
+      const mode = (s.call_mode ?? "voice") as string;
+      const storedAnalysis = s.analysis as { overall_score?: number } | null;
+      const label = mode === "text" ? "Text Simulation" : mode === "video" ? "Video Call" : "Voice Simulation";
       return {
         id: s.id,
-        scenario_name: s.scenario_name ?? "Voice Simulation",
-        analysis: coaching ? { overall_score: coaching.overall_score } : null,
+        scenario_name: s.scenario_name ?? label,
+        analysis: mode === "voice"
+          ? (coaching ? { overall_score: coaching.overall_score } : null)
+          : (storedAnalysis ?? null),
         duration_s: s.duration_s ?? null,
         started_at: s.started_at ?? new Date().toISOString(),
         ended_at: s.ended_at,
-        source: "voice" as const,
+        source: (mode === "text" ? "text" : mode === "video" ? "video" : "voice") as SessionSummary["source"],
       };
     });
 
-    const merged = [...heygenSessions, ...voiceSessions].sort(
-      (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
-    );
-    setSessions(merged);
+    setSessions(mapped);
     setLoading(false);
   }, []);
 
@@ -151,11 +139,13 @@ export default function SimulationsPage() {
                       {formatDuration(s.duration_s)}
                     </span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                      s.source === "heygen"
+                      s.source === "video"
                         ? "bg-violet-500/10 text-violet-600 border-violet-500/20"
+                        : s.source === "text"
+                        ? "bg-sky-500/10 text-sky-600 border-sky-500/20"
                         : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                     }`}>
-                      {s.source === "heygen" ? "Video Call" : "Voice Call"}
+                      {s.source === "video" ? "Video Call" : s.source === "text" ? "Text Chat" : "Voice Call"}
                     </span>
                   </div>
                 </div>

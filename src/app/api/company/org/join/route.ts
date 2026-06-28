@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+
+function serviceSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createSupabaseClient(url, key);
+}
 
 /**
  * POST /api/company/org/join
@@ -25,8 +32,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "User email not found" }, { status: 400 });
     }
 
-    // Verify invite exists and belongs to this user
-    const { data: invite, error: inviteErr } = await supabase
+    // Verify invite exists and belongs to this user (service role bypasses RLS — invitees aren't org members yet)
+    const admin = serviceSupabase();
+    const { data: invite, error: inviteErr } = await admin
       .from("organization_invites")
       .select("*")
       .eq("id", inviteId)
@@ -46,14 +54,22 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (profile?.organization_id) {
+      if (profile.organization_id === invite.organization_id) {
+        // Already in the same org — just mark the invite accepted and return success
+        await admin
+          .from("organization_invites")
+          .update({ status: "accepted", accepted_at: new Date().toISOString() })
+          .eq("id", inviteId);
+        return NextResponse.json({ success: true, organization_id: invite.organization_id });
+      }
       return NextResponse.json(
-        { error: "You already belong to an organization" },
+        { error: "You already belong to a different organization" },
         { status: 409 }
       );
     }
 
-    // Join the organization
-    const { error: updateProfileErr } = await supabase
+    // Join the organization — use service role to bypass RLS
+    const { error: updateProfileErr } = await admin
       .from("profiles")
       .update({ organization_id: invite.organization_id })
       .eq("id", user.id);
@@ -63,8 +79,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to join organization" }, { status: 500 });
     }
 
-    // Mark invite as accepted
-    const { error: updateInviteErr } = await supabase
+    // Mark invite as accepted — use service role to bypass RLS
+    const { error: updateInviteErr } = await admin
       .from("organization_invites")
       .update({ status: "accepted", accepted_at: new Date().toISOString() })
       .eq("id", inviteId);

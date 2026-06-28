@@ -36,18 +36,28 @@ export default function ProfilePage() {
 
       const { data } = await supabase
         .from("profiles")
-        .select("full_name, email, role, company, position")
+        .select("full_name, email, role, company, position, organization_id")
         .eq("id", user.id)
         .single();
 
+    let organizationName: string | null = null;
+    if (data?.organization_id) {
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("name")
+        .eq("id", data.organization_id)
+        .single();
+      organizationName = org?.name ?? null;
+    }
+
       if (data) {
-        setProfile(data);
+        setProfile({ ...data, company: organizationName ?? data.company });
       } else {
         setProfile({
           full_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
           email: user.email || "",
           role: "user",
-          company: user.user_metadata?.company || null,
+          company: organizationName ?? user.user_metadata?.company ?? null,
           position: user.user_metadata?.position || null,
         });
       }
@@ -74,7 +84,6 @@ export default function ProfilePage() {
       .from("profiles")
       .update({
         full_name: profile.full_name,
-        company: profile.company,
         position: profile.position,
       })
       .eq("id", user.id);
@@ -85,7 +94,7 @@ export default function ProfilePage() {
       setStatus("success");
       // Also update auth metadata so navbar initials stay in sync
       await supabase.auth.updateUser({
-        data: { full_name: profile.full_name, company: profile.company, position: profile.position },
+        data: { full_name: profile.full_name, position: profile.position },
       });
     }
     setSaving(false);
@@ -148,13 +157,10 @@ export default function ProfilePage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="company" className="text-xs font-medium">Company</Label>
-              <Input
-                id="company"
-                value={profile?.company || ""}
-                onChange={(e) => setProfile((p) => p ? { ...p, company: e.target.value } : p)}
-                placeholder="Your organization"
-                className="rounded-xl"
-              />
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border bg-muted/30 text-sm text-muted-foreground">
+                <span>{profile?.company || "—"}</span>
+                <span className="text-[10px] text-muted-foreground/60">(from organization)</span>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="position" className="text-xs font-medium flex items-center gap-1">

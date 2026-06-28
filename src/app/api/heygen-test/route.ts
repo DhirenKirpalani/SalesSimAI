@@ -423,8 +423,9 @@ export async function POST(req: NextRequest) {
     console.log("[heygen-test] ✅ Session started:", session.session_id);
     console.log("[heygen-test] livekit_url:", session.livekit_url);
 
-    // Persist session row in DB (best-effort — don't block on failure)
+    // Persist session rows in DB (best-effort — don't block on failure)
     let heygenSessionDbId: string | null = null;
+    let simSessionDbId: string | null = null;
     try {
       const serverSupabase = await createServerClient();
       const { data: { user } } = await serverSupabase.auth.getUser();
@@ -441,7 +442,31 @@ export async function POST(req: NextRequest) {
           .select("id")
           .single();
         heygenSessionDbId = dbRow?.id ?? null;
-        console.log("[heygen-test] ✅ DB session created:", heygenSessionDbId);
+        console.log("[heygen-test] ✅ heygen_sessions row:", heygenSessionDbId);
+
+        // Also create a simulation_sessions row so video calls appear in unified reporting
+        if (scenarioId && scenarioTable) {
+          const { data: simRow } = await svcSupabase
+            .from("simulation_sessions")
+            .insert({
+              user_id: user.id,
+              scenario_id: scenarioId,
+              scenario_table: scenarioTable,
+              scenario_name: scenarioName,
+              call_mode: "video",
+              status: "active",
+              heygen_session_id: heygenSessionDbId,
+              state: {
+                trust_level: 30, buyer_mood: 0, stage: "opening",
+                facts_discovered: { budget: false, decision_maker: false, timeline: false, current_solution: false },
+                objections_used: [], engagement_level: 50,
+              },
+            })
+            .select("id")
+            .single();
+          simSessionDbId = simRow?.id ?? null;
+          console.log("[heygen-test] ✅ simulation_sessions row:", simSessionDbId);
+        }
       } else {
         console.warn("[heygen-test] No authenticated user — session not persisted");
       }
@@ -456,6 +481,7 @@ export async function POST(req: NextRequest) {
       llm_config_id: llmConfigId ?? null,
       scenario_name: scenarioName,
       heygen_session_db_id: heygenSessionDbId,
+      sim_session_db_id: simSessionDbId,
       duration_min: scenarioDuration,
     });
   } catch (err) {

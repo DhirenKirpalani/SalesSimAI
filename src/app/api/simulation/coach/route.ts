@@ -15,6 +15,7 @@ interface CoachingEvaluation {
   missed_opportunities: string[];
   recommendations: string[];
   discovery_coverage: Record<string, boolean>;
+  criteria_scores?: Record<string, number>;
 }
 
 export async function POST(req: NextRequest) {
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const { data: scenario } = await supabase
       .from(session.scenario_table)
-      .select("name, context_note, seller_company, seller_product, custom_persona, scoring_criteria, evaluation_framework")
+      .select("name, context_note, seller_company, seller_product, custom_persona, scoring_criteria, evaluation_framework, product_type")
       .eq("id", session.scenario_id)
       .single();
 
@@ -59,66 +60,49 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "OPENAI_API_KEY not set" }, { status: 500 });
     }
 
-    const framework = scenario?.evaluation_framework || "";
-    const customCriteria = scenario?.scoring_criteria || "";
-
-    const frameworkSection = framework
-      ? `EVALUATION FRAMEWORK: Use the ${framework} framework to guide your assessment.`
-      : "";
-    const criteriaSection = customCriteria
-      ? `SCORING CRITERIA FOR THIS COMPANY:\n${customCriteria}`
-      : "";
-
-    const prompt = `You are an expert sales coach evaluating a B2B sales discovery call simulation.
-
-Evaluate the salesperson's performance in this conversation.
+    const prompt = `You are an expert sales coach evaluating a B2B sales call simulation using the MEDDIC framework.
 
 SCENARIO: ${scenario?.name ?? "Sales simulation"}
 COMPANY: ${scenario?.seller_company ?? "Unknown"}
 PRODUCT: ${scenario?.seller_product ?? "Unknown"}
+PRODUCT CATEGORY: ${scenario?.product_type ?? ""}
 CONTEXT: ${scenario?.context_note ?? ""}
-${frameworkSection}
-${criteriaSection}
 
 TRANSCRIPT:
 ${transcript}
 
-EVALUATE on these dimensions (0-100 score each):
-
-1. DISCOVERY_SCORE: Did the seller uncover the buyer's real pain points, process, and impact? Did they follow a structured discovery framework (intro/agenda → current process → breakdown → impact → cost → previous attempts → future state → stakeholders → blockers)?
-
-2. OBJECTION_SCORE: When the buyer pushed back, did the seller validate, reframe, and offer a path forward? Or did they get defensive?
-
-3. EMPATHY_SCORE: Did the seller show genuine curiosity, use the buyer's language, and make the buyer feel heard?
-
-4. OVERALL_SCORE: Weighted average with emphasis on discovery. ${customCriteria ? "Consider the Scoring Criteria above." : ""}
+EVALUATE on MEDDIC dimensions (0-100 score each):
+1. IDENTIFY_PAIN: Did the seller discover and probe specific pain points?
+2. METRICS: Did they quantify business impact and ROI?
+3. ECONOMIC_BUYER: Did they identify and engage the decision maker?
+4. DECISION_CRITERIA: Did they uncover the buyer's evaluation criteria?
+5. DECISION_PROCESS: Did they map the buying process and timeline?
+6. CHAMPION: Did they build a relationship and potential internal advocate?
 
 Also provide:
+- OVERALL_SCORE: weighted average (0-100, weight Identify Pain and Metrics most heavily)
 - MISSED_OPPORTUNITIES: Specific questions or tactics the seller failed to use (max 5)
-- RECOMMENDATIONS: Actionable coaching tips (max 5)
+- RECOMMENDATIONS: Actionable coaching tips tied to MEDDIC (max 5)
 - DISCOVERY_COVERAGE: Which of the 9 discovery steps were covered (true/false)
   Steps: intro_agenda, current_process, breakdown, impact, cost, previous_attempts, future_state, stakeholders, blockers
 
-Return ONLY valid JSON. No extra text:
-
+Return ONLY valid JSON:
 {
-  "discovery_score": number,
-  "objection_score": number,
-  "empathy_score": number,
+  "discovery_score": <identify_pain score>,
+  "objection_score": <decision_criteria score>,
+  "empathy_score": <champion score>,
   "overall_score": number,
+  "meddic_breakdown": {
+    "Identify Pain": number,
+    "Metrics": number,
+    "Economic Buyer": number,
+    "Decision Criteria": number,
+    "Decision Process": number,
+    "Champion": number
+  },
   "missed_opportunities": ["..."],
   "recommendations": ["..."],
-  "discovery_coverage": {
-    "intro_agenda": boolean,
-    "current_process": boolean,
-    "breakdown": boolean,
-    "impact": boolean,
-    "cost": boolean,
-    "previous_attempts": boolean,
-    "future_state": boolean,
-    "stakeholders": boolean,
-    "blockers": boolean
-  }
+  "discovery_coverage": { "intro_agenda": boolean, "current_process": boolean, "breakdown": boolean, "impact": boolean, "cost": boolean, "previous_attempts": boolean, "future_state": boolean, "stakeholders": boolean, "blockers": boolean }
 }`;
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
