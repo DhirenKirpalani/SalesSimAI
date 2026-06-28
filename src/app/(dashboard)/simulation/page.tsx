@@ -812,7 +812,7 @@ function HeyGenTestInner() {
       try {
         if (currentCallMode === "voice" && currentVoiceSessionId) {
           // Voice calls — run coaching evaluator
-          const [coachRes] = await Promise.all([
+          const [coachRes, endRes] = await Promise.all([
             fetch("/api/simulation/coach", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -829,6 +829,12 @@ function HeyGenTestInner() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ sessionId: currentVoiceSessionId }),
           }).catch(() => {});
+
+          if (!endRes.ok) {
+            const endErr = await endRes.json().catch(() => ({}));
+            console.error("[handleEnd] voice end failed:", endRes.status, endErr);
+            addLog("⚠️ Failed to end session: " + (endErr.error || endRes.status));
+          }
 
           const coachData = await coachRes.json();
           if (coachData.evaluation) {
@@ -851,7 +857,7 @@ function HeyGenTestInner() {
           }
         } else if (currentCallMode === "text" && currentTextSessionId) {
           // Text chat — run MEDDIC analysis
-          const [analyzeRes] = await Promise.all([
+          const [analyzeRes, endRes] = await Promise.all([
             fetch("/api/simulation/analyze", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -868,6 +874,12 @@ function HeyGenTestInner() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ sessionId: currentTextSessionId }),
           }).catch(() => {});
+
+          if (!endRes.ok) {
+            const endErr = await endRes.json().catch(() => ({}));
+            console.error("[handleEnd] text end failed:", endRes.status, endErr);
+            addLog("⚠️ Failed to end session: " + (endErr.error || endRes.status));
+          }
 
           const analyzeData = await analyzeRes.json();
           if (analyzeData.analysis) {
@@ -897,7 +909,12 @@ function HeyGenTestInner() {
               })
             );
           }
-          const [feedbackRes] = await Promise.all(promises) as [Response];
+          const [feedbackRes, endRes] = await Promise.all(promises) as [Response, Response | undefined];
+          if (endRes && !endRes.ok) {
+            const endErr = await endRes.json().catch(() => ({}));
+            console.error("[handleEnd] video end failed:", endRes.status, endErr);
+            addLog("⚠️ Failed to end session: " + (endErr.error || endRes.status));
+          }
           setFeedback(await feedbackRes.json());
 
           const heygenSessionId = sessionRef.current?.session_id;
