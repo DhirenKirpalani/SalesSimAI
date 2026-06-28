@@ -1,48 +1,24 @@
 -- ============================================================
--- Custom Scenarios Table + RLS
--- Run this in the Supabase SQL Editor
+-- Link custom and platform scenarios to organizations
 -- ============================================================
 
-create table if not exists public.custom_scenarios (
-  id                 uuid primary key default uuid_generate_v4(),
-  user_id            uuid references auth.users on delete cascade not null,
-  created_by         uuid references auth.users(id) on delete set null,
-  organization_id    uuid references public.organizations(id) on delete cascade,
+-- 1. Add org / owner columns to custom_scenarios
+alter table public.custom_scenarios
+  add column if not exists created_by uuid references auth.users(id) on delete set null,
+  add column if not exists organization_id uuid references public.organizations(id) on delete cascade;
 
-  -- Seller's company context (what the user sells)
-  seller_company     text not null,
-  seller_product     text not null,
-  seller_description text not null,
+create index if not exists idx_custom_scenarios_org_id
+  on public.custom_scenarios(organization_id);
 
-  -- Buyer persona (preset id OR fully custom jsonb)
-  preset_persona_id  text,
-  custom_persona     jsonb,
+-- 2. Add org / owner columns to platform_scenarios
+alter table public.platform_scenarios
+  add column if not exists created_by uuid references auth.users(id) on delete set null,
+  add column if not exists organization_id uuid references public.organizations(id) on delete cascade;
 
-  -- Scenario settings
-  scenario_type      text not null default 'Discovery',
-  product_type       text not null default 'eor'
-    check (product_type in ('payment','eor','cards')),
-  difficulty         text not null default 'Intermediate',
-  duration           int  not null default 20,
-  context_note       text,
+create index if not exists idx_platform_scenarios_org_id
+  on public.platform_scenarios(organization_id);
 
-  -- Derived display fields
-  name               text not null,
-
-  -- Member who generated the scenario (denormalized for visibility)
-  member_name        text,
-  member_role        text,
-
-  -- Scoring / Evaluation
-  scoring_criteria   text,
-  evaluation_framework text,
-
-  created_at         timestamptz not null default now()
-);
-
--- --------------------------------------------------------
--- Enable Row Level Security
--- --------------------------------------------------------
+-- 3. Update custom_scenarios RLS policies
 alter table public.custom_scenarios enable row level security;
 
 drop policy if exists "Users can view own custom scenarios" on public.custom_scenarios;
@@ -87,3 +63,14 @@ create policy "Users can delete own custom scenarios"
     )
   );
 
+-- 4. Update platform_scenarios RLS policy
+alter table public.platform_scenarios enable row level security;
+
+drop policy if exists "Anyone can view platform scenarios" on public.platform_scenarios;
+create policy "Anyone can view platform scenarios"
+  on public.platform_scenarios for select using (
+    organization_id is null
+    or organization_id in (
+      select organization_id from public.profiles where id = auth.uid()
+    )
+  );

@@ -4,11 +4,11 @@ import { useRef, useState, useCallback, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { createClient } from "@/lib/supabase/client";
-import { useVoiceCall, VoiceStatus } from "@/hooks/useVoiceCall";
+import { useVoiceCall, VoiceStatus, VOICE_LANGUAGE_MAP, VoiceLanguage } from "@/hooks/useVoiceCall";
 import { useCoaching } from "@/hooks/useCoaching";
 import { VoiceCallPanel } from "@/components/VoiceCallPanel";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
-import { Video, Mic, MessageSquare, Send } from "lucide-react";
+import { Video, Mic, MessageSquare, Send, Globe } from "lucide-react";
 
 type Status = "idle" | "connecting" | "connected" | "paused" | "error";
 
@@ -171,6 +171,7 @@ function HeyGenTestInner() {
 
   // Voice selector (ElevenLabs voices)
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>("21m00Tcm4TlvDq8ikWAM");
+  const [selectedVoiceLanguage, setSelectedVoiceLanguage] = useState<VoiceLanguage>("auto");
   const voiceOptions = [
     { id: "21m00Tcm4TlvDq8ikWAM", label: "Rachel — Warm & Natural" },
     { id: "TxGEqnHWrfWFTfGW9XjX", label: "Josh — Deep & Authoritative" },
@@ -510,7 +511,7 @@ function HeyGenTestInner() {
       }, 1000);
 
       setStatus("connected");
-      voiceCall.start(session.id, selectedVoiceId);
+      voiceCall.start(session.id, selectedVoiceId, selectedVoiceLanguage);
       addLog("🎙️ Voice call started");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -518,7 +519,7 @@ function HeyGenTestInner() {
       setStatus("error");
       addLog("❌ " + msg);
     }
-  }, [addLog, scenarioId, scenarioTable, resolvedScenarioName, voiceCall, coaching, selectedVoiceId]);
+  }, [addLog, scenarioId, scenarioTable, resolvedScenarioName, voiceCall, coaching, selectedVoiceId, selectedVoiceLanguage]);
 
   // Text chat start — creates a simulation session for typed conversation
   const startText = useCallback(async () => {
@@ -1082,6 +1083,29 @@ function HeyGenTestInner() {
                       {voiceOptions.map((v) => (
                         <option key={v.id} value={v.id} className="bg-[#111827] text-gray-200">
                           {v.label}
+                        </option>
+                      ))}
+                    </select>
+                    <svg className="w-3 h-3 text-gray-400 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              )}
+              {/* Language Selector — shown in voice mode when idle */}
+              {status === "idle" && callMode === "voice" && (
+                <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 border border-white/10">
+                  <Globe className="w-3.5 h-3.5 text-gray-400" />
+                  <div className="relative">
+                    <select
+                      value={selectedVoiceLanguage}
+                      onChange={(e) => setSelectedVoiceLanguage(e.target.value as VoiceLanguage)}
+                      className="appearance-none bg-transparent text-xs text-gray-300 focus:outline-none cursor-pointer pr-5 min-w-[140px]"
+                      style={{ colorScheme: "dark" }}
+                    >
+                      {Object.entries(VOICE_LANGUAGE_MAP).map(([key, { label }]) => (
+                        <option key={key} value={key} className="bg-[#111827] text-gray-200">
+                          {label}
                         </option>
                       ))}
                     </select>

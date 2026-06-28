@@ -48,6 +48,10 @@ interface VoiceCallState {
   isSpeaking: boolean;
 }
 
+import { VOICE_LANGUAGE_MAP, VoiceLanguage } from "@/lib/voice-language";
+export { VOICE_LANGUAGE_MAP } from "@/lib/voice-language";
+export type { VoiceLanguage } from "@/lib/voice-language";
+
 interface UseVoiceCallReturn {
   status: VoiceStatus;
   transcript: TranscriptEntry[];
@@ -58,7 +62,7 @@ interface UseVoiceCallReturn {
   micMuted: boolean;
   audioEnergyRef: React.MutableRefObject<number>;
   micEnergyRef: React.MutableRefObject<number>;
-  start: (sessionId: string, voiceId?: string) => void;
+  start: (sessionId: string, voiceId?: string, language?: VoiceLanguage) => void;
   stop: () => void;
   toggleMic: () => void;
   togglePause: () => void;
@@ -76,6 +80,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
 
   const sessionIdRef = useRef<string | null>(null);
   const voiceIdRef = useRef<string | null>(null);
+  const languageRef = useRef<VoiceLanguage>("en");
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioQueueRef = useRef<string[]>([]); // base64 mp3 data URLs
@@ -245,7 +250,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
       const res = await fetch("/api/simulation/voice-turn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, transcript: text, voiceId: voiceIdRef.current }),
+        body: JSON.stringify({ sessionId, transcript: text, voiceId: voiceIdRef.current, language: languageRef.current }),
       });
 
       if (!res.ok || !res.body) {
@@ -309,7 +314,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
     }
   }, [addTranscript, playNextAudio, stopListening]);
 
-  const start = useCallback((sessionId: string, voiceId?: string) => {
+  const start = useCallback((sessionId: string, voiceId?: string, language?: VoiceLanguage) => {
     abortRef.current = false;
     setError(null);
     setTranscript([]);
@@ -318,6 +323,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
     audioQueueRef.current = [];
     sessionIdRef.current = sessionId;
     voiceIdRef.current = voiceId ?? null;
+    languageRef.current = language ?? "en";
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -331,7 +337,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = "en";
+    recognition.lang = VOICE_LANGUAGE_MAP[languageRef.current].recognitionLang;
     recognition.maxAlternatives = 1;
 
     let finalTranscript = "";

@@ -45,7 +45,7 @@ import { useRole } from "@/hooks/useRole";
 const baseMobileNavItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Scenarios", href: "/scenarios", icon: Library },
-  { label: "AI Onboarding", href: "/company-onboarding", icon: Sparkles },
+  { label: "AI Scenario Generator", href: "/company-onboarding", icon: Sparkles },
   { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
   { label: "Profile", href: "/profile", icon: User },
@@ -175,6 +175,22 @@ export function TopNavbar() {
 
     const load = async () => {
       if (!userId) return;
+      const { data: userProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", userId)
+        .single();
+      const organizationId = userProfile?.organization_id ?? null;
+      let scenarioQuery = supabase
+        .from("custom_scenarios")
+        .select("id, name, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (organizationId) {
+        scenarioQuery = scenarioQuery.or(`organization_id.eq.${organizationId},user_id.eq.${userId}`);
+      } else {
+        scenarioQuery = scenarioQuery.eq("user_id", userId);
+      }
       const [{ data: sessions }, { data: scenarios }] = await Promise.all([
         supabase
           .from("heygen_sessions")
@@ -183,19 +199,14 @@ export function TopNavbar() {
           .not("ended_at", "is", null)
           .order("ended_at", { ascending: false })
           .limit(10),
-        supabase
-          .from("custom_scenarios")
-          .select("id, name, created_at")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(5),
+        scenarioQuery,
       ]);
       sessionsCache = sessions ?? [];
       scenariosCache = scenarios ?? [];
       setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
     };
 
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
       userId = user.id;
 
@@ -204,31 +215,47 @@ export function TopNavbar() {
       setInitials(letters);
       readIdsRef.current = getReadIds();
 
+      const { data: userProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", user.id)
+        .single();
+      const organizationId = userProfile?.organization_id ?? null;
+
       load();
 
       pollInterval = setInterval(load, 30_000);
 
-      channel = supabase
-        .channel(`notif_${user.id}_${Date.now()}`)
-        .on(
+      channel = supabase.channel(`notif_${user.id}_${Date.now()}`);
+      channel.on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "heygen_sessions", filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          if (!payload.new.ended_at) return;
+          const updated = payload.new;
+          sessionsCache = [updated, ...sessionsCache.filter((s) => s.id !== updated.id)].slice(0, 10);
+          setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
+        }
+      );
+      channel.on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "custom_scenarios", filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          scenariosCache = [payload.new, ...scenariosCache].slice(0, 5);
+          setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
+        }
+      );
+      if (organizationId) {
+        channel.on(
           "postgres_changes",
-          { event: "UPDATE", schema: "public", table: "heygen_sessions", filter: `user_id=eq.${user.id}` },
-          (payload) => {
-            if (!payload.new.ended_at) return;
-            const updated = payload.new;
-            sessionsCache = [updated, ...sessionsCache.filter((s) => s.id !== updated.id)].slice(0, 10);
-            setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
-          }
-        )
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "custom_scenarios", filter: `user_id=eq.${user.id}` },
+          { event: "INSERT", schema: "public", table: "custom_scenarios", filter: `organization_id=eq.${organizationId}` },
           (payload) => {
             scenariosCache = [payload.new, ...scenariosCache].slice(0, 5);
             setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
           }
-        )
-        .subscribe();
+        );
+      }
+      channel.subscribe();
     });
 
     return () => {

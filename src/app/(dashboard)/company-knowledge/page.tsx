@@ -1242,7 +1242,7 @@ export default function CompanyKnowledgePage() {
                     <Input
                       value={emailDomain}
                       onChange={(e) => setEmailDomain(e.target.value)}
-                      placeholder="aspire.com"
+                      placeholder="aspireapp.com"
                       className="font-mono text-sm"
                     />
                     <p className="text-xs text-muted-foreground mt-1">

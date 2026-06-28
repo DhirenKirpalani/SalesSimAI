@@ -130,7 +130,6 @@ export default function CompanyOnboardingPage() {
   const [generatedCount, setGeneratedCount] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
-  const [inputMode, setInputMode] = useState<"url" | "files">("url");
   const [extractionPhase, setExtractionPhase] = useState(0);
 
   // Cycle through extraction phases while loading
@@ -148,7 +147,28 @@ export default function CompanyOnboardingPage() {
     setLoading(true);
     setError(null);
     try {
-      if (inputMode === "files" && uploadedFiles.length > 0) {
+      const hasUrl = url.trim().length > 0;
+      const hasFiles = uploadedFiles.length > 0;
+
+      if (!hasUrl && !hasFiles) {
+        setError("Provide a website URL, upload files, or both");
+        setLoading(false);
+        return;
+      }
+
+      if (hasUrl && hasFiles) {
+        const formData = new FormData();
+        formData.append("url", url.trim());
+        if (successStoriesUrl.trim()) formData.append("successStoriesUrl", successStoriesUrl.trim());
+        uploadedFiles.forEach((f, i) => formData.append(`file${i}`, f));
+        const res = await fetch("/api/company/extract-combined", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Extraction failed");
+        setProfile(data.data);
+      } else if (hasFiles) {
         const formData = new FormData();
         uploadedFiles.forEach((f, i) => formData.append(`file${i}`, f));
         const res = await fetch("/api/company/extract-files", {
@@ -159,7 +179,6 @@ export default function CompanyOnboardingPage() {
         if (!res.ok) throw new Error(data.error || "Extraction failed");
         setProfile(data.data);
       } else {
-        if (!url.trim()) { setLoading(false); return; }
         const res = await fetch("/api/company/extract", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -196,7 +215,6 @@ export default function CompanyOnboardingPage() {
       f.name.toLowerCase().endsWith(".pptx") || f.name.toLowerCase().endsWith(".txt")
     );
     setUploadedFiles((prev) => [...prev, ...files]);
-    if (files.length > 0) setInputMode("files");
   };
 
   const removeFile = (index: number) => {
@@ -243,9 +261,9 @@ export default function CompanyOnboardingPage() {
     <div className="max-w-3xl mx-auto space-y-6 px-4 sm:px-6 lg:px-0 py-4 sm:py-0">
       {/* Header */}
       <div className="text-center space-y-2">
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">AI Company Onboarding</h1>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">AI Scenario Generator</h1>
         <p className="text-sm text-muted-foreground">
-          Provide your company website or upload documents. AI will extract your business context and generate realistic sales scenarios.
+          Provide your company website, upload documents, or both. AI will extract your business context and generate realistic sales scenarios.
         </p>
       </div>
 
@@ -289,113 +307,109 @@ export default function CompanyOnboardingPage() {
           >
             <Card className="rounded-2xl border bg-card shadow-sm">
               <CardHeader className="pb-2 px-4 sm:px-6">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-primary" />
-                    Company Source
-                  </CardTitle>
-                  <div className="ml-auto flex bg-muted rounded-lg p-0.5">
-                    <button
-                      onClick={() => setInputMode("url")}
-                      className={cn(
-                        "px-3 py-1 text-xs font-medium rounded-md transition-colors",
-                        inputMode === "url" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      Website
-                    </button>
-                    <button
-                      onClick={() => setInputMode("files")}
-                      className={cn(
-                        "px-3 py-1 text-xs font-medium rounded-md transition-colors",
-                        inputMode === "files" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      Files
-                    </button>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-primary" />
+                  Company Source
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6 px-4 sm:px-6">
+                {/* Website section */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-muted-foreground" />
+                    <Label className="text-sm font-medium">Website</Label>
+                    <span className="text-xs text-muted-foreground">(optional if files are uploaded)</span>
+                  </div>
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="https://choco-up.com"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      className="rounded-xl"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      We will scrape your homepage, about page, and product descriptions.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs">Success Stories URL (optional)</Label>
+                    <Input
+                      placeholder="https://choco-up.com/success-stories"
+                      value={successStoriesUrl}
+                      onChange={(e) => setSuccessStoriesUrl(e.target.value)}
+                      className="rounded-xl"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Links to case studies, testimonials, or customer stories help AI extract real pain points.
+                    </p>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4 px-4 sm:px-6">
-                {inputMode === "url" ? (
-                  <>
-                    <div className="space-y-2">
-                      <Label>Company Website URL</Label>
-                      <Input
-                        placeholder="https://choco-up.com"
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                        className="rounded-xl"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        We will scrape your homepage, about page, and product descriptions.
-                      </p>
-                    </div>
 
-                    <div className="space-y-2">
-                      <Label>Success Stories URL (optional)</Label>
-                      <Input
-                        placeholder="https://choco-up.com/success-stories"
-                        value={successStoriesUrl}
-                        onChange={(e) => setSuccessStoriesUrl(e.target.value)}
-                        className="rounded-xl"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Links to case studies, testimonials, or customer stories help AI extract real pain points.
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <div className="space-y-3">
-                    <div
-                      onDragEnter={handleDrag}
-                      onDragOver={handleDrag}
-                      onDragLeave={handleDrag}
-                      onDrop={handleDrop}
-                      className={cn(
-                        "border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer",
-                        dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-muted-foreground/40"
-                      )}
-                    >
-                      <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm font-medium">Drag & drop files here</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        PDF, DOCX, PPTX, TXT — sales decks, pitch decks, case studies, product sheets
-                      </p>
-                      <input
-                        type="file"
-                        multiple
-                        accept=".pdf,.docx,.pptx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
-                        onChange={(e) => {
-                          const files = Array.from(e.target.files ?? []);
-                          setUploadedFiles((prev) => [...prev, ...files]);
-                        }}
-                        className="hidden"
-                        id="file-upload"
-                      />
-                      <label htmlFor="file-upload" className="mt-3 inline-block">
-                        <span className="inline-flex items-center justify-center h-8 px-3 text-xs font-medium rounded-lg border border-input bg-background hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors">
-                          Browse Files
-                        </span>
-                      </label>
-                    </div>
-
-                    {uploadedFiles.length > 0 && (
-                      <div className="space-y-1.5">
-                        {uploadedFiles.map((f, i) => (
-                          <div key={i} className="flex items-center gap-2 text-sm bg-muted/50 rounded-lg px-3 py-2">
-                            <File className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                            <span className="flex-1 truncate">{f.name}</span>
-                            <span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
-                            <button onClick={() => removeFile(i)} className="text-muted-foreground hover:text-red-500">
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
                   </div>
-                )}
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">and / or</span>
+                  </div>
+                </div>
+
+                {/* Files section */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <File className="w-4 h-4 text-muted-foreground" />
+                    <Label className="text-sm font-medium">Upload Files</Label>
+                    <span className="text-xs text-muted-foreground">(optional if website URL is provided)</span>
+                  </div>
+                  <div
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                    className={cn(
+                      "border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer",
+                      dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-muted-foreground/40"
+                    )}
+                  >
+                    <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm font-medium">Drag & drop files here</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      PDF, DOCX, PPTX, TXT — sales decks, pitch decks, case studies, product sheets
+                    </p>
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.docx,.pptx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? []);
+                        setUploadedFiles((prev) => [...prev, ...files]);
+                      }}
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <label htmlFor="file-upload" className="mt-3 inline-block">
+                      <span className="inline-flex items-center justify-center h-8 px-3 text-xs font-medium rounded-lg border border-input bg-background hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors">
+                        Browse Files
+                      </span>
+                    </label>
+                  </div>
+
+                  {uploadedFiles.length > 0 && (
+                    <div className="space-y-1.5">
+                      {uploadedFiles.map((f, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm bg-muted/50 rounded-lg px-3 py-2">
+                          <File className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                          <span className="flex-1 truncate">{f.name}</span>
+                          <span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
+                          <button onClick={() => removeFile(i)} className="text-muted-foreground hover:text-red-500">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {error && (
                   <div className="flex items-center gap-2 text-sm text-red-500 bg-red-50 px-3 py-2 rounded-xl">
@@ -463,7 +477,7 @@ export default function CompanyOnboardingPage() {
                 ) : (
                   <Button
                     onClick={extract}
-                    disabled={inputMode === "url" ? !url.trim() : uploadedFiles.length === 0}
+                    disabled={!url.trim() && uploadedFiles.length === 0}
                     className="w-full rounded-xl"
                   >
                     <Wand2 className="w-4 h-4 mr-2" />

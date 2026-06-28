@@ -336,16 +336,29 @@ RULES FOR SELLER:
 
 export async function POST(req: NextRequest) {
   try {
-    const { profile, avatarId, voiceId } = await req.json();
+    const { profile, avatarId, voiceId, productType } = await req.json();
     if (!profile || !avatarId) {
       return NextResponse.json({ error: "Missing profile or avatarId" }, { status: 400 });
     }
+
+    const scenarioProductType = productType === "eor" || productType === "cards" || productType === "payment"
+      ? productType
+      : "payment";
 
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const { data: userProfile } = await supabase
+      .from("profiles")
+      .select("organization_id, full_name, role")
+      .eq("id", user.id)
+      .single();
+    const organizationId = userProfile?.organization_id ?? null;
+    const memberName = userProfile?.full_name ?? null;
+    const memberRole = userProfile?.role ?? null;
 
     const scenarios = [];
     const personas = profile.buyer_personas?.slice(0, 2) ?? [];
@@ -371,8 +384,13 @@ export async function POST(req: NextRequest) {
     // Save to Supabase
     const dbRows = scenarios.map((s) => ({
       user_id: user.id,
+      created_by: user.id,
+      organization_id: organizationId,
+      member_name: memberName,
+      member_role: memberRole,
       name: s.name,
       scenario_type: s.scenario_type,
+      product_type: scenarioProductType,
       seller_company: s.seller_company,
       seller_product: s.seller_product,
       seller_description: s.seller_description,

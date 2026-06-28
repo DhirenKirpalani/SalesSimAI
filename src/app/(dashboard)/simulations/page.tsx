@@ -123,7 +123,7 @@ export default function SimulationsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: i * 0.04 }}
                 onClick={() => router.push(`/analysis?session=${s.id}&source=${s.source}`)}
-                className="flex items-center gap-4 px-5 py-4 rounded-2xl border bg-card hover:bg-accent/50 cursor-pointer transition-colors group"
+                className="group flex items-center gap-4 rounded-2xl border bg-card px-5 py-4 hover:shadow-sm hover:border-primary/30 cursor-pointer transition-all"
               >
                 {/* Score badge */}
                 <div className="flex-shrink-0 w-14 text-center">
@@ -150,7 +150,11 @@ export default function SimulationsPage() {
                       <Clock className="w-3 h-3" />
                       {formatDuration(s.duration_s)}
                     </span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-300">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                      s.source === "heygen"
+                        ? "bg-violet-500/10 text-violet-600 border-violet-500/20"
+                        : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                    }`}>
                       {s.source === "heygen" ? "Video Call" : "Voice Call"}
                     </span>
                   </div>

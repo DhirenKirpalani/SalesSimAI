@@ -19,17 +19,15 @@ import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useRole } from "@/hooks/useRole";
 
-const baseNavItems = [
+const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Scenarios", href: "/scenarios", icon: Library },
+  { label: "AI Scenario Generator", href: "/company-onboarding", icon: Sparkles },
   { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
+  { label: "Company Knowledge", href: "/company-knowledge", icon: BookOpen, adminOnly: true },
   { label: "Profile", href: "/profile", icon: User },
-];
-
-const adminNavItems = [
-  { label: "Company Knowledge", href: "/company-knowledge", icon: BookOpen },
-  { label: "Admin", href: "/admin", icon: ShieldCheck },
+  { label: "Admin", href: "/admin", icon: ShieldCheck, adminOnly: true },
 ];
 
 export function Sidebar() {
@@ -37,9 +35,7 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const { isAdmin } = useRole();
 
-  const navItems = isAdmin
-    ? [...baseNavItems, ...adminNavItems]
-    : baseNavItems;
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <aside
@@ -58,7 +54,7 @@ export function Sidebar() {
       </Link>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const active = pathname.startsWith(item.href);
           return (
             <Link

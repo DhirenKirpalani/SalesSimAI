@@ -1,36 +1,82 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Zap } from "lucide-react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
+
+const footerLinks = [
+  { label: "Privacy", href: "/privacy" },
+  { label: "Terms", href: "/terms" },
+  { label: "Security", href: "/security" },
+  { label: "Contact", href: "/contact" },
+];
 
 export function Footer() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setIsLoggedIn(!!data.user);
+    });
+  }, []);
+
   return (
-    <motion.footer
-      initial={{ opacity: 0, y: 30 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.7, ease: "easeOut" }}
-      className="border-t bg-card py-12"
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary text-primary-foreground">
-              <Zap className="w-4 h-4" />
-            </div>
-            <span className="font-semibold text-sm tracking-tight">SalesSim AI</span>
-          </div>
-          <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <span className="hover:text-foreground cursor-pointer transition-colors">Privacy</span>
-            <span className="hover:text-foreground cursor-pointer transition-colors">Terms</span>
-            <span className="hover:text-foreground cursor-pointer transition-colors">Security</span>
-            <span className="hover:text-foreground cursor-pointer transition-colors">Contact</span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            &copy; {new Date().getFullYear()} SalesSim AI. All rights reserved.
+    <footer className="bg-[var(--foreground)]">
+      {/* CTA section */}
+      <section className="py-20 lg:py-28 px-6 lg:px-16 text-center">
+        <div className="max-w-[1100px] mx-auto">
+          <h2 className="font-serif text-[1.5rem] sm:text-[1.75rem] font-bold text-[var(--background)] tracking-[-0.02em] mb-4 sm:whitespace-nowrap">
+            {isLoggedIn ? "Your team's conversations are your best asset." : "Your team's conversations are your best asset. Start using them."}
+          </h2>
+          <p className="text-[0.975rem] text-[#8A99B8] leading-[1.75] max-w-[460px] mx-auto mb-8">
+            {isLoggedIn
+              ? "Jump back into your dashboard to continue practising, reviewing calls, and coaching your team."
+              : "Set up your first module in under an hour. No implementation timeline. No demo required to start."}
           </p>
+          <Link href={isLoggedIn ? "/dashboard" : "/signup"}>
+            <Button className="bg-[var(--primary)] text-white px-7 py-3 rounded-md text-[0.95rem] font-semibold hover:bg-[#c94415] transition-colors">
+              {isLoggedIn ? "Go to dashboard" : "Book a demo"}
+            </Button>
+          </Link>
+          {!isLoggedIn && (
+            <p className="mt-4 text-[0.75rem] text-[#6B7A99]">
+              14-day free trial · No credit card required · Cancel any time
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* Footer bar */}
+      <div className="border-t border-[#1E2840]">
+        <div className="w-full px-6 lg:px-16 py-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <Link
+              href="/"
+              onClick={(e) => {
+                if (typeof window !== "undefined" && window.location.pathname === "/") {
+                  e.preventDefault();
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }
+              }}
+              className="font-serif text-[1rem] font-bold text-[var(--background)] hover:opacity-80 transition-opacity no-underline"
+            >
+              SalesSim<span className="text-[var(--primary)]">.</span>
+            </Link>
+            <div className="flex gap-8 text-[0.78rem] text-[#6B7A99]">
+              {footerLinks.map((link) => (
+                <a key={link.label} href={link.href} className="hover:text-[var(--background)] transition-colors no-underline">
+                  {link.label}
+                </a>
+              ))}
+            </div>
+            <p className="text-[0.72rem] text-[#6B7A99]">
+              © {new Date().getFullYear()} SalesSim
+            </p>
+          </div>
         </div>
       </div>
-    </motion.footer>
+    </footer>
   );
 }

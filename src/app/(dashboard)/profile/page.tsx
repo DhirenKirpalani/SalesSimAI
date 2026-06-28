@@ -3,14 +3,12 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { useThemeStore } from "@/stores/useThemeStore";
 import { createClient } from "@/lib/supabase/client";
-import { Moon, Bell, Mail, User, Loader2, Check, AlertCircle, Briefcase } from "lucide-react";
+import { Mail, User, Loader2, Check, AlertCircle, Briefcase } from "lucide-react";
 
 interface Profile {
   full_name: string | null;
@@ -25,7 +23,6 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
-  const { darkMode, toggleDarkMode } = useThemeStore();
 
   useEffect(() => {
     const supabase = createClient();
@@ -213,75 +210,6 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Appearance */}
-      <Card className="rounded-2xl border bg-card shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <Moon className="w-4 h-4" />
-            Appearance
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">Dark Mode</p>
-              <p className="text-xs text-muted-foreground">
-                Toggle between light and dark themes.
-              </p>
-            </div>
-            <Switch checked={darkMode} onCheckedChange={toggleDarkMode} />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Notifications */}
-      <Card className="rounded-2xl border bg-card shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <Bell className="w-4 h-4" />
-            Notifications
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {[
-            { label: "Session reminders", desc: "Get notified before scheduled practice sessions.", checked: true },
-            { label: "Score reports", desc: "Receive an email after each simulation analysis.", checked: true },
-            { label: "Team activity", desc: "Alerts when teammates complete simulations.", checked: false },
-          ].map((n) => (
-            <div key={n.label} className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">{n.label}</p>
-                <p className="text-xs text-muted-foreground">{n.desc}</p>
-              </div>
-              <Switch defaultChecked={n.checked} />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* Account Preferences */}
-      <Card className="rounded-2xl border bg-card shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <Mail className="w-4 h-4" />
-            Account Preferences
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {[
-            { label: "Marketing emails", desc: "Product updates, tips, and industry insights.", checked: false },
-            { label: "Public profile", desc: "Allow your team to see your scores and streaks.", checked: true },
-          ].map((n) => (
-            <div key={n.label} className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">{n.label}</p>
-                <p className="text-xs text-muted-foreground">{n.desc}</p>
-              </div>
-              <Switch defaultChecked={n.checked} />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
     </div>
   );
 }

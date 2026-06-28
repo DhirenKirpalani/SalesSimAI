@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       ? `EVALUATION FRAMEWORK: Use the ${framework} framework to guide your assessment.`
       : "";
     const criteriaSection = customCriteria
-      ? `WHAT GOOD LOOKS LIKE FOR THIS COMPANY:\n${customCriteria}`
+      ? `SCORING CRITERIA FOR THIS COMPANY:\n${customCriteria}`
       : "";
 
     const prompt = `You are an expert sales coach evaluating a B2B sales discovery call simulation.
@@ -91,7 +91,7 @@ EVALUATE on these dimensions (0-100 score each):
 
 3. EMPATHY_SCORE: Did the seller show genuine curiosity, use the buyer's language, and make the buyer feel heard?
 
-4. OVERALL_SCORE: Weighted average with emphasis on discovery. ${customCriteria ? "Consider 'What Good Looks Like' above." : ""}
+4. OVERALL_SCORE: Weighted average with emphasis on discovery. ${customCriteria ? "Consider the Scoring Criteria above." : ""}
 
 Also provide:
 - MISSED_OPPORTUNITIES: Specific questions or tactics the seller failed to use (max 5)

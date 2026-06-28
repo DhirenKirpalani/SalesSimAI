@@ -1,126 +1,86 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "framer-motion";
-import { Card, CardContent } from "@/components/ui/card";
-import { Video, Mic, BarChart3, Shield, Sparkles, Users } from "lucide-react";
-import { useRef } from "react";
+import { useState } from "react";
 
-const features = [
+const personaCards = [
   {
-    icon: Video,
-    title: "Fintech Buyer Simulations",
-    description:
-      "Practice with AI buyers modeled on real fintech CFOs, compliance officers, and procurement leads. Face the exact objections your reps hear on live calls.",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" stroke="currentColor" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    ),
+    label: "Sales reps",
+    title: "Practise the call before it's real",
+    description: "AI roleplay against buyer archetypes built from your product and your ICP. Fail safely. Get feedback. Walk into the call ready.",
   },
   {
-    icon: Mic,
-    title: "Voice-Powered Roleplay",
-    description:
-      "Speak naturally to AI buyers powered by ElevenLabs and OpenAI. Practice regulatory pushback, API integration concerns, and pricing negotiations in real time.",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" stroke="currentColor" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+      </svg>
+    ),
+    label: "Sales leaders",
+    title: "Know what's happening across every deal",
+    description: "AI note taker pulls structured summaries from customer calls — weekly. Spot themes, track objections, coach from evidence not instinct.",
   },
   {
-    icon: BarChart3,
-    title: "Performance Analytics",
-    description:
-      "Track rep readiness across deal stages, win-rate lift, objection-handling scores, and time-to-close improvements. Spot coaching gaps before they cost you deals.",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" stroke="currentColor" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+    label: "Operations",
+    title: "Never lose what was decided in a meeting",
+    description: "Internal meeting note taker captures decisions, action items, and context. Searchable. Summarised. Delivered to whoever needs it.",
   },
   {
-    icon: Shield,
-    title: "Enterprise Security",
-    description:
-      "SOC 2 Type II certified with SSO, role-based access, and full audit trails. Built to meet the security standards your fintech buyers demand.",
-  },
-  {
-    icon: Sparkles,
-    title: "AI Coaching & Feedback",
-    description:
-      "Get instant, actionable feedback after every simulation. Sharpen compliance talk tracks, pricing pivots, and competitive differentiation for fintech deals.",
-  },
-  {
-    icon: Users,
-    title: "Sales Leader Dashboard",
-    description:
-      "Sales leaders get real-time visibility into team readiness, deal-win probability scores, and skill breakdowns tailored to B2B fintech selling motions.",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" stroke="currentColor" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+    ),
+    label: "Customer teams",
+    title: "Answer faster, escalate less",
+    description: "Smarter chatbots and internal wikis grounded in your actual content — not generic AI. Customer-facing or internal, the answers are yours.",
   },
 ];
 
 export function FeaturesSection() {
-  const sectionRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start end", "end start"],
-  });
-
-  const titleY = useTransform(scrollYProgress, [0, 0.3], [60, 0]);
-  const titleOpacity = useTransform(scrollYProgress, [0, 0.2], [0, 1]);
+  const [activePersona, setActivePersona] = useState(0);
 
   return (
-    <section id="features" ref={sectionRef} className="py-32 bg-background relative overflow-hidden">
-      {/* Subtle background gradient shift */}
-      <motion.div
-        style={{ opacity: useTransform(scrollYProgress, [0, 0.5], [0, 0.5]) }}
-        className="absolute inset-0 pointer-events-none"
-      >
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-primary/[0.02] rounded-full blur-[150px]" />
-      </motion.div>
+    <section id="platform" className="max-w-[1100px] mx-auto px-6 lg:px-16 py-16 lg:py-20">
+      <p className="text-[0.7rem] font-semibold tracking-[0.14em] uppercase text-[var(--primary)] mb-4">The platform</p>
+      <h2 className="font-serif text-[1.75rem] sm:text-[2.1rem] font-bold tracking-[-0.02em] text-[var(--foreground)] mb-3 leading-[1.2]">
+        One platform. Every conversation that matters.
+      </h2>
+      <p className="text-[0.975rem] text-[var(--muted-foreground)] max-w-[520px] leading-[1.75]">
+        Different teams have different priorities. SalesSim gives each persona the tool that fits their job — all pulling from the same conversation layer underneath.
+      </p>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 50, filter: "blur(10px)" }}
-          whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="text-center mb-20"
-        >
-          <motion.span
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="inline-block text-xs font-semibold text-primary uppercase tracking-widest mb-4"
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-[var(--border)] border border-[var(--border)] rounded-[10px] overflow-hidden mt-12">
+        {personaCards.map((card, i) => (
+          <div
+            key={card.title}
+            onClick={() => setActivePersona(i)}
+            className={`bg-[var(--card)] p-7 cursor-pointer transition-colors relative ${activePersona === i ? "bg-[#FFF9F6]" : "hover:bg-[#FFF9F6]"}`}
           >
-            Features
-          </motion.span>
-          <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-            Built for the complexity of fintech sales
-          </h2>
-          <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            From regulatory objections to multi-stakeholder deals, give your reps the reps they need to win in B2B fintech.
-          </p>
-        </motion.div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style={{ perspective: 1000 }}>
-          {features.map((f, i) => (
-            <motion.div
-              key={f.title}
-              initial={{ opacity: 0, y: 60, rotateX: 15 }}
-              whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ duration: 0.7, delay: i * 0.12, ease: "easeOut" }}
-              className="group"
-            >
-              <motion.div
-                whileHover={{ y: -10, transition: { duration: 0.3, ease: "easeOut" } }}
-              >
-                <Card className="rounded-2xl border bg-card/80 backdrop-blur-sm shadow-sm hover:shadow-2xl hover:shadow-primary/[0.07] transition-all duration-500 h-full border-transparent hover:border-primary/30 relative overflow-hidden">
-                  {/* Hover glow effect */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  <CardContent className="p-8 space-y-4 relative z-10">
-                    <motion.div
-                      whileHover={{ rotate: 8, scale: 1.15 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 15 }}
-                      className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary"
-                    >
-                      <f.icon className="w-6 h-6" />
-                    </motion.div>
-                    <h3 className="font-semibold text-lg group-hover:text-primary transition-colors duration-300">{f.title}</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{f.description}</p>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </motion.div>
-          ))}
-        </div>
+            {activePersona === i && <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[var(--primary)]" />}
+            <div className="w-10 h-10 rounded-[10px] bg-[var(--tag)] flex items-center justify-center mb-5 text-[var(--foreground)]">
+              {card.icon}
+            </div>
+            <p className="text-[0.68rem] font-semibold tracking-[0.1em] uppercase text-[var(--primary)] mb-1.5">{card.label}</p>
+            <p className="text-[0.95rem] font-semibold text-[var(--foreground)] mb-2 leading-[1.3]">{card.title}</p>
+            <p className="text-[0.8rem] text-[var(--muted-foreground)] leading-[1.6]">{card.description}</p>
+            <a href="#how" className={`text-[0.78rem] font-semibold text-[var(--primary)] no-underline mt-4 inline-block border-b border-transparent transition-colors ${activePersona === i ? "border-b-[var(--primary)]" : ""}`}>
+              Learn more →
+            </a>
+          </div>
+        ))}
       </div>
     </section>
   );

@@ -18,6 +18,7 @@ import { CustomPersona } from "@/types";
 import { SimulationMessage } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
 import { buildCompanyRagContext } from "@/lib/vector-store";
+import { VOICE_LANGUAGE_MAP, VoiceLanguage } from "@/lib/voice-language";
 
 function sseLine(data: unknown): string {
   return `data: ${JSON.stringify(data)}\n\n`;
@@ -29,7 +30,8 @@ export async function POST(req: NextRequest) {
   const readable = new ReadableStream({
     async start(controller) {
       try {
-        const { sessionId, transcript, voiceId } = await req.json();
+        const { sessionId, transcript, voiceId, language } = await req.json();
+        const voiceLanguage: VoiceLanguage = VOICE_LANGUAGE_MAP[language as VoiceLanguage] ? (language as VoiceLanguage) : "en";
 
         if (!sessionId || !transcript?.trim()) {
           controller.enqueue(encoder.encode(sseLine({ type: "error", message: "Missing sessionId or transcript" })));
@@ -168,7 +170,7 @@ ROLE GUARDRAILS — never break these:
 - Be skeptical. Ask tough questions. Don't volunteer information.
 - Respond naturally in 1-3 sentences.
 - Your behavior MUST shift based on remaining time (see TIME PRESSURE above).
-- LANGUAGE: Mirror the seller's language, accent, and style exactly. Match their vocabulary, tone, slang, and sentence structure. If they switch language mid-conversation, switch with them seamlessly. Never default to generic American English.
+${voiceLanguage === "auto" ? "- LANGUAGE: Listen to the seller's language and mirror it exactly. Match their vocabulary, tone, slang, accent, and sentence structure. If they switch language mid-conversation, switch with them seamlessly. Never force a language the seller is not using." : `- REQUIRED LANGUAGE: ${VOICE_LANGUAGE_MAP[voiceLanguage].promptName}. Respond in this language even if the seller speaks English. Use natural vocabulary, slang, tone, and sentence structure typical of this language. If the seller switches language, you may switch with them, but default back to ${VOICE_LANGUAGE_MAP[voiceLanguage].promptName}.`}
 
 RESPOND IN JSON:
 {"message":"your spoken response","emotion":"neutral|skeptical|interested|frustrated","intent":"answer|objection|question|redirect"}`;
@@ -242,7 +244,7 @@ RESPOND IN JSON:
 
         if (elevenLabsKey) {
           try {
-            const effectiveVoiceId = voiceId || selectElevenLabsVoice(persona.personality);
+            const effectiveVoiceId = voiceId || selectElevenLabsVoice(persona.personality, voiceLanguage);
             const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${effectiveVoiceId}`, {
               method: "POST",
               headers: {
@@ -347,7 +349,14 @@ function selectVoice(personality: string): string {
   return "alloy";
 }
 
-function selectElevenLabsVoice(personality: string): string {
+function selectElevenLabsVoice(personality: string, language: VoiceLanguage = "en"): string {
+  // For auto mode and multilingual outputs, use a voice that handles many languages well.
+  if (language === "auto" || language === "malay" || language === "indonesian" || language === "mandarin") {
+    return "XB0fDUnXU5powFXSHcV"; // Bella — professional multilingual
+  }
+  if (language === "singlish") {
+    return "21m00Tcm4TlvDq8ikWAM"; // Rachel — warm English, works for Singlish tone
+  }
   const p = personality.toLowerCase();
   // Josh — deep, serious, authoritative
   if (p.includes("aggressive") || p.includes("direct") || p.includes("assertive")) return "TxGEqnHWrfWFTfGW9XjX";
