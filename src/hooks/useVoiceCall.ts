@@ -338,7 +338,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = VOICE_LANGUAGE_MAP[languageRef.current].recognitionLang;
-    recognition.maxAlternatives = 1;
+    recognition.maxAlternatives = 3;
 
     let finalTranscript = "";
     let interimTranscript = "";
@@ -357,7 +357,18 @@ export function useVoiceCall(): UseVoiceCallReturn {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         if (result.isFinal) {
-          finalTranscript += result[0].transcript + " ";
+          // Pick the most confident alternative
+          let bestTranscript = result[0].transcript;
+          let bestConfidence = (result[0] as any).confidence ?? 0;
+          for (let j = 1; j < result.length; j++) {
+            const alt = result[j] as any;
+            const altConfidence = alt.confidence ?? 0;
+            if (altConfidence > bestConfidence) {
+              bestTranscript = alt.transcript;
+              bestConfidence = altConfidence;
+            }
+          }
+          finalTranscript += bestTranscript + " ";
         } else {
           interimTranscript += result[0].transcript;
         }

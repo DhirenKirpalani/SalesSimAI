@@ -111,7 +111,7 @@ export function TopNavbar() {
 
   const { isAdmin } = useRole();
 
-  const buildNotifications = useCallback((sessions: any[], scenarios: any[], invites: any[], readIds: Set<string>): Notification[] => {
+  const buildNotifications = useCallback((sessions: any[], voiceTextSessions: any[], scenarios: any[], invites: any[], readIds: Set<string>): Notification[] => {
     const notifs: Notification[] = [];
     invites.forEach((inv) => {
       const id = `invite-${inv.id}`;
@@ -128,6 +128,7 @@ export function TopNavbar() {
         orgName: inv.org_name,
       });
     });
+    // Video sessions (HeyGen)
     sessions.forEach((s) => {
       const score = s.analysis?.overall_score as number | undefined;
       const name = s.scenario_name ?? "a simulation";
@@ -139,6 +140,22 @@ export function TopNavbar() {
           ? `You scored ${score}/100 on "${name}".`
           : `Your simulation "${name}" has ended.`,
         time: timeAgo(s.ended_at ?? s.started_at),
+        read: readIds.has(id),
+        type: score !== undefined && score >= 80 ? "score" : "message",
+      });
+    });
+    // Voice + text sessions (simulation_sessions)
+    voiceTextSessions.forEach((s) => {
+      const score = s.analysis?.overall_score as number | undefined;
+      const name = s.scenario_name ?? "a simulation";
+      const id = `sim-session-${s.id}`;
+      notifs.push({
+        id,
+        title: score !== undefined ? `Simulation scored ${score}/100` : "Simulation completed",
+        message: score !== undefined
+          ? `You scored ${score}/100 on "${name}".`
+          : `Your simulation "${name}" has ended.`,
+        time: timeAgo(s.ended_at ?? s.created_at ?? s.started_at),
         read: readIds.has(id),
         type: score !== undefined && score >= 80 ? "score" : "message",
       });
@@ -160,6 +177,8 @@ export function TopNavbar() {
       const getTs = (n: Notification) => {
         const s = sessions.find((s) => `session-${s.id}` === n.id);
         if (s) return s.ended_at ?? s.started_at ?? "";
+        const vts = voiceTextSessions.find((s) => `sim-session-${s.id}` === n.id);
+        if (vts) return vts.ended_at ?? vts.created_at ?? "";
         const sc = scenarios.find((s) => `scenario-${s.id}` === n.id);
         if (sc) return sc.created_at ?? "";
         const inv = invites.find((i: any) => `invite-${i.id}` === n.id);
@@ -195,6 +214,7 @@ export function TopNavbar() {
   useEffect(() => {
     const supabase = createClient();
     let sessionsCache: any[] = [];
+    let voiceTextSessionsCache: any[] = [];
     let scenariosCache: any[] = [];
     let channel: ReturnType<typeof supabase.channel> | null = null;
     let pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -220,10 +240,17 @@ export function TopNavbar() {
       } else {
         scenarioQuery = scenarioQuery.eq("user_id", userId);
       }
-      const [{ data: sessions }, { data: scenarios }, inviteRes] = await Promise.all([
+      const [{ data: sessions }, { data: voiceTextSessions }, { data: scenarios }, inviteRes] = await Promise.all([
         supabase
           .from("heygen_sessions")
           .select("id, scenario_name, analysis, started_at, ended_at")
+          .eq("user_id", userId)
+          .not("ended_at", "is", null)
+          .order("ended_at", { ascending: false })
+          .limit(10),
+        supabase
+          .from("simulation_sessions")
+          .select("id, scenario_name, analysis, created_at, ended_at")
           .eq("user_id", userId)
           .not("ended_at", "is", null)
           .order("ended_at", { ascending: false })
@@ -232,9 +259,10 @@ export function TopNavbar() {
         fetch("/api/company/org/my-invite").then((r) => r.json()).catch(() => ({ invites: [] })),
       ]);
       sessionsCache = sessions ?? [];
+      voiceTextSessionsCache = voiceTextSessions ?? [];
       scenariosCache = scenarios ?? [];
       invitesCache = (inviteRes?.invites ?? []).filter((inv: any) => !acceptedInvites.has(inv.id));
-      setNotifications(buildNotifications(sessionsCache, scenariosCache, invitesCache, readIdsRef.current));
+      setNotifications(buildNotifications(sessionsCache, voiceTextSessionsCache, scenariosCache, invitesCache, readIdsRef.current));
     };
 
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -265,7 +293,17 @@ export function TopNavbar() {
           if (!payload.new.ended_at) return;
           const updated = payload.new;
           sessionsCache = [updated, ...sessionsCache.filter((s) => s.id !== updated.id)].slice(0, 10);
-          setNotifications(buildNotifications(sessionsCache, scenariosCache, invitesCache, readIdsRef.current));
+          setNotifications(buildNotifications(sessionsCache, voiceTextSessionsCache, scenariosCache, invitesCache, readIdsRef.current));
+        }
+      );
+      channel.on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "simulation_sessions", filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          if (!payload.new.ended_at || payload.new.status !== "completed") return;
+          const updated = payload.new;
+          voiceTextSessionsCache = [updated, ...voiceTextSessionsCache.filter((s) => s.id !== updated.id)].slice(0, 10);
+          setNotifications(buildNotifications(sessionsCache, voiceTextSessionsCache, scenariosCache, invitesCache, readIdsRef.current));
         }
       );
       channel.on(
@@ -273,7 +311,7 @@ export function TopNavbar() {
         { event: "INSERT", schema: "public", table: "custom_scenarios", filter: `user_id=eq.${user.id}` },
         (payload) => {
           scenariosCache = [payload.new, ...scenariosCache].slice(0, 5);
-          setNotifications(buildNotifications(sessionsCache, scenariosCache, invitesCache, readIdsRef.current));
+          setNotifications(buildNotifications(sessionsCache, voiceTextSessionsCache, scenariosCache, invitesCache, readIdsRef.current));
         }
       );
       if (organizationId) {
@@ -282,7 +320,7 @@ export function TopNavbar() {
           { event: "INSERT", schema: "public", table: "custom_scenarios", filter: `organization_id=eq.${organizationId}` },
           (payload) => {
             scenariosCache = [payload.new, ...scenariosCache].slice(0, 5);
-            setNotifications(buildNotifications(sessionsCache, scenariosCache, invitesCache, readIdsRef.current));
+            setNotifications(buildNotifications(sessionsCache, voiceTextSessionsCache, scenariosCache, invitesCache, readIdsRef.current));
           }
         );
       }

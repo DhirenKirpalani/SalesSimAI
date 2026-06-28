@@ -5,15 +5,25 @@ import { Mic, MicOff, Pause, Play, Volume2, AlertCircle, PhoneOff } from "lucide
 import { cn } from "@/lib/utils";
 import { VoiceStatus } from "@/hooks/useVoiceCall";
 
+interface TranscriptEntry {
+  role: "avatar" | "user";
+  text: string;
+  time: string;
+  emotion?: string;
+  intent?: string;
+}
+
 interface VoiceCallPanelProps {
   status: VoiceStatus;
-  currentBuyerText: string;
+  transcript: TranscriptEntry[];
   error: string | null;
   volume: number;
   isSpeaking: boolean;
   micMuted: boolean;
   avatarName?: string;
   avatarImageUrl?: string | null;
+  sellerAvatarUrl?: string | null;
+  sellerInitials?: string;
   audioEnergyRef?: React.MutableRefObject<number>;
   micEnergyRef?: React.MutableRefObject<number>;
   onToggleMic: () => void;
@@ -44,13 +54,15 @@ function AudioVisualizer({ isActive }: { isActive: boolean }) {
 
 export function VoiceCallPanel({
   status,
-  currentBuyerText,
+  transcript,
   error,
   volume,
   isSpeaking,
   micMuted,
   avatarName = "Buyer",
   avatarImageUrl,
+  sellerAvatarUrl,
+  sellerInitials = "U",
   audioEnergyRef,
   micEnergyRef,
   onToggleMic,
@@ -72,6 +84,12 @@ export function VoiceCallPanel({
   // Refs for DOM elements we update directly via rAF (no React re-renders)
   const waveformBarsRef = useRef<HTMLDivElement[]>([]);
   const avatarRingRef = useRef<HTMLDivElement>(null);
+  const transcriptScrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to the latest transcript message
+  useEffect(() => {
+    transcriptScrollRef.current?.scrollTo({ top: transcriptScrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [transcript]);
 
   // Real-time audio-driven animation loop
   useEffect(() => {
@@ -110,49 +128,91 @@ export function VoiceCallPanel({
 
   return (
     <div className="flex flex-col h-full bg-[#0B0E14] overflow-hidden relative">
-      {/* Center content — Slack call style */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
-        {/* Avatar */}
-        <div className="relative">
-          <div
-            ref={avatarRingRef}
-            className={cn(
-              "w-28 h-28 sm:w-36 sm:h-36 rounded-full flex items-center justify-center text-3xl sm:text-4xl font-bold text-white overflow-hidden transition-all duration-100",
-              isActive ? "ring-2 ring-white/10" : "ring-2 ring-white/5"
-            )}
-            style={{ boxShadow: "0 0 0 2px rgba(255,255,255,0.1)" }}
-          >
-            {avatarImageUrl ? (
-              <img src={avatarImageUrl} alt={avatarName} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                {initials}
-              </div>
+      {/* Center content — transcript + avatar header */}
+      <div className="flex-1 flex flex-col items-center min-h-0 px-6 pt-6">
+        {/* Avatar header */}
+        <div className="flex items-center gap-3 mb-4 shrink-0">
+          <div className="relative">
+            <div
+              ref={avatarRingRef}
+              className={cn(
+                "w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold text-white overflow-hidden transition-all duration-100",
+                isActive ? "ring-2 ring-white/10" : "ring-2 ring-white/5"
+              )}
+              style={{ boxShadow: "0 0 0 2px rgba(255,255,255,0.1)" }}
+            >
+              {avatarImageUrl ? (
+                <img src={avatarImageUrl} alt={avatarName} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                  {initials}
+                </div>
+              )}
+            </div>
+            {isSpeaking && (
+              <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-[#0B0E14] animate-pulse" />
             )}
           </div>
-          {/* Speaking indicator dot */}
-          {isSpeaking && (
-            <span className="absolute bottom-1 right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-[#0B0E14] animate-pulse" />
+          <div className="text-left">
+            <h2 className="text-base font-semibold text-white">{avatarName}</h2>
+            <div className="flex items-end justify-center gap-[3px] h-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  ref={(el) => { if (el) waveformBarsRef.current[i] = el; }}
+                  className="w-[2px] rounded-full bg-emerald-400 transition-none"
+                  style={{ height: "3px", opacity: 0.3 }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Transcript — centered scrollable area */}
+        <div ref={transcriptScrollRef} className="flex-1 w-full max-w-2xl overflow-y-auto space-y-3 pb-4">
+          {transcript.length === 0 && (
+            <div className="h-full flex items-center justify-center text-gray-500 text-sm">
+              Start speaking to see the conversation
+            </div>
           )}
-        </div>
-
-        {/* Name */}
-        <div className="text-center space-y-1">
-          <h2 className="text-xl sm:text-2xl font-semibold text-white">{avatarName}</h2>
-        </div>
-
-        {/* Audio visualizer — 12 bars animated by real audio energy */}
-        <div className="flex items-end justify-center gap-[3px] h-10">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div
-              key={i}
-              ref={(el) => { if (el) waveformBarsRef.current[i] = el; }}
-              className="w-[3px] rounded-full bg-emerald-400 transition-none"
-              style={{ height: "4px", opacity: 0.3 }}
-            />
+          {transcript.map((entry, i) => (
+            <div key={i} className={`flex items-end gap-2 ${entry.role === "user" ? "justify-end" : "justify-start"}`}>
+              {entry.role === "avatar" && (
+                <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center border border-white/10">
+                  {avatarImageUrl ? (
+                    <img src={avatarImageUrl} alt={avatarName} className="w-full h-full object-cover object-top" />
+                  ) : (
+                    <span className="text-[9px] text-gray-300 font-semibold">{avatarName.slice(0, 1).toUpperCase()}</span>
+                  )}
+                </div>
+              )}
+              <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-sm ${
+                entry.role === "user"
+                  ? "bg-blue-600 text-white rounded-br-md"
+                  : "bg-[#1E293B] text-gray-100 rounded-bl-md"
+              }`}>
+                <p>{entry.text}</p>
+                <div className={`flex items-center gap-1 mt-1 ${entry.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <p className={`text-[10px] ${entry.role === "user" ? "text-blue-200" : "text-gray-500"}`}>
+                    {entry.time}
+                  </p>
+                  {entry.role === "user" && (
+                    <span className="text-blue-200 text-[10px]">✓✓</span>
+                  )}
+                </div>
+              </div>
+              {entry.role === "user" && (
+                <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden bg-blue-700 flex items-center justify-center border border-white/10">
+                  {sellerAvatarUrl ? (
+                    <img src={sellerAvatarUrl} alt="You" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-[9px] text-white font-semibold">{sellerInitials}</span>
+                  )}
+                </div>
+              )}
+            </div>
           ))}
         </div>
-
       </div>
 
       {/* Error */}

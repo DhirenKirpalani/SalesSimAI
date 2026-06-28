@@ -1,14 +1,15 @@
 /**
- * Voice Call Turn API
- * Receives user transcript, runs direct GPT-4o with persona prompt,
- * TTS the response (ElevenLabs preferred, OpenAI fallback), returns SSE with text + audio.
+ * Voice Call Turn API — Streaming Pipeline
  *
  * Flow:
  *   User speaks → Web Speech API → POST here
  *   → Build persona system prompt inline
- *   → GPT-4o direct call (plain text, no JSON mode)
- *   → ElevenLabs TTS (or OpenAI fallback) on full response
- *   → SSE: {type:"text"} + {type:"audio", data: base64}
+ *   → GPT-4o STREAMING (plain text, no JSON mode)
+ *   → Sentence buffer detects sentence boundaries
+ *   → ElevenLabs TTS per sentence (or OpenAI fallback)
+ *   → SSE: {type:"text"} per sentence + {type:"audio"} per sentence
+ *   → Browser plays audio chunks in order while GPT continues generating
+ *   → After stream ends: quick gpt-4o-mini call for emotion/intent/state
  *   → Persist messages to simulation_messages
  */
 
@@ -164,17 +165,25 @@ export async function POST(req: NextRequest) {
 
         console.log(`[voice-turn] scenario_type=${scenario.scenario_type}, difficulty=${scenario.difficulty}, persona=${persona.name}`);
 
-        // Call GPT-4o with minimal JSON for live coaching (emotion + intent)
         const openAiKey = process.env.OPENAI_API_KEY;
+        const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
         let buyerText = "I'm not sure what to say.";
         let buyerEmotion = "neutral";
         let buyerIntent = "answer";
+
+        // ── Streaming pipeline: GPT-4o stream → sentence buffer → TTS per sentence → SSE audio chunks ──
         if (openAiKey) {
           try {
             const chatHistory = messages.slice(-10).map((m) => ({
               role: m.role === "user" ? ("user" as const) : ("assistant" as const),
               content: m.content,
             }));
+
+            // Override JSON format — for voice, we want plain text for streaming
+            const voiceSystemPrompt = systemPrompt.replace(
+              /RESPONSE FORMAT — return ONLY valid JSON[\s\S]*$/,
+              "RESPOND WITH PLAIN TEXT ONLY. No JSON, no formatting, no labels. Just speak naturally as the buyer. Keep responses to 2-4 sentences."
+            );
 
             const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
               method: "POST",
@@ -185,104 +194,176 @@ export async function POST(req: NextRequest) {
               body: JSON.stringify({
                 model: "gpt-4o",
                 messages: [
-                  { role: "system", content: systemPrompt },
+                  { role: "system", content: voiceSystemPrompt },
                   ...chatHistory,
                   { role: "user", content: transcript.trim() },
                 ],
-                response_format: { type: "json_object" },
+                stream: true,
                 temperature: 0.75,
                 max_tokens: 250,
               }),
             });
 
-            if (gptRes.ok) {
-              const data = await gptRes.json();
-              const raw = data.choices?.[0]?.message?.content?.trim() || "";
-              try {
-                const parsed = JSON.parse(raw);
-                buyerText = parsed.message || parsed.response || raw;
-                buyerEmotion = parsed.emotion || "neutral";
-                buyerIntent = parsed.intent || "answer";
-                if (parsed.state_updates) {
-                  const newState = applyStateUpdates(state, parsed.state_updates, messages.length + 1);
-                  supabase.from("simulation_sessions").update({ state: newState }).eq("id", sessionId).then(() => {});
+            if (gptRes.ok && gptRes.body) {
+              const reader = gptRes.body.getReader();
+              const decoder = new TextDecoder();
+              let gptBuffer = "";
+              let fullText = "";
+              let sentenceBuffer = "";
+              let ttsChunkIndex = 0;
+
+              // Helper: send a sentence to TTS and emit audio SSE
+              const ttsSentence = async (text: string) => {
+                const trimmed = text.trim();
+                if (!trimmed) return;
+                ttsChunkIndex++;
+
+                // Send text chunk to client immediately
+                controller.enqueue(encoder.encode(sseLine({ type: "text", content: trimmed })));
+
+                // TTS — ElevenLabs preferred, OpenAI fallback
+                if (elevenLabsKey) {
+                  try {
+                    const effectiveVoiceId = voiceId || selectElevenLabsVoice(persona.personality, voiceLanguage);
+                    const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${effectiveVoiceId}`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        "xi-api-key": elevenLabsKey,
+                      },
+                      body: JSON.stringify({
+                        text: trimmed.slice(0, 4096),
+                        model_id: "eleven_flash_v2_5",
+                        voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: 1.1 },
+                        output_format: "mp3_44100_128",
+                      }),
+                    });
+                    if (ttsRes.ok) {
+                      const audioBuffer = await ttsRes.arrayBuffer();
+                      const base64 = Buffer.from(audioBuffer).toString("base64");
+                      controller.enqueue(encoder.encode(sseLine({ type: "audio", data: base64, format: "mp3", chunkIndex: ttsChunkIndex })));
+                      return;
+                    } else {
+                      console.error("[voice-turn] ElevenLabs error:", await ttsRes.text());
+                    }
+                  } catch (ttsErr) {
+                    console.error("[voice-turn] ElevenLabs exception:", ttsErr);
+                  }
                 }
-              } catch {
-                buyerText = raw;
+
+                // OpenAI TTS fallback
+                if (openAiKey) {
+                  try {
+                    const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${openAiKey}` },
+                      body: JSON.stringify({
+                        model: "tts-1",
+                        voice: selectVoice(persona.personality),
+                        input: trimmed.slice(0, 4096),
+                        response_format: "mp3",
+                        speed: 1.15,
+                      }),
+                    });
+                    if (ttsRes.ok) {
+                      const audioBuffer = await ttsRes.arrayBuffer();
+                      const base64 = Buffer.from(audioBuffer).toString("base64");
+                      controller.enqueue(encoder.encode(sseLine({ type: "audio", data: base64, format: "mp3", chunkIndex: ttsChunkIndex })));
+                    }
+                  } catch (ttsErr) {
+                    console.error("[voice-turn] OpenAI TTS error:", ttsErr);
+                  }
+                }
+              };
+
+              // Read the stream
+              let firstClauseSent = false;
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                gptBuffer += decoder.decode(value, { stream: true });
+                const lines = gptBuffer.split("\n");
+                gptBuffer = lines.pop() ?? "";
+
+                for (const line of lines) {
+                  if (!line.startsWith("data: ")) continue;
+                  const raw = line.slice(6).trim();
+                  if (raw === "[DONE]") continue;
+
+                  try {
+                    const chunk = JSON.parse(raw);
+                    const token = chunk.choices?.[0]?.delta?.content ?? "";
+                    if (!token) continue;
+
+                    fullText += token;
+                    sentenceBuffer += token;
+
+                    // Check for sentence boundaries
+                    const sentenceEnd = sentenceBuffer.search(/[.!?]\s/);
+                    if (sentenceEnd >= 0) {
+                      const sentence = sentenceBuffer.slice(0, sentenceEnd + 1);
+                      sentenceBuffer = sentenceBuffer.slice(sentenceEnd + 2);
+                      await ttsSentence(sentence);
+                      firstClauseSent = true;
+                    } else if (!firstClauseSent && sentenceBuffer.length > 45 && sentenceBuffer.split(/\s+/).filter(Boolean).length >= 6) {
+                      // First chunk: send a clause/phrase early to reduce time-to-first-audio
+                      const breakAt = sentenceBuffer.lastIndexOf(", ");
+                      if (breakAt > 15) {
+                        const chunk = sentenceBuffer.slice(0, breakAt + 1);
+                        sentenceBuffer = sentenceBuffer.slice(breakAt + 2);
+                        await ttsSentence(chunk);
+                        firstClauseSent = true;
+                      }
+                    }
+                  } catch {
+                    // skip unparseable chunks
+                  }
+                }
+              }
+
+              // Flush any remaining text
+              const flushPromise = sentenceBuffer.trim()
+                ? ttsSentence(sentenceBuffer)
+                : Promise.resolve();
+
+              buyerText = fullText.trim() || buyerText;
+
+              // Quick concurrent metadata call for emotion/intent/state — overlaps with final TTS
+              const metaPromise = fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${openAiKey}` },
+                body: JSON.stringify({
+                  model: "gpt-4o-mini",
+                  messages: [
+                    { role: "system", content: "Analyze this buyer response. Return ONLY JSON: {\"emotion\": \"neutral|skeptical|interested|frustrated\", \"intent\": \"answer|objection|question|redirect\", \"state_updates\": {\"trust_delta\": 0, \"mood_delta\": 0, \"facts_revealed\": []}}" },
+                    { role: "user", content: `Buyer said: "${buyerText}"\nSeller asked: "${transcript.trim()}"` },
+                  ],
+                  response_format: { type: "json_object" },
+                  temperature: 0.3,
+                  max_tokens: 100,
+                }),
+              }).catch(() => null);
+
+              const [_, metaRes] = await Promise.all([flushPromise, metaPromise]);
+
+              if (metaRes?.ok) {
+                const metaData = await metaRes.json();
+                try {
+                  const parsed = JSON.parse(metaData.choices?.[0]?.message?.content ?? "{}");
+                  buyerEmotion = parsed.emotion || "neutral";
+                  buyerIntent = parsed.intent || "answer";
+                  if (parsed.state_updates) {
+                    const newState = applyStateUpdates(state, parsed.state_updates, messages.length + 1);
+                    supabase.from("simulation_sessions").update({ state: newState }).eq("id", sessionId).then(() => {});
+                  }
+                } catch { /* use defaults */ }
               }
             } else {
-              console.error("[voice-turn] GPT error:", await gptRes.text());
+              console.error("[voice-turn] GPT stream error:", await gptRes.text().catch(() => "unknown"));
             }
           } catch (gptErr) {
             console.error("[voice-turn] GPT exception:", gptErr);
-          }
-        }
-
-        // Send text immediately
-        controller.enqueue(encoder.encode(sseLine({ type: "text", content: buyerText })));
-
-        // TTS — ElevenLabs preferred, OpenAI fallback
-        const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
-        const ttsInput = buyerText.slice(0, 4096);
-        let audioSent = false;
-
-        if (elevenLabsKey) {
-          try {
-            const effectiveVoiceId = voiceId || selectElevenLabsVoice(persona.personality, voiceLanguage);
-            const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${effectiveVoiceId}`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "xi-api-key": elevenLabsKey,
-              },
-              body: JSON.stringify({
-                text: ttsInput,
-                model_id: "eleven_flash_v2_5",
-                voice_settings: {
-                  stability: 0.5,
-                  similarity_boost: 0.75,
-                  speed: 1.1,
-                },
-                output_format: "mp3_44100_128",
-              }),
-            });
-            if (ttsRes.ok) {
-              const audioBuffer = await ttsRes.arrayBuffer();
-              const base64 = Buffer.from(audioBuffer).toString("base64");
-              controller.enqueue(encoder.encode(sseLine({ type: "audio", data: base64, format: "mp3" })));
-              audioSent = true;
-            } else {
-              console.error("[voice-turn] ElevenLabs error:", await ttsRes.text());
-            }
-          } catch (ttsErr) {
-            console.error("[voice-turn] ElevenLabs exception:", ttsErr);
-          }
-        }
-
-        // OpenAI fallback (or if ElevenLabs failed)
-        if (!audioSent && openAiKey) {
-          try {
-            const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${openAiKey}`,
-              },
-              body: JSON.stringify({
-                model: "tts-1",
-                voice: selectVoice(persona.personality),
-                input: ttsInput,
-                response_format: "mp3",
-                speed: 1.15,
-              }),
-            });
-            if (ttsRes.ok) {
-              const audioBuffer = await ttsRes.arrayBuffer();
-              const base64 = Buffer.from(audioBuffer).toString("base64");
-              controller.enqueue(encoder.encode(sseLine({ type: "audio", data: base64, format: "mp3" })));
-            }
-          } catch (ttsErr) {
-            console.error("[voice-turn] OpenAI TTS error:", ttsErr);
           }
         }
 

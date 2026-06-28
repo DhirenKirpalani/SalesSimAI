@@ -141,13 +141,13 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground line-clamp-2">{description}</p>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 whitespace-nowrap shrink-0">
                   <Clock className="w-3.5 h-3.5" />
                   {scenario.duration} min
                 </span>
-                <span className="flex items-center gap-1">
-                  <BarChart3 className="w-3.5 h-3.5" />
-                  {personaName}
+                <span className="flex items-center gap-1 overflow-hidden">
+                  <BarChart3 className="w-3.5 h-3.5 shrink-0" />
+                  <span className="line-clamp-1">{personaName}</span>
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -189,7 +189,7 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
             <div className="flex items-center gap-2 mb-1">
               <Badge variant="outline" className="text-[10px] bg-primary/5 border-primary/20 text-primary gap-1">
                 <Play className="w-2.5 h-2.5" />
-                Custom Scenario
+                {isPlatform ? "Platform Scenario" : "Custom Scenario"}
               </Badge>
               <Badge variant="secondary" className={cn("text-xs font-medium", diffColor)}>
                 {scenario.difficulty}

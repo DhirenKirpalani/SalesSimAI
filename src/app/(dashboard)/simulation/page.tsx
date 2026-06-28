@@ -181,7 +181,7 @@ function HeyGenTestInner() {
   const [textSessionId, setTextSessionId] = useState<string | null>(null);
   const [textInput, setTextInput] = useState("");
   const [textLoading, setTextLoading] = useState(false);
-  const [coachingOpen, setCoachingOpen] = useState(true);
+  const [coachingOpen, setCoachingOpen] = useState(false);
   const [scoringCriteria, setScoringCriteria] = useState<string | null>(null);
   const [checkpointStatus, setCheckpointStatus] = useState<Record<string, CheckpointStatus>>({});
   const voiceCall = useVoiceCall();
@@ -204,6 +204,10 @@ function HeyGenTestInner() {
   // Live nudge bubbles — ephemeral coaching feedback after each turn
   const [liveNudge, setLiveNudge] = useState<{ message: string; type: "success" | "info" | "warning" } | null>(null);
   const nudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [nudgePos, setNudgePos] = useState<{ x: number; y: number }>({ x: 16, y: 16 });
+  const [isDraggingNudge, setIsDraggingNudge] = useState(false);
+  const nudgeDragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const nudgeContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!coaching.lastTurnResult || status !== "connected") return;
@@ -221,6 +225,7 @@ function HeyGenTestInner() {
 
     if (nudge) {
       setLiveNudge(nudge);
+      setNudgePos({ x: 0, y: 16 });
       if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
       nudgeTimerRef.current = setTimeout(() => setLiveNudge(null), 6000);
     }
@@ -229,6 +234,72 @@ function HeyGenTestInner() {
       if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
     };
   }, [coaching.lastTurnResult, status]);
+
+  const moveNudge = useCallback((clientX: number, clientY: number) => {
+    if (!nudgeContainerRef.current) return;
+    const parent = nudgeContainerRef.current.offsetParent as HTMLElement | null;
+    const parentRect = parent?.getBoundingClientRect() ?? { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    let x = clientX - parentRect.left - nudgeDragStartRef.current.x;
+    let y = clientY - parentRect.top - nudgeDragStartRef.current.y;
+    const nudgeRect = nudgeContainerRef.current.getBoundingClientRect();
+    x = Math.max(0, Math.min(x, parentRect.width - nudgeRect.width));
+    y = Math.max(0, Math.min(y, parentRect.height - nudgeRect.height));
+    setNudgePos({ x, y });
+  }, []);
+
+  const onNudgeMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!nudgeContainerRef.current) return;
+    setIsDraggingNudge(true);
+    const rect = nudgeContainerRef.current.getBoundingClientRect();
+    nudgeDragStartRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }, []);
+
+  const onNudgeMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDraggingNudge) return;
+    moveNudge(e.clientX, e.clientY);
+  }, [isDraggingNudge, moveNudge]);
+
+  const onNudgeMouseUp = useCallback(() => {
+    setIsDraggingNudge(false);
+  }, []);
+
+  const onNudgeTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!nudgeContainerRef.current) return;
+    setIsDraggingNudge(true);
+    const touch = e.touches[0];
+    const rect = nudgeContainerRef.current.getBoundingClientRect();
+    nudgeDragStartRef.current = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+  }, []);
+
+  const onNudgeTouchMove = useCallback((e: TouchEvent) => {
+    if (!isDraggingNudge) return;
+    const touch = e.touches[0];
+    moveNudge(touch.clientX, touch.clientY);
+  }, [isDraggingNudge, moveNudge]);
+
+  const onNudgeTouchEnd = useCallback(() => {
+    setIsDraggingNudge(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isDraggingNudge) return;
+    document.addEventListener("mousemove", onNudgeMouseMove);
+    document.addEventListener("mouseup", onNudgeMouseUp);
+    document.addEventListener("touchmove", onNudgeTouchMove);
+    document.addEventListener("touchend", onNudgeTouchEnd);
+    return () => {
+      document.removeEventListener("mousemove", onNudgeMouseMove);
+      document.removeEventListener("mouseup", onNudgeMouseUp);
+      document.removeEventListener("touchmove", onNudgeTouchMove);
+      document.removeEventListener("touchend", onNudgeTouchEnd);
+    };
+  }, [isDraggingNudge, onNudgeMouseMove, onNudgeMouseUp, onNudgeTouchMove, onNudgeTouchEnd]);
+
+  // Position the nudge on the left when it first appears
+  useEffect(() => {
+    if (!liveNudge || !nudgeContainerRef.current) return;
+    setNudgePos({ x: 16, y: 16 });
+  }, [liveNudge]);
   coachingAnalyzeRef.current = coaching.analyze;
 
   useEffect(() => {
@@ -634,7 +705,7 @@ function HeyGenTestInner() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId, sellerText: message, buyerText: buyerMsg }),
         }).then((r) => r.json()).then((result) => {
-          if (result.fallback || result.error) return;
+          if (result.fallback || result.error || !result.quality || !result.nudge) return;
           const nudgeType: "success" | "info" | "warning" =
             result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
           const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
@@ -643,6 +714,15 @@ function HeyGenTestInner() {
           nudgeTimerRef.current = setTimeout(() => setLiveNudge(null), 8000);
           if (result.checkpoint_hit) {
             setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
+          }
+          if (result.already_covered?.length) {
+            setCheckpointStatus((prev) => {
+              const updated = { ...prev };
+              for (const cp of result.already_covered) {
+                if (!updated[cp]) updated[cp] = "hit";
+              }
+              return updated;
+            });
           }
         }).catch(() => {});
       }
@@ -836,7 +916,13 @@ function HeyGenTestInner() {
             addLog("⚠️ Failed to end session: " + (endErr.error || endRes.status));
           }
 
-          const coachData = await coachRes.json();
+          if (!coachRes.ok) {
+            const coachErr = await coachRes.json().catch(() => ({}));
+            console.error("[handleEnd] voice coach failed:", coachRes.status, coachErr);
+            addLog("⚠️ Coaching analysis failed: " + (coachErr.error || coachRes.status));
+          }
+
+          const coachData = await coachRes.json().catch(() => ({}));
           if (coachData.evaluation) {
             setFeedback({
               overall_score: coachData.evaluation.overall_score,
@@ -990,16 +1076,17 @@ function HeyGenTestInner() {
   }, [scenarioId, scenarioTable, coaching]);
 
   // Sync voice call transcripts into the page transcript (shows in Conversation modal)
+  // AI/buyer messages are delayed until the avatar finishes speaking so it feels natural.
   useEffect(() => {
     if (callMode !== "voice" || voiceCall.transcript.length === 0) return;
     const last = voiceCall.transcript[voiceCall.transcript.length - 1];
     const pageRole = last.role === "buyer" ? "avatar" : "user";
     const alreadyHas = transcript.length > 0 && transcript[transcript.length - 1].text === last.text;
-    if (!alreadyHas) {
-      addTranscript(pageRole, last.text, last.emotion, last.intent);
-    }
+    if (alreadyHas) return;
+    if (last.role === "buyer" && voiceCall.isSpeaking) return;
+    addTranscript(pageRole, last.text, last.emotion, last.intent);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiceCall.transcript, callMode]);
+  }, [voiceCall.transcript, voiceCall.isSpeaking, callMode]);
 
   // Analyze turns for coaching (both video and voice modes)
   useEffect(() => {
@@ -1016,7 +1103,7 @@ function HeyGenTestInner() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ sessionId: voiceSessionId, sellerText: sellerEntry.text, buyerText: buyerEntry.text }),
           }).then((r) => r.json()).then((result) => {
-            if (result.fallback || result.error) return;
+            if (result.fallback || result.error || !result.quality || !result.nudge) return;
             const nudgeType: "success" | "info" | "warning" =
               result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
             const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
@@ -1025,6 +1112,15 @@ function HeyGenTestInner() {
             nudgeTimerRef.current = setTimeout(() => setLiveNudge(null), 8000);
             if (result.checkpoint_hit) {
               setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
+            }
+            if (result.already_covered?.length) {
+              setCheckpointStatus((prev) => {
+                const updated = { ...prev };
+                for (const cp of result.already_covered) {
+                  if (!updated[cp]) updated[cp] = "hit";
+                }
+                return updated;
+              });
             }
           }).catch(() => {});
         }
@@ -1037,6 +1133,34 @@ function HeyGenTestInner() {
       const buyerEntry = lastTwo.find((t) => t.role === "avatar");
       if (sellerEntry && buyerEntry) {
         coachingAnalyzeRef.current(sellerEntry.text, buyerEntry.text);
+        const videoSessionId = simSessionDbIdRef.current;
+        if (videoSessionId) {
+          fetch("/api/simulation/coach-turn", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId: videoSessionId, sellerText: sellerEntry.text, buyerText: buyerEntry.text }),
+          }).then((r) => r.json()).then((result) => {
+            if (result.fallback || result.error || !result.quality || !result.nudge) return;
+            const nudgeType: "success" | "info" | "warning" =
+              result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
+            const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
+            setLiveNudge({ message: `${label}${result.nudge}`, type: nudgeType });
+            if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
+            nudgeTimerRef.current = setTimeout(() => setLiveNudge(null), 8000);
+            if (result.checkpoint_hit) {
+              setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
+            }
+            if (result.already_covered?.length) {
+              setCheckpointStatus((prev) => {
+                const updated = { ...prev };
+                for (const cp of result.already_covered) {
+                  if (!updated[cp]) updated[cp] = "hit";
+                }
+                return updated;
+              });
+            }
+          }).catch(() => {});
+        }
       }
     }
   }, [voiceCall.transcript, transcript, callMode]);
@@ -1223,13 +1347,15 @@ function HeyGenTestInner() {
           <div className="absolute inset-0">
             <VoiceCallPanel
               status={voiceCall.status as VoiceStatus}
-              currentBuyerText={voiceCall.currentBuyerText}
+              transcript={transcript}
               error={voiceCall.error}
               volume={voiceCall.volume}
               isSpeaking={voiceCall.isSpeaking}
               micMuted={voiceCall.micMuted}
               avatarName={resolvedPersonaName ?? avatarNameParam ?? "Buyer"}
               avatarImageUrl={avatarImageUrl}
+              sellerAvatarUrl={sellerAvatarUrl}
+              sellerInitials={sellerInitials}
               audioEnergyRef={voiceCall.audioEnergyRef}
               micEnergyRef={voiceCall.micEnergyRef}
               onToggleMic={voiceCall.toggleMic}
@@ -1240,41 +1366,51 @@ function HeyGenTestInner() {
           </div>
         )}
 
-        {/* Live Nudge Toast — floats above video/voice calls */}
+        {/* Live Nudge — compact floating pill, draggable */}
         {liveNudge && status === "connected" && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 max-w-md w-[90%] animate-in fade-in slide-in-from-top-2 duration-300">
+          <div
+            ref={nudgeContainerRef}
+            onMouseDown={onNudgeMouseDown}
+            onTouchStart={onNudgeTouchStart}
+            className={`absolute z-30 max-w-xs w-auto animate-in fade-in zoom-in-95 duration-200 ${
+              isDraggingNudge ? "cursor-grabbing" : "cursor-grab"
+            }`}
+            style={{ left: nudgePos.x, top: nudgePos.y }}
+          >
             <div
-              className={`rounded-xl px-4 py-3 shadow-xl border backdrop-blur-sm flex items-start gap-3 ${
+              className={`rounded-full pl-2 pr-1 py-1.5 shadow-lg border flex items-center gap-2 backdrop-blur-md ${
                 liveNudge.type === "success"
-                  ? "bg-emerald-500/15 border-emerald-400/30 text-emerald-100"
+                  ? "bg-emerald-950/80 border-emerald-500/30 text-emerald-100"
                   : liveNudge.type === "warning"
-                  ? "bg-amber-500/15 border-amber-400/30 text-amber-100"
-                  : "bg-blue-500/15 border-blue-400/30 text-blue-100"
+                  ? "bg-amber-950/80 border-amber-500/30 text-amber-100"
+                  : "bg-[#0B1220]/90 border-blue-500/30 text-blue-100"
               }`}
             >
-              <div className="mt-0.5 shrink-0">
+              <div className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center">
                 {liveNudge.type === "success" ? (
-                  <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 ) : liveNudge.type === "warning" ? (
-                  <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  <svg className="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.054 0 1.666-1.151 1.048-1.973l-6.928-10.003c-.624-.898-1.944-.898-2.568 0L4.014 17.027c-.618.822-.006 1.973 1.048 1.973z" />
                   </svg>
                 ) : (
-                  <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium leading-snug">{liveNudge.message}</p>
+              <div className="flex-1 min-w-0 px-1">
+                <p className="text-xs font-medium leading-snug">{liveNudge.message}</p>
               </div>
               <button
                 onClick={() => setLiveNudge(null)}
-                className="shrink-0 text-white/60 hover:text-white transition-colors"
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -1440,7 +1576,8 @@ function HeyGenTestInner() {
           <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover bg-black" />
         </div>
 
-        {/* Floating Transcript Panel */}
+        {/* Floating Transcript Panel — video mode only */}
+        {callMode === "video" && (
         <div className={`absolute top-3 right-3 bottom-20 w-72 rounded-xl border border-white/10 bg-black/70 backdrop-blur-md flex flex-col transition-all z-10 ${
           transcriptOpen ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4 pointer-events-none"
         }`}>
@@ -1478,9 +1615,10 @@ function HeyGenTestInner() {
             <div ref={transcriptEndRef} />
           </div>
         </div>
+        )}
 
-        {/* Transcript Toggle — hidden in text mode */}
-        {callMode !== "text" && (
+        {/* Transcript Toggle — video mode only (voice mode shows transcript in the center panel) */}
+        {callMode === "video" && (
           <button
             onClick={() => setTranscriptOpen((o) => !o)}
             className={`absolute top-3 right-3 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/15 rounded-full px-3 py-1.5 text-xs font-medium text-white transition-all z-10 ${

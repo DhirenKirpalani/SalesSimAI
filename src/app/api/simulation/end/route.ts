@@ -37,8 +37,9 @@ export async function POST(req: NextRequest) {
     if (session.heygen_session_id) {
       try {
         await stopSession(session.heygen_session_id);
-      } catch (e) {
-        console.warn("[simulation/end] HeyGen stop failed:", e);
+      } catch (e: any) {
+        // Session may already be stopped/expired — this is expected, not an error
+        console.warn("[simulation/end] HeyGen stop skipped:", e?.message ?? e);
       }
     }
 
