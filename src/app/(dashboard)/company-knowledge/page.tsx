@@ -658,7 +658,7 @@ export default function CompanyKnowledgePage() {
             {isOrgAdmin ? "Admin" : "Member"} · Plan: {org?.plan}
           </p>
         </div>
-        <Badge variant="outline">{members.length} member{members.length !== 1 ? "s" : ""}</Badge>
+        <Badge className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">{members.length} member{members.length !== 1 ? "s" : ""}</Badge>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -1171,8 +1171,9 @@ export default function CompanyKnowledgePage() {
                             value={m.role || "user"}
                             onValueChange={(v) => handleUpdateMemberRole(m.id, v ?? "user")}
                           >
-                            <SelectTrigger className="w-[100px] h-7 text-xs">
-                              <SelectValue />
+                            <SelectTrigger className="min-w-[130px] h-8 text-xs px-2.5 bg-background border hover:bg-accent hover:border-primary/30 transition-colors gap-2">
+                              <span className="text-muted-foreground">Role:</span>
+                              <SelectValue className="capitalize" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="user">User</SelectItem>

@@ -94,9 +94,7 @@ function AnalysisContent() {
       return {
         id: s.id,
         scenario_name: s.scenario_name ?? label,
-        analysis: mode === "voice"
-          ? (coaching ? ({ overall_score: coaching.overall_score } as Analysis) : null)
-          : (storedAnalysis ?? null),
+        analysis: storedAnalysis ?? (mode === "voice" && coaching ? ({ overall_score: coaching.overall_score } as Analysis) : null),
         duration_s: s.duration_s ?? null,
         started_at: s.started_at ?? new Date().toISOString(),
         ended_at: s.ended_at,

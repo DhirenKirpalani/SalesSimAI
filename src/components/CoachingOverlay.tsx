@@ -1,6 +1,7 @@
 "use client";
 
-import { Lightbulb, ChevronRight, Users, Target, CheckCircle } from "lucide-react";
+import { useState } from "react";
+import { Lightbulb, ChevronDown, ChevronUp, Target, CheckCircle2, MessageSquare, Sparkles, Map } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getCoachingSteps, CoachingState } from "@/lib/coaching";
 
@@ -20,37 +21,6 @@ interface CoachingOverlayProps {
   checkpoints?: Checkpoint[];
 }
 
-function StepDot({
-  index,
-  isCompleted,
-  isCurrent,
-}: {
-  index: number;
-  isCompleted: boolean;
-  isCurrent: boolean;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
-      <div
-        className={cn(
-          "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors",
-          isCurrent && "bg-primary text-primary-foreground ring-2 ring-primary/30",
-          isCompleted && !isCurrent && "bg-emerald-500 text-white",
-          !isCompleted && !isCurrent && "bg-muted text-muted-foreground"
-        )}
-      >
-        {isCompleted && !isCurrent ? (
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-        ) : (
-          index + 1
-        )}
-      </div>
-    </div>
-  );
-}
-
 export function CoachingOverlay({
   state,
   stepTip,
@@ -60,162 +30,196 @@ export function CoachingOverlay({
   onToggle,
   checkpoints,
 }: CoachingOverlayProps) {
+  const [showCheckpoints, setShowCheckpoints] = useState(false);
+  const steps = getCoachingSteps(state.scenarioType);
+  const currentStepName = steps[state.currentStep]?.name ?? "Discovery";
+  const completedCount = state.stepsCompleted.filter(Boolean).length;
+  const pendingCheckpointCount = checkpoints?.filter((c) => c.status === "pending").length ?? 0;
+  const warningCount = checkpoints?.filter((c) => c.status === "warning").length ?? 0;
+  const hitCount = checkpoints?.filter((c) => c.status === "hit").length ?? 0;
+  const currentStageIndex = checkpoints
+    ? checkpoints.findIndex((c) => c.status === "pending")
+    : -1;
+  const currentStageName = checkpoints
+    ? currentStageIndex >= 0
+      ? checkpoints[currentStageIndex]?.name
+      : checkpoints[checkpoints.length - 1]?.name
+    : undefined;
+
   return (
-    <div className="flex flex-col gap-3">
-      {/* Toggle button (mobile-friendly) */}
+    <div className="flex flex-col gap-2 w-60">
+      {/* Collapsed pill — always visible, minimal */}
       <button
         data-coach-toggle
         onClick={onToggle}
         className={cn(
-          "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors cursor-move",
-          isOpen ? "bg-primary text-primary-foreground" : "bg-card border shadow-sm text-foreground hover:bg-muted"
+          "group flex items-center gap-2 w-full rounded-full px-3 py-2 text-xs font-medium transition-all shadow-lg cursor-move",
+          isOpen
+            ? "bg-[#111827] border border-white/10 text-white hover:bg-[#1a2234]"
+            : "bg-[#111827]/90 border border-white/10 text-white/90 hover:bg-[#1a2234] hover:text-white"
         )}
       >
-        <Lightbulb className="w-4 h-4" />
-        {isOpen ? "Hide Coaching" : "Live Coaching"}
-        <ChevronRight className={cn("w-3.5 h-3.5 ml-auto transition-transform", isOpen && "rotate-90")} />
+        <span className="relative flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400">
+          <Lightbulb className="w-3 h-3" />
+          {warningCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500" />
+          )}
+        </span>
+        <span className="truncate flex-1 text-left">
+          {isOpen ? "Live Coaching" : (currentStageName ?? currentStepName)}
+        </span>
+        {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-white/60" /> : <ChevronUp className="w-3.5 h-3.5 text-white/60" />}
       </button>
 
       {isOpen && (
-        <div className="bg-card rounded-xl border shadow-sm p-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200 max-h-[60vh] sm:max-h-none overflow-y-auto">
+        <div className="bg-[#111827]/95 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl p-3 space-y-3 animate-in fade-in zoom-in-95 duration-200 max-h-[70vh] overflow-y-auto">
 
-          {/* Scoring Checkpoints — shown when scenario has scoring_criteria */}
+          {/* Rubric Stage Roadmap — shows conversation progression */}
           {checkpoints && checkpoints.length > 0 && (
             <div className="space-y-2">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Scoring Checkpoints</div>
-              <div className="space-y-1">
-                {checkpoints.map((cp) => (
-                  <div
-                    key={cp.id}
-                    className={cn(
-                      "flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors",
-                      cp.status === "hit"
-                        ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900"
-                        : cp.status === "warning"
-                        ? "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-900"
-                        : "bg-muted/50 text-muted-foreground border border-transparent"
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0",
-                        cp.status === "hit"
-                          ? "bg-emerald-500 text-white"
-                          : cp.status === "warning"
-                          ? "bg-amber-500 text-white"
-                          : "bg-muted-foreground/20 text-muted-foreground"
-                      )}
-                    >
-                      {cp.status === "hit" ? "✓" : cp.status === "warning" ? "!" : cp.id.replace(/\D/g, "")}
-                    </div>
-                    <span className="font-semibold flex-shrink-0">{cp.id}</span>
-                    <span className="truncate">{cp.name}</span>
-                  </div>
-                ))}
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-blue-400 font-medium">
+                <Map className="w-3 h-3" />
+                Conversation Roadmap
               </div>
-              <div className="h-px bg-border" />
+              <div className="relative pl-2 space-y-1">
+                {checkpoints.slice(0, 6).map((cp, i) => {
+                  const isCurrent = i === currentStageIndex || (currentStageIndex === -1 && i === checkpoints.length - 1);
+                  const isCompleted = cp.status === "hit";
+                  const isWarning = cp.status === "warning";
+                  return (
+                    <div key={cp.id} className="flex items-start gap-2">
+                      <div className="relative flex flex-col items-center pt-0.5">
+                        <div
+                          className={cn(
+                            "w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold border flex-shrink-0 z-10",
+                            isCompleted
+                              ? "bg-emerald-500 border-emerald-500 text-white"
+                              : isWarning
+                              ? "bg-amber-500 border-amber-500 text-white"
+                              : isCurrent
+                              ? "bg-blue-500 border-blue-500 text-white"
+                              : "bg-[#111827] border-white/20 text-white/40"
+                          )}
+                        >
+                          {isCompleted ? <CheckCircle2 className="w-2.5 h-2.5" /> : cp.id.replace(/\D/g, "")}
+                        </div>
+                        {i < checkpoints.slice(0, 6).length - 1 && (
+                          <div className={cn("w-px flex-1 min-h-[12px] mt-0.5", isCompleted ? "bg-emerald-500/40" : "bg-white/10")} />
+                        )}
+                      </div>
+                      <div className={cn("text-[11px] leading-snug py-0.5", isCurrent ? "text-white font-medium" : isCompleted ? "text-emerald-200" : "text-white/40")}>
+                        {cp.name}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
-          {/* Progress header */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Discovery Progress</span>
-              <span className="font-medium">{progressPercent}%</span>
+          {/* Current focus — hero */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-emerald-400 font-medium">
+              <Target className="w-3 h-3" />
+              Current Focus
             </div>
-            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+            <p className="text-sm font-medium text-white leading-snug">
+              {currentStepName}
+            </p>
+          </div>
+
+          {/* Suggested question — highlighted */}
+          {state.suggestedNextQuestion && (
+            <div className="bg-emerald-500/10 rounded-xl p-2.5 border border-emerald-500/20 space-y-1">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-emerald-400 font-medium">
+                <MessageSquare className="w-3 h-3" />
+                Try This
+              </div>
+              <p className="text-xs text-emerald-100 leading-relaxed">
+                {state.suggestedNextQuestion}
+              </p>
+            </div>
+          )}
+
+          {/* Compact tip */}
+          {stepTip && (
+            <div className="text-[11px] text-white/60 leading-relaxed border-l-2 border-white/10 pl-2.5">
+              {stepTip}
+            </div>
+          )}
+
+          {/* Progress bar */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[10px] text-white/50">
+              <span>Progress</span>
+              <span className="text-white/80">{completedCount}/{steps.length}</span>
+            </div>
+            <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
               <div
-                className="h-full bg-primary rounded-full transition-all duration-500"
+                className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
           </div>
 
-          {/* Step dots */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-hide">
-            {(() => {
-              const steps = getCoachingSteps(state.scenarioType);
-              return steps.map((step, i) => (
-                <div key={step.id} className="flex items-center gap-1 flex-shrink-0">
-                  <StepDot
-                    index={i}
-                    isCompleted={state.stepsCompleted[i]}
-                    isCurrent={i === state.currentStep}
-                  />
-                  {i < steps.length - 1 && (
+          {/* Checkpoints — compact summary, expandable */}
+          {checkpoints && checkpoints.length > 0 && (
+            <div className="space-y-1">
+              <button
+                onClick={() => setShowCheckpoints((s) => !s)}
+                className="flex items-center justify-between w-full text-[10px] uppercase tracking-wider text-white/50 font-medium hover:text-white/80 transition-colors"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3" />
+                  Checkpoints
+                </span>
+                <span className="flex items-center gap-1.5">
+                  {hitCount > 0 && <span className="text-emerald-400">{hitCount} ✓</span>}
+                  {warningCount > 0 && <span className="text-amber-400">{warningCount} !</span>}
+                  {pendingCheckpointCount > 0 && <span className="text-white/40">{pendingCheckpointCount} left</span>}
+                  {showCheckpoints ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+                </span>
+              </button>
+              {showCheckpoints && (
+                <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                  {checkpoints.map((cp) => (
                     <div
+                      key={cp.id}
                       className={cn(
-                        "w-3 h-0.5 rounded-full transition-colors",
-                        state.stepsCompleted[i + 1] || (state.stepsCompleted[i] && i === state.currentStep)
-                          ? "bg-emerald-500"
-                          : "bg-muted"
+                        "flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] transition-colors",
+                        cp.status === "hit"
+                          ? "bg-emerald-500/10 text-emerald-300"
+                          : cp.status === "warning"
+                          ? "bg-amber-500/10 text-amber-300"
+                          : "bg-white/5 text-white/50"
                       )}
-                    />
-                  )}
+                    >
+                      <div
+                        className={cn(
+                          "w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0",
+                          cp.status === "hit" && "bg-emerald-500 text-white",
+                          cp.status === "warning" && "bg-amber-500 text-white",
+                          cp.status === "pending" && "bg-white/10 text-white/50"
+                        )}
+                      >
+                        {cp.status === "hit" ? <CheckCircle2 className="w-3 h-3" /> : cp.status === "warning" ? "!" : cp.id.replace(/\D/g, "")}
+                      </div>
+                      <span className="font-medium flex-shrink-0">{cp.id}</span>
+                      <span className="truncate">{cp.name}</span>
+                    </div>
+                  ))}
                 </div>
-              ));
-            })()}
-          </div>
-
-          {/* Current step name */}
-          <div className="text-xs font-medium text-foreground">
-            Step {state.currentStep + 1}: {getCoachingSteps(state.scenarioType)[state.currentStep]?.name}
-          </div>
-
-          {/* Suggested question */}
-          <div className="bg-primary/5 rounded-lg p-3 border border-primary/10 space-y-1">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-primary font-medium">
-              <Lightbulb className="w-3 h-3" />
-              Suggested Next Question
+              )}
             </div>
-            <p className="text-sm text-foreground leading-relaxed">{state.suggestedNextQuestion}</p>
-          </div>
-
-          {/* Coaching tip */}
-          <div className="bg-muted/50 rounded-lg p-2.5 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">Tip:</span> {stepTip}
-          </div>
-
-          {/* Seller performance */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-muted/50 rounded-lg p-2.5 space-y-1">
-              <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                <CheckCircle className="w-3 h-3" />
-                Framework Coverage
-              </div>
-              <div className="w-full h-1.5 bg-muted-foreground/10 rounded-full overflow-hidden">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all",
-                    coveragePercent > 70 ? "bg-emerald-500" : coveragePercent > 40 ? "bg-amber-500" : "bg-red-400"
-                  )}
-                  style={{ width: `${coveragePercent}%` }}
-                />
-              </div>
-              <p className="text-xs font-medium">{state.stepsCompleted.filter(Boolean).length}/{state.stepsCompleted.length} steps</p>
-            </div>
-
-            <div className="bg-muted/50 rounded-lg p-2.5 space-y-1">
-              <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                <Target className="w-3 h-3" />
-                Seller Focus
-              </div>
-              <p className="text-xs font-medium text-foreground">
-                {getCoachingSteps(state.scenarioType)[state.currentStep]?.name ?? "Discovery"}
-              </p>
-            </div>
-          </div>
+          )}
 
           {/* Uncovered facts */}
           {state.uncoveredFacts.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                <Users className="w-3 h-3" />
-                Information Uncovered
-              </div>
+            <div className="space-y-1">
+              <div className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Uncovered</div>
               <div className="space-y-1">
-                {state.uncoveredFacts.slice(-3).map((fact, i) => (
-                  <div key={i} className="text-xs bg-emerald-50 text-emerald-700 rounded-lg px-2 py-1.5 border border-emerald-100">
+                {state.uncoveredFacts.slice(-2).map((fact, i) => (
+                  <div key={i} className="text-[11px] text-emerald-300 bg-emerald-500/10 rounded-lg px-2 py-1">
                     ✓ {fact}
                   </div>
                 ))}

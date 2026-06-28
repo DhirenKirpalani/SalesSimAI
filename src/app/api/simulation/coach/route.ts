@@ -6,6 +6,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+
+function serviceSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createSupabaseClient(url, key);
+}
 
 interface CoachingEvaluation {
   discovery_score: number;
@@ -31,10 +38,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const serviceDb = serviceSupabase();
+
     // Load session + transcript + scenario
     const [{ data: session, error: sessionError }, { data: messages }] = await Promise.all([
-      supabase.from("simulation_sessions").select("*, scenario_id, scenario_table, state").eq("id", sessionId).eq("user_id", user.id).single(),
-      supabase
+      serviceDb.from("simulation_sessions").select("*, scenario_id, scenario_table, state").eq("id", sessionId).eq("user_id", user.id).single(),
+      serviceDb
         .from("simulation_messages")
         .select("role, content, emotion, intent")
         .eq("session_id", sessionId)
@@ -45,11 +54,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
-    const { data: scenario } = await supabase
+    const { data: scenario } = await serviceDb
       .from(session.scenario_table)
-      .select("name, context_note, seller_company, seller_product, custom_persona, scoring_criteria, evaluation_framework, product_type")
+      .select("name, context_note, seller_company, seller_product, custom_persona, preset_persona_id, scoring_criteria, evaluation_framework, product_type, seller_description, scenario_type, difficulty, duration")
       .eq("id", session.scenario_id)
       .single();
+
+    // Resolve persona
+    let persona = scenario?.custom_persona as { name?: string; jobTitle?: string; company?: string; personality?: string; painPoints?: string[]; goals?: string[] } | null;
+    if (!persona && scenario?.preset_persona_id) {
+      const { mockPersonas } = await import("@/lib/data/mockData");
+      const preset = mockPersonas.find((p) => p.id === scenario.preset_persona_id);
+      if (preset) {
+        persona = {
+          name: preset.name,
+          jobTitle: preset.jobTitle,
+          company: preset.company,
+          personality: preset.personality,
+          painPoints: preset.painPoints,
+          goals: preset.goals,
+        };
+      }
+    }
+
+    const state = session.state as Record<string, unknown> | null;
+    const factsFound = Object.entries((state as any)?.facts_discovered ?? {})
+      .filter(([, v]) => v)
+      .map(([k]) => k);
 
     // Build transcript string
     const transcriptLines = (messages ?? []).map((m) => `${m.role === "user" ? "SELLER" : "BUYER"}: ${m.content}`);
@@ -63,10 +94,32 @@ export async function POST(req: NextRequest) {
     const prompt = `You are an expert sales coach evaluating a B2B sales call simulation using the MEDDIC framework.
 
 SCENARIO: ${scenario?.name ?? "Sales simulation"}
+CALL TYPE: ${scenario?.scenario_type ?? "Discovery Call"}
 COMPANY: ${scenario?.seller_company ?? "Unknown"}
 PRODUCT: ${scenario?.seller_product ?? "Unknown"}
 PRODUCT CATEGORY: ${scenario?.product_type ?? ""}
+WHAT IS BEING SOLD: ${scenario?.seller_description ?? ""}
 CONTEXT: ${scenario?.context_note ?? ""}
+DIFFICULTY: ${scenario?.difficulty ?? "Intermediate"}
+DURATION: ${scenario?.duration ?? 5} minutes
+FRAMEWORK: ${scenario?.evaluation_framework ?? "MEDDIC"}
+
+BUYER PERSONA:
+- Name: ${persona?.name ?? "Unknown"}
+- Role: ${persona?.jobTitle ?? ""}
+- Company: ${persona?.company ?? ""}
+- Personality: ${persona?.personality ?? ""}
+- Pain points: ${persona?.painPoints?.join("; ") ?? ""}
+- Goals: ${persona?.goals?.join("; ") ?? ""}
+
+SESSION STATE:
+- Trust level: ${(state as any)?.trust_level ?? 30}/100
+- Buyer mood: ${(state as any)?.buyer_mood ?? 0} (-10 frustrated → +10 engaged)
+- Stage reached: ${(state as any)?.stage ?? "opening"}
+- Facts uncovered: ${factsFound.length ? factsFound.join(", ") : "none"}
+
+SCORING RUBRIC:
+${scenario?.scoring_criteria ?? "No rubric provided"}
 
 TRANSCRIPT:
 ${transcript}
@@ -79,10 +132,12 @@ EVALUATE on MEDDIC dimensions (0-100 score each):
 5. DECISION_PROCESS: Did they map the buying process and timeline?
 6. CHAMPION: Did they build a relationship and potential internal advocate?
 
+Use the SCORING RUBRIC above to judge how well the seller hit each checkpoint. Be specific about what was missed.
+
 Also provide:
 - OVERALL_SCORE: weighted average (0-100, weight Identify Pain and Metrics most heavily)
 - MISSED_OPPORTUNITIES: Specific questions or tactics the seller failed to use (max 5)
-- RECOMMENDATIONS: Actionable coaching tips tied to MEDDIC (max 5)
+- RECOMMENDATIONS: Actionable coaching tips tied to MEDDIC and the rubric (max 5)
 - DISCOVERY_COVERAGE: Which of the 9 discovery steps were covered (true/false)
   Steps: intro_agenda, current_process, breakdown, impact, cost, previous_attempts, future_state, stakeholders, blockers
 
@@ -137,7 +192,7 @@ Return ONLY valid JSON:
     }
 
     // Persist to simulation_coaching table
-    const { error: insertError } = await supabase.from("simulation_coaching").upsert({
+    const { error: insertError } = await serviceDb.from("simulation_coaching").upsert({
       session_id: sessionId,
       discovery_score: evaluation.discovery_score,
       objection_score: evaluation.objection_score,
@@ -151,6 +206,11 @@ Return ONLY valid JSON:
     if (insertError) {
       console.error("[coach] insert error:", insertError);
     }
+
+    // Also write a lightweight score to simulation_sessions.analysis so the list view works
+    await serviceDb.from("simulation_sessions").update({
+      analysis: { overall_score: evaluation.overall_score },
+    }).eq("id", sessionId);
 
     return NextResponse.json({
       success: true,

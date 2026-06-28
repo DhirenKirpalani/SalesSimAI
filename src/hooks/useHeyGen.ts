@@ -43,6 +43,9 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
       setStatus("connecting");
       console.log("[useHeyGen] Step 1: requesting session token…", { simulationSessionId, avatarId, voiceId, scenarioId, scenarioTable });
 
+      // Pre-load livekit-client in parallel with API calls
+      const livekitPromise = import("livekit-client");
+
       const newRes = await fetch("/api/simulation/heygen/new", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -92,7 +95,7 @@ export function useHeyGen(options: UseHeyGenOptions = {}) {
       }
       console.log("[useHeyGen] Step 3: connecting LiveKit…", { livekit_url, hasToken: !!livekit_client_token, ws_url });
 
-      const { Room, RoomEvent, Track } = await import("livekit-client");
+      const { Room, RoomEvent, Track } = await livekitPromise;
 
       const room = new Room({
         adaptiveStream: true,

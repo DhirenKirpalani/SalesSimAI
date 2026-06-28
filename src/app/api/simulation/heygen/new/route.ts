@@ -41,7 +41,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Build persona context so LiveAvatar's built-in LLM knows how to behave
-    let contextId: string | undefined;
+    // LLM config: use our proxy (only works when APP_URL is publicly reachable, i.e. production).
+    // Run context creation and LLM secret+config creation in parallel since they're independent.
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const shouldCreateLLM = !!(appUrl && sessionId && process.env.OPENAI_API_KEY);
+
+    // Prepare scenario data for context creation (if needed)
+    let scenarioData: { scenario: any; persona: CustomPersona | null } | null = null;
     if (scenarioId && scenarioTable) {
       try {
         const { data: scenario } = await supabase
@@ -52,29 +59,44 @@ export async function POST(req: NextRequest) {
             const preset = mockPersonas.find((p) => p.id === scenario.preset_persona_id);
             if (preset) persona = { name: preset.name, jobTitle: preset.jobTitle, company: preset.company, industry: preset.industry, personality: preset.personality, painPoints: preset.painPoints, goals: preset.goals };
           }
-          const openingName = persona?.name ?? "the buyer";
-          contextId = await createLiveAvatarContext({
-            name: `${scenario.name} — ${openingName}`,
-            prompt: buildPersonaPrompt(scenario as CustomScenario, persona),
-            opening_text: `Hi, I'm ${openingName}. Thanks for reaching out — go ahead.`,
-          });
-          console.log("[heygen/new] context:", contextId);
+          scenarioData = { scenario, persona };
         }
       } catch (e) {
-        console.warn("[heygen/new] context creation failed, proceeding without:", e);
+        console.warn("[heygen/new] scenario fetch failed:", e);
       }
     }
 
-    // LLM config: use our proxy (only works when APP_URL is publicly reachable, i.e. production).
-    // On localhost LiveAvatar's servers cannot call localhost:3000, so we skip.
+    // Run context creation and LLM config creation in parallel
+    let contextId: string | undefined;
     let llmConfigId: string | undefined;
     let llmError: string | undefined;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (appUrl && sessionId && process.env.OPENAI_API_KEY) {
+
+    const contextPromise = (async () => {
+      if (!scenarioData) return;
+      try {
+        const { scenario, persona } = scenarioData;
+        const openingName = persona?.name ?? "the buyer";
+        contextId = await createLiveAvatarContext({
+          name: `${scenario.name} — ${openingName}`,
+          prompt: buildPersonaPrompt(scenario as CustomScenario, persona),
+          opening_text: `Hi, I'm ${openingName}. Thanks for reaching out — go ahead.`,
+        });
+        console.log("[heygen/new] context:", contextId);
+      } catch (e) {
+        console.warn("[heygen/new] context creation failed, proceeding without:", e);
+      }
+    })();
+
+    const llmPromise = (async () => {
+      if (!shouldCreateLLM) {
+        llmError = appUrl ? "OPENAI_API_KEY missing" : "No APP_URL — skipping LLM config (localhost)";
+        console.log("[heygen/new]", llmError);
+        return;
+      }
       const uniqueName = `SalesSim-${Date.now()}`;
       try {
         console.log("[heygen/new] Creating LLM secret + config for prod proxy...");
-        const secretId = await createLiveAvatarSecret(process.env.OPENAI_API_KEY, uniqueName);
+        const secretId = await createLiveAvatarSecret(process.env.OPENAI_API_KEY!, uniqueName);
         llmConfigId = await createLLMConfig({
           display_name: uniqueName,
           model_name: "gpt-4o",
@@ -86,10 +108,9 @@ export async function POST(req: NextRequest) {
         llmError = e instanceof Error ? e.message : String(e);
         console.error("[heygen/new] LLM config creation FAILED:", llmError);
       }
-    } else {
-      llmError = appUrl ? "OPENAI_API_KEY missing" : "No APP_URL — skipping LLM config (localhost)";
-      console.log("[heygen/new]", llmError);
-    }
+    })();
+
+    await Promise.all([contextPromise, llmPromise]);
 
     const liveSession = await createSessionToken({
       mode: "FULL",
@@ -103,9 +124,10 @@ export async function POST(req: NextRequest) {
     });
 
     if (sessionId) {
-      await supabase.from("simulation_sessions")
+      supabase.from("simulation_sessions")
         .update({ heygen_session_id: liveSession.session_id, meta: { llm_config_id: llmConfigId } })
-        .eq("id", sessionId).eq("user_id", user.id);
+        .eq("id", sessionId).eq("user_id", user.id)
+        .then(({ error }) => { if (error) console.warn("[heygen/new] DB update failed:", error.message); });
     }
 
     return NextResponse.json({
