@@ -6,6 +6,8 @@
 
 create table if not exists public.platform_scenarios (
   id                 uuid primary key default uuid_generate_v4(),
+  created_by         uuid references auth.users(id) on delete set null,
+  organization_id    uuid references public.organizations(id) on delete cascade,
 
   -- Seller's company context
   seller_company     text not null,
@@ -18,6 +20,8 @@ create table if not exists public.platform_scenarios (
 
   -- Scenario settings
   scenario_type      text not null default 'Discovery',
+  product_type       text not null default 'eor'
+    check (product_type in ('payment','eor','cards')),
   difficulty         text not null default 'Intermediate',
   duration           int  not null default 20,
   context_note       text,
@@ -39,7 +43,12 @@ alter table public.platform_scenarios enable row level security;
 
 drop policy if exists "Anyone can view platform scenarios" on public.platform_scenarios;
 create policy "Anyone can view platform scenarios"
-  on public.platform_scenarios for select using (true);
+  on public.platform_scenarios for select using (
+    organization_id is null
+    or organization_id in (
+      select organization_id from public.profiles where id = auth.uid()
+    )
+  );
 
 drop policy if exists "Only admins can delete platform scenarios" on public.platform_scenarios;
 create policy "Only admins can delete platform scenarios"

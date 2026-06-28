@@ -70,7 +70,7 @@ Standard scoring guidance:
   }
 
   const criteriaSection = customCriteria
-    ? `\nWHAT GOOD LOOKS LIKE FOR THIS COMPANY:\n${customCriteria}\nUse these criteria to guide your scoring and feedback.`
+    ? `\nSCORING CRITERIA FOR THIS COMPANY:\n${customCriteria}\nUse these criteria to guide your scoring and feedback.`
     : "";
 
   return `You are an expert B2B sales coach analyzing a sales call transcript.
@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
       .map(([k]) => k);
 
     const criteriaBlock = scenario?.scoring_criteria
-      ? `\nWHAT GOOD LOOKS LIKE FOR THIS COMPANY:\n${scenario.scoring_criteria}`
+      ? `\nSCORING CRITERIA FOR THIS COMPANY:\n${scenario.scoring_criteria}`
       : "";
 
     const contextBlock = `

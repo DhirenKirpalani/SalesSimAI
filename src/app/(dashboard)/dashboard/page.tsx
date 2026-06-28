@@ -81,6 +81,8 @@ export default function DashboardPage() {
   const [sessions, setSessions] = useState<UnifiedSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [firstName, setFirstName] = useState("");
+  const [organization, setOrganization] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,13 +106,24 @@ export default function DashboardPage() {
           .order("started_at", { ascending: false }),
         supabase
           .from("profiles")
-          .select("full_name")
+          .select("full_name, organization_id, role")
           .eq("id", user.id)
           .single(),
       ]);
 
       if (profile?.full_name) {
         setFirstName(profile.full_name.split(" ")[0]);
+      }
+      if (profile?.role) {
+        setRole(profile.role);
+      }
+      if (profile?.organization_id) {
+        const { data: org } = await supabase
+          .from("organizations")
+          .select("name")
+          .eq("id", profile.organization_id)
+          .single();
+        if (org?.name) setOrganization(org.name);
       }
 
       const heygenSessions: UnifiedSession[] = (heygenData ?? []).map((s) => ({
@@ -173,6 +186,20 @@ export default function DashboardPage() {
           <p className="text-sm text-muted-foreground mt-1">
             Track your readiness and performance across sales simulations.
           </p>
+          {(organization || role) && (
+            <div className="flex items-center gap-2 mt-2">
+              {organization && (
+                <Badge variant="outline" className="text-xs font-normal">
+                  {organization}
+                </Badge>
+              )}
+              {role && (
+                <Badge variant="secondary" className="text-xs font-normal capitalize">
+                  {role}
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
         <Link href="/scenarios">
           <Button className="rounded-xl gap-2">
@@ -217,7 +244,7 @@ export default function DashboardPage() {
         <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b">
             <h3 className="font-semibold text-sm">Recent Sessions</h3>
-            <Link href="/simulation">
+            <Link href="/simulations">
               <Button variant="ghost" size="sm" className="gap-1 text-xs">
                 View All
                 <ArrowRight className="w-3.5 h-3.5" />

@@ -10,10 +10,18 @@ import { createClient } from "@/lib/supabase/client";
 import { Search, Plus, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 
+const PRODUCT_TYPES = [
+  { value: "All", label: "All Products" },
+  { value: "payment", label: "Payment" },
+  { value: "eor", label: "EoR" },
+  { value: "cards", label: "Cards" },
+];
+
 export default function ScenariosPage() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [difficulty, setDifficulty] = useState("All");
+  const [productType, setProductType] = useState("All");
   const [customScenarios, setCustomScenarios] = useState<CustomScenario[]>([]);
   const [platformDbScenarios, setPlatformDbScenarios] = useState<CustomScenario[]>([]);
 
@@ -21,11 +29,22 @@ export default function ScenariosPage() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data } = await supabase
+    const { data: userProfile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("id", user.id)
+      .single();
+    const organizationId = userProfile?.organization_id ?? null;
+    let query = supabase
       .from("custom_scenarios")
       .select("*")
-      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
+    if (organizationId) {
+      query = query.or(`organization_id.eq.${organizationId},user_id.eq.${user.id}`);
+    } else {
+      query = query.eq("user_id", user.id);
+    }
+    const { data } = await query;
     if (data) setCustomScenarios(data as CustomScenario[]);
   }, []);
 
@@ -56,9 +75,10 @@ export default function ScenariosPage() {
         s.name.toLowerCase().includes(search.toLowerCase()) ||
         s.seller_product.toLowerCase().includes(search.toLowerCase());
       const matchesDifficulty = difficulty === "All" || s.difficulty === difficulty;
-      return matchesSearch && matchesDifficulty;
+      const matchesProduct = productType === "All" || s.product_type === productType;
+      return matchesSearch && matchesDifficulty && matchesProduct;
     });
-  }, [customScenarios, search, difficulty]);
+  }, [customScenarios, search, difficulty, productType]);
 
   const filteredPlatform = useMemo(() => {
     return platformDbScenarios.filter((s) => {
@@ -66,9 +86,10 @@ export default function ScenariosPage() {
         s.name.toLowerCase().includes(search.toLowerCase()) ||
         s.seller_product.toLowerCase().includes(search.toLowerCase());
       const matchesDifficulty = difficulty === "All" || s.difficulty === difficulty;
-      return matchesSearch && matchesDifficulty;
+      const matchesProduct = productType === "All" || s.product_type === productType;
+      return matchesSearch && matchesDifficulty && matchesProduct;
     });
-  }, [platformDbScenarios, search, difficulty]);
+  }, [platformDbScenarios, search, difficulty, productType]);
 
   return (
     <div className="space-y-6">
@@ -88,9 +109,9 @@ export default function ScenariosPage() {
         </Button>
       </div>
 
-      {/* Search + difficulty filter */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      {/* Search + filters */}
+      <div className="space-y-4 rounded-xl border bg-card p-4">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search scenarios..."
@@ -99,20 +120,45 @@ export default function ScenariosPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex gap-2">
-          {difficulties.map((d) => (
-            <button
-              key={d}
-              onClick={() => setDifficulty(d)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
-                difficulty === d
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background text-muted-foreground border-border hover:border-primary/40"
-              }`}
-            >
-              {d}
-            </button>
-          ))}
+
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="space-y-1.5 min-w-0">
+            <span className="text-xs font-medium text-muted-foreground">Difficulty</span>
+            <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0">
+              {difficulties.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDifficulty(d === difficulty ? "All" : d)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap transition-colors ${
+                    difficulty === d
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground border-border hover:border-primary/40"
+                  }`}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1.5 min-w-0">
+            <span className="text-xs font-medium text-muted-foreground">Product</span>
+            <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0">
+              {PRODUCT_TYPES.map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => setProductType(p.value === productType ? "All" : p.value)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap transition-colors ${
+                    productType === p.value
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground border-border hover:border-primary/40"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

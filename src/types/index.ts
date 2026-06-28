@@ -119,12 +119,17 @@ export interface CustomPersona {
 export interface CustomScenario {
   id: string;
   user_id: string;
+  created_by?: string | null;
+  organization_id?: string | null;
+  member_name?: string | null;
+  member_role?: string | null;
   seller_company: string;
   seller_product: string;
   seller_description: string;
   preset_persona_id: string | null;
   custom_persona: CustomPersona | null;
   scenario_type: string;
+  product_type: "payment" | "eor" | "cards";
   difficulty: "Beginner" | "Intermediate" | "Advanced" | "Expert";
   duration: number;
   context_note: string | null;

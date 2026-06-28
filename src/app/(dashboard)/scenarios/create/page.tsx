@@ -58,6 +58,20 @@ const SCENARIO_TYPES = [
 const DIFFICULTIES = ["Beginner", "Intermediate", "Advanced", "Expert"] as const;
 const DURATIONS = [5, 10, 15, 20];
 
+const PRODUCT_TYPES = [
+  { value: "payment", label: "Payment" },
+  { value: "eor", label: "EoR" },
+  { value: "cards", label: "Cards" },
+] as const;
+
+type ProductType = typeof PRODUCT_TYPES[number]["value"];
+
+const PRODUCT_TYPE_LABELS: Record<ProductType, string> = {
+  payment: "Payment",
+  eor: "EoR",
+  cards: "Cards",
+};
+
 const EVALUATION_FRAMEWORKS = [
   { value: "", label: "Standard (Discovery-based)" },
   { value: "MEDDIC", label: "MEDDIC" },
@@ -79,6 +93,7 @@ type Difficulty = typeof DIFFICULTIES[number];
 interface FormState {
   sellerCompany: string;
   sellerProduct: string;
+  productType: "payment" | "eor" | "cards";
   sellerDescription: string;
   usePresetPersona: boolean;
   presetPersonaId: string;
@@ -119,6 +134,7 @@ const LS_KEY = "salesSimAI_createScenario";
 const INITIAL: FormState = {
   sellerCompany: "",
   sellerProduct: "",
+  productType: "payment",
   sellerDescription: "",
   usePresetPersona: true,
   presetPersonaId: "",
@@ -201,6 +217,7 @@ function CreateScenarioPage() {
         setForm({
           sellerCompany: data.seller_company ?? "",
           sellerProduct: data.seller_product ?? "",
+          productType: (data.product_type as "payment" | "eor" | "cards") ?? "payment",
           sellerDescription: data.seller_description ?? "",
           usePresetPersona: !cp && !!data.preset_persona_id,
           presetPersonaId: data.preset_persona_id ?? "",
@@ -274,10 +291,18 @@ function CreateScenarioPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setError("Not authenticated."); setSaving(false); return; }
 
+    const { data: userProfile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("id", user.id)
+      .single();
+    const organizationId = userProfile?.organization_id ?? null;
+
     const payload = {
       name: scenarioName,
       seller_company: form.sellerCompany,
       seller_product: form.sellerProduct,
+      product_type: form.productType,
       seller_description: form.sellerDescription,
       preset_persona_id: form.usePresetPersona ? form.presetPersonaId : null,
       custom_persona: !form.usePresetPersona ? {
@@ -320,7 +345,12 @@ function CreateScenarioPage() {
       if (dbErr) { setError(dbErr.message); setSaving(false); return; }
       router.push("/scenarios");
     } else {
-      const { error: dbErr } = await supabase.from("custom_scenarios").insert({ ...payload, user_id: user.id });
+      const { error: dbErr } = await supabase.from("custom_scenarios").insert({
+        ...payload,
+        user_id: user.id,
+        created_by: user.id,
+        organization_id: organizationId,
+      });
       if (dbErr) { setError(dbErr.message); setSaving(false); return; }
       localStorage.removeItem(LS_KEY);
       router.push("/scenarios");
@@ -404,6 +434,19 @@ function CreateScenarioPage() {
                     value={form.sellerProduct}
                     onChange={(e) => set("sellerProduct", e.target.value)}
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Product Type</Label>
+                  <Select value={form.productType} onValueChange={(v) => set("productType", v as ProductType)}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRODUCT_TYPES.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sellerDescription" className="text-xs font-medium">
@@ -747,7 +790,7 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
 
                 <div className="space-y-2">
                   <Label htmlFor="scoringCriteria" className="text-xs font-medium">
-                    What Good Looks Like <span className="font-normal text-muted-foreground">(optional)</span>
+                    Scoring Criteria <span className="font-normal text-muted-foreground">(optional)</span>
                   </Label>
                   <Textarea
                     id="scoringCriteria"
@@ -799,6 +842,11 @@ Examples:
                   <p className="text-sm font-medium">{form.sellerProduct}</p>
                   <p className="text-xs text-muted-foreground">at <span className="font-medium text-foreground">{form.sellerCompany}</span></p>
                   <p className="text-xs text-muted-foreground mt-2 line-clamp-3">{form.sellerDescription}</p>
+                  <div className="pt-2">
+                    <Badge variant="outline" className="text-[10px]">
+                      {PRODUCT_TYPE_LABELS[form.productType]}
+                    </Badge>
+                  </div>
                 </div>
 
                 {/* Avatar */}
@@ -824,6 +872,101 @@ Examples:
                       <p className="text-xs text-muted-foreground">{form.customPersonaTitle} · {form.customPersonaCompany}</p>
                       {form.customPersonaPersonality && <p className="text-xs text-muted-foreground mt-1 italic">{form.customPersonaPersonality}</p>}
                     </>
+                  )}
+                </div>
+
+                {/* Persona details */}
+                <div className="rounded-xl border p-3 space-y-3">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Persona details</p>
+                  {form.customPersonaPersonalityTraits && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Personality / Behaviour</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaPersonalityTraits}</p>
+                    </div>
+                  )}
+                  {form.customPersonaPainPointsProcess && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Current Process</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaPainPointsProcess}</p>
+                    </div>
+                  )}
+                  {form.customPersonaPainPointsImpact && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Impact</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaPainPointsImpact}</p>
+                    </div>
+                  )}
+                  {form.customPersonaPainPoints && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Other Pain Points</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaPainPoints}</p>
+                    </div>
+                  )}
+                  {form.customPersonaCompanyGoal && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Company Goal</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaCompanyGoal}</p>
+                    </div>
+                  )}
+                  {form.customPersonaPersonalMotivation && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Personal Motivation</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaPersonalMotivation}</p>
+                    </div>
+                  )}
+                  {form.customPersonaGoals && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Other Goals</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaGoals}</p>
+                    </div>
+                  )}
+                  {form.customPersonaCommLanguage && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Communication Language / Environment</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaCommLanguage}</p>
+                    </div>
+                  )}
+                  {form.customPersonaCommStyle && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Communication Style</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaCommStyle}</p>
+                    </div>
+                  )}
+                  {form.customPersonaPriorVendor && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Prior Vendor Experience</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaPriorVendor}</p>
+                    </div>
+                  )}
+                  {form.customPersonaDecisionCriteria && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Decision Criteria</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaDecisionCriteria}</p>
+                    </div>
+                  )}
+                  {form.customPersonaHiddenConcern && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Hidden Concern</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaHiddenConcern}</p>
+                    </div>
+                  )}
+                  {form.customPersonaBudget && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Budget Status</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaBudget}</p>
+                    </div>
+                  )}
+                  {form.customPersonaTimeline && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Timeline Pressure</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaTimeline}</p>
+                    </div>
+                  )}
+                  {form.customPersonaSampleDialogues && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Sample Dialogue</p>
+                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaSampleDialogues}</p>
+                    </div>
                   )}
                 </div>
 
@@ -854,7 +997,7 @@ Examples:
                 )}
                 {form.scoringCriteria && (
                   <div className="rounded-xl border p-3 space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">What Good Looks Like</p>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Scoring Criteria</p>
                     <p className="text-xs text-muted-foreground whitespace-pre-line">{form.scoringCriteria}</p>
                   </div>
                 )}
