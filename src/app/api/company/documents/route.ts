@@ -111,6 +111,27 @@ async function deleteFromStorage(filePath: string): Promise<void> {
 }
 
 
+async function requireOrgMember(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return { error: "Unauthorized", status: 401 };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("organization_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.organization_id) return { error: "Not in an organization", status: 400 };
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("created_by, name")
+    .eq("id", profile.organization_id)
+    .single();
+
+  return { user, orgId: profile.organization_id, orgName: org?.name ?? "" };
+}
+
 async function requireAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return { error: "Unauthorized", status: 401 };
@@ -361,13 +382,15 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   try {
     const supabase = await createClient();
-    const adminCheck = await requireAdmin(supabase);
+    const adminCheck = await requireOrgMember(supabase);
     if ("error" in adminCheck) {
       return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status });
     }
     const { orgId } = adminCheck;
 
-    const { data: rows } = await supabase
+    // Use service role to bypass RLS so all org members can read documents
+    const svc = serviceSupabase();
+    const { data: rows } = await svc
       .from("company_documents")
       .select("id, name, doc_type, document_type, file_path, created_at, created_by")
       .eq("organization_id", orgId)
@@ -377,7 +400,7 @@ export async function GET() {
     const creatorIds = [...new Set((rows ?? []).map((d) => d.created_by).filter(Boolean))];
     let creators: Record<string, { full_name: string | null; email: string; role: string | null }> = {};
     if (creatorIds.length > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles } = await svc
         .from("profiles")
         .select("id, full_name, email, role")
         .in("id", creatorIds);

@@ -57,6 +57,7 @@ interface SessionSummary {
   duration_s: number | null;
   started_at: string;
   ended_at: string | null;
+  source?: "voice" | "text" | "video";
 }
 
 function AnalysisContent() {
@@ -77,44 +78,33 @@ function AnalysisContent() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
-    const [{ data: heygenData }, { data: voiceData }] = await Promise.all([
-      supabase
-        .from("heygen_sessions")
-        .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
-        .eq("user_id", user.id)
-        .not("ended_at", "is", null)
-        .order("started_at", { ascending: false }),
-      supabase
-        .from("simulation_sessions")
-        .select("id, scenario_id, scenario_table, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
-        .eq("user_id", user.id)
-        .eq("status", "completed")
-        .order("started_at", { ascending: false }),
-    ]);
+    const { data } = await supabase
+      .from("simulation_sessions")
+      .select("id, scenario_name, call_mode, analysis, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
+      .eq("user_id", user.id)
+      .eq("status", "completed")
+      .order("started_at", { ascending: false });
 
-    const heygenSessions: SessionSummary[] = (heygenData ?? []).map((s) => ({
-      ...s,
-      scenario_name: s.scenario_name ?? "Simulation",
-    }));
-
-    const voiceSessions: SessionSummary[] = (voiceData ?? []).map((s) => {
-      const coaching = s.simulation_coaching as { overall_score?: number } | null;
+    const mapped: SessionSummary[] = (data ?? []).map((s) => {
+      const coachingArr = s.simulation_coaching as Array<{ overall_score?: number }> | null;
+      const coaching = coachingArr?.[0] ?? null;
+      const mode = (s.call_mode ?? "voice") as string;
+      const storedAnalysis = s.analysis as Analysis | null;
+      const label = mode === "text" ? "Text Simulation" : mode === "video" ? "Video Call" : "Voice Simulation";
       return {
         id: s.id,
-        scenario_name: "Voice Simulation",
-        analysis: coaching
-          ? ({ overall_score: coaching.overall_score } as Analysis)
-          : null,
+        scenario_name: s.scenario_name ?? label,
+        analysis: mode === "voice"
+          ? (coaching ? ({ overall_score: coaching.overall_score } as Analysis) : null)
+          : (storedAnalysis ?? null),
         duration_s: s.duration_s ?? null,
         started_at: s.started_at ?? new Date().toISOString(),
         ended_at: s.ended_at,
+        source: (mode === "text" ? "text" : mode === "video" ? "video" : "voice") as SessionSummary["source"],
       };
     });
 
-    const merged = [...heygenSessions, ...voiceSessions].sort(
-      (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
-    );
-    setSessions(merged);
+    setSessions(mapped);
     setLoading(false);
   }, []);
 
@@ -123,19 +113,16 @@ function AnalysisContent() {
     setError(null);
     const supabase = createClient();
 
-    // Voice session: load from simulation_coaching
+    // Voice session: read from simulation_coaching
     if (source === "voice") {
-      const { data: session } = await supabase
-        .from("simulation_sessions")
-        .select("id, scenario_id, scenario_table, started_at, ended_at, duration_s")
-        .eq("id", sid)
-        .single();
-
-      const { data: coaching } = await supabase
-        .from("simulation_coaching")
-        .select("overall_score, discovery_score, objection_score, empathy_score, missed_opportunities, recommendations")
-        .eq("session_id", sid)
-        .single();
+      const [{ data: session }, { data: coaching }] = await Promise.all([
+        supabase.from("simulation_sessions")
+          .select("id, scenario_name, started_at, ended_at, duration_s")
+          .eq("id", sid).single(),
+        supabase.from("simulation_coaching")
+          .select("overall_score, discovery_score, objection_score, empathy_score, missed_opportunities, recommendations")
+          .eq("session_id", sid).single(),
+      ]);
 
       if (!session) { setError("Session not found"); setLoading(false); return; }
 
@@ -159,7 +146,7 @@ function AnalysisContent() {
         setAnalysis(voiceAnalysis);
         setCurrentSession({
           id: session.id,
-          scenario_name: "Voice Simulation",
+          scenario_name: session.scenario_name ?? "Voice Simulation",
           duration_s: session.duration_s ?? null,
           started_at: session.started_at ?? new Date().toISOString(),
           ended_at: session.ended_at,
@@ -168,14 +155,14 @@ function AnalysisContent() {
         return;
       }
 
-      setError("No analysis available for this session. The call may have ended before feedback was generated.");
+      setError("No analysis available for this session.");
       setLoading(false);
       return;
     }
 
-    // HeyGen video session
+    // Text / video session: read analysis from simulation_sessions.analysis
     const { data: session } = await supabase
-      .from("heygen_sessions")
+      .from("simulation_sessions")
       .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
       .eq("id", sid)
       .single();
@@ -184,7 +171,13 @@ function AnalysisContent() {
 
     if (session.analysis) {
       setAnalysis(session.analysis as Analysis);
-      setCurrentSession(session as SessionSummary);
+      setCurrentSession({
+        id: session.id,
+        scenario_name: session.scenario_name ?? "Simulation",
+        duration_s: session.duration_s ?? null,
+        started_at: session.started_at ?? new Date().toISOString(),
+        ended_at: session.ended_at,
+      } as SessionSummary);
       setLoading(false);
       return;
     }
@@ -252,7 +245,7 @@ function AnalysisContent() {
                 <div
                   key={s.id}
                   className="group flex items-center gap-4 rounded-2xl border bg-card px-5 py-4 hover:shadow-sm hover:border-primary/30 transition-all cursor-pointer"
-                  onClick={() => router.push(`/analysis?session=${s.id}`)}
+                  onClick={() => router.push(`/analysis?session=${s.id}${s.source ? `&source=${s.source}` : ``}`)}
                 >
                   <div className="hidden sm:flex flex-col items-center gap-1 w-12 shrink-0">
                     {score !== null ? (

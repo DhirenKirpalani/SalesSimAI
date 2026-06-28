@@ -22,6 +22,9 @@ import {
   Sparkles,
   Info,
   LogOut,
+  Building2,
+  Loader2,
+  Check,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -57,7 +60,9 @@ type Notification = {
   message: string;
   time: string;
   read: boolean;
-  type: "score" | "message" | "scenario" | "system";
+  type: "score" | "message" | "scenario" | "system" | "invite";
+  inviteId?: string;
+  orgName?: string;
 };
 
 const READ_KEY = "notif_read_ids";
@@ -87,6 +92,7 @@ const notificationIcon = (type: Notification["type"]) => {
     case "message": return <MessageCircle className={className} />;
     case "scenario": return <Sparkles className={className} />;
     case "system": return <Info className={className} />;
+    case "invite": return <Building2 className={className} />;
   }
 };
 
@@ -100,11 +106,28 @@ export function TopNavbar() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const readIdsRef = useRef<Set<string>>(new Set());
+  const [acceptingInvite, setAcceptingInvite] = useState<string | null>(null);
+  const [acceptedInvites, setAcceptedInvites] = useState<Set<string>>(new Set());
 
   const { isAdmin } = useRole();
 
-  const buildNotifications = useCallback((sessions: any[], scenarios: any[], readIds: Set<string>): Notification[] => {
+  const buildNotifications = useCallback((sessions: any[], scenarios: any[], invites: any[], readIds: Set<string>): Notification[] => {
     const notifs: Notification[] = [];
+    invites.forEach((inv) => {
+      const id = `invite-${inv.id}`;
+      notifs.push({
+        id,
+        title: "Organization invite",
+        message: inv.invited_by_name
+          ? `${inv.invited_by_name} invited you to join ${inv.org_name}.`
+          : `You've been invited to join ${inv.org_name}.`,
+        time: timeAgo(inv.created_at),
+        read: readIds.has(id),
+        type: "invite",
+        inviteId: inv.id,
+        orgName: inv.org_name,
+      });
+    });
     sessions.forEach((s) => {
       const score = s.analysis?.overall_score as number | undefined;
       const name = s.scenario_name ?? "a simulation";
@@ -132,13 +155,17 @@ export function TopNavbar() {
       });
     });
     return notifs.sort((a, b) => {
-      const ta = sessions.find((s) => `session-${s.id}` === a.id)?.ended_at
-        ?? sessions.find((s) => `session-${s.id}` === a.id)?.started_at
-        ?? (scenarios.find((s) => `scenario-${s.id}` === a.id)?.created_at ?? "");
-      const tb = sessions.find((s) => `session-${s.id}` === b.id)?.ended_at
-        ?? sessions.find((s) => `session-${s.id}` === b.id)?.started_at
-        ?? (scenarios.find((s) => `scenario-${s.id}` === b.id)?.created_at ?? "");
-      return new Date(tb).getTime() - new Date(ta).getTime();
+      if (a.type === "invite" && b.type !== "invite") return -1;
+      if (b.type === "invite" && a.type !== "invite") return 1;
+      const getTs = (n: Notification) => {
+        const s = sessions.find((s) => `session-${s.id}` === n.id);
+        if (s) return s.ended_at ?? s.started_at ?? "";
+        const sc = scenarios.find((s) => `scenario-${s.id}` === n.id);
+        if (sc) return sc.created_at ?? "";
+        const inv = invites.find((i: any) => `invite-${i.id}` === n.id);
+        return inv?.created_at ?? "";
+      };
+      return new Date(getTs(b)).getTime() - new Date(getTs(a)).getTime();
     });
   }, []);
 
@@ -173,6 +200,8 @@ export function TopNavbar() {
     let pollInterval: ReturnType<typeof setInterval> | null = null;
     let userId: string | null = null;
 
+    let invitesCache: any[] = [];
+
     const load = async () => {
       if (!userId) return;
       const { data: userProfile } = await supabase
@@ -191,7 +220,7 @@ export function TopNavbar() {
       } else {
         scenarioQuery = scenarioQuery.eq("user_id", userId);
       }
-      const [{ data: sessions }, { data: scenarios }] = await Promise.all([
+      const [{ data: sessions }, { data: scenarios }, inviteRes] = await Promise.all([
         supabase
           .from("heygen_sessions")
           .select("id, scenario_name, analysis, started_at, ended_at")
@@ -200,10 +229,12 @@ export function TopNavbar() {
           .order("ended_at", { ascending: false })
           .limit(10),
         scenarioQuery,
+        fetch("/api/company/org/my-invite").then((r) => r.json()).catch(() => ({ invites: [] })),
       ]);
       sessionsCache = sessions ?? [];
       scenariosCache = scenarios ?? [];
-      setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
+      invitesCache = (inviteRes?.invites ?? []).filter((inv: any) => !acceptedInvites.has(inv.id));
+      setNotifications(buildNotifications(sessionsCache, scenariosCache, invitesCache, readIdsRef.current));
     };
 
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -234,7 +265,7 @@ export function TopNavbar() {
           if (!payload.new.ended_at) return;
           const updated = payload.new;
           sessionsCache = [updated, ...sessionsCache.filter((s) => s.id !== updated.id)].slice(0, 10);
-          setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
+          setNotifications(buildNotifications(sessionsCache, scenariosCache, invitesCache, readIdsRef.current));
         }
       );
       channel.on(
@@ -242,7 +273,7 @@ export function TopNavbar() {
         { event: "INSERT", schema: "public", table: "custom_scenarios", filter: `user_id=eq.${user.id}` },
         (payload) => {
           scenariosCache = [payload.new, ...scenariosCache].slice(0, 5);
-          setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
+          setNotifications(buildNotifications(sessionsCache, scenariosCache, invitesCache, readIdsRef.current));
         }
       );
       if (organizationId) {
@@ -251,7 +282,7 @@ export function TopNavbar() {
           { event: "INSERT", schema: "public", table: "custom_scenarios", filter: `organization_id=eq.${organizationId}` },
           (payload) => {
             scenariosCache = [payload.new, ...scenariosCache].slice(0, 5);
-            setNotifications(buildNotifications(sessionsCache, scenariosCache, readIdsRef.current));
+            setNotifications(buildNotifications(sessionsCache, scenariosCache, invitesCache, readIdsRef.current));
           }
         );
       }
@@ -262,7 +293,27 @@ export function TopNavbar() {
       if (pollInterval) clearInterval(pollInterval);
       if (channel) supabase.removeChannel(channel);
     };
-  }, [buildNotifications]);
+  }, [buildNotifications, acceptedInvites]);
+
+  async function handleAcceptInvite(inviteId: string, notifId: string) {
+    setAcceptingInvite(inviteId);
+    try {
+      const res = await fetch("/api/company/org/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inviteId }),
+      });
+      if (res.ok) {
+        setAcceptedInvites((prev) => new Set([...prev, inviteId]));
+        setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+        window.location.reload();
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setAcceptingInvite(null);
+    }
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6">
@@ -365,11 +416,15 @@ export function TopNavbar() {
                 <div
                   key={n.id}
                   className={cn(
-                    "flex items-start gap-3 px-4 py-3 hover:bg-accent/50 transition-colors cursor-pointer",
+                    "flex items-start gap-3 px-4 py-3 transition-colors",
+                    n.type !== "invite" && "hover:bg-accent/50 cursor-pointer",
                     !n.read && "bg-primary/5"
                   )}
                 >
-                  <div className="mt-0.5 shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <div className={cn(
+                    "mt-0.5 shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
+                    n.type === "invite" ? "bg-blue-500/10" : "bg-primary/10"
+                  )}>
                     {notificationIcon(n.type)}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -382,8 +437,30 @@ export function TopNavbar() {
                     <p className="text-[10px] text-muted-foreground/70 mt-1">
                       {n.time}
                     </p>
+                    {n.type === "invite" && n.inviteId && (
+                      <div className="flex gap-2 mt-2">
+                        <Button
+                          size="xs"
+                          onClick={() => handleAcceptInvite(n.inviteId!, n.id)}
+                          disabled={acceptingInvite === n.inviteId}
+                        >
+                          {acceptingInvite === n.inviteId ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <><Check className="w-3 h-3" /> Accept</>)
+                          }
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          onClick={() => setNotifications((prev) => prev.filter((x) => x.id !== n.id))}
+                        >
+                          Dismiss
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  {!n.read && (
+                  {!n.read && n.type !== "invite" && (
                     <span className="mt-2 shrink-0 h-1.5 w-1.5 rounded-full bg-primary" />
                   )}
                 </div>

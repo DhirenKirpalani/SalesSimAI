@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     const { data: scenario, error: scenarioError } = await supabase
       .from(session.scenario_table)
-      .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product")
+      .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product, scenario_type, difficulty, duration, product_type")
       .eq("id", session.scenario_id)
       .single();
 
@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
     // Build a rich context note: call type + seller info + optional backstory
     const contextParts: string[] = [];
     if (scenario.scenario_type) contextParts.push(`Call type: ${scenario.scenario_type}`);
+    if (scenario.product_type) contextParts.push(`Product category: ${scenario.product_type}`);
     if (scenario.seller_company) contextParts.push(`Selling company: ${scenario.seller_company}`);
     if (scenario.seller_product) contextParts.push(`Product: ${scenario.seller_product}`);
     if (scenario.context_note) contextParts.push(`Backstory: ${scenario.context_note}`);
@@ -112,6 +113,9 @@ export async function POST(req: NextRequest) {
     }
 
     console.log("[simulation/turn] calling buyer-brain…", { sessionId, msgCount: messages.length, trust: state.trust_level, persona: persona.name, seller: sellerInfo.name });
+    const sessionStart = new Date(session.created_at ?? Date.now());
+    const elapsedMin = Math.max(0, Math.round((Date.now() - sessionStart.getTime()) / 60000));
+
     const buyerResponse = await processTurn(
       persona,
       richContextNote,
@@ -120,9 +124,11 @@ export async function POST(req: NextRequest) {
       messages,
       message.trim(),
       sellerInfo,
-      undefined,
-      undefined,
-      companyRag
+      scenario.difficulty ?? undefined,
+      scenario.scenario_type ?? undefined,
+      companyRag,
+      scenario.duration ?? undefined,
+      elapsedMin
     );
     console.log("[simulation/turn] buyer-brain response:", buyerResponse.message.slice(0, 100));
 

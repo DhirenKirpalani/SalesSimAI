@@ -54,17 +54,26 @@ interface FeedbackResult {
   coaching_moments?: CoachingMoment[];
 }
 
+function parseCheckpointIds(criteria: string): { id: string; name: string }[] {
+  const matches = [...criteria.matchAll(/^([A-Z]\d+)\s*[\u2014\u2013-]\s*([^\n]+)/gm)];
+  return matches.map((m) => ({ id: m[1].trim(), name: m[2].trim() }));
+}
+
+type CheckpointStatus = "hit" | "warning" | "pending";
+
 // Draggable coaching overlay wrapper
 function DraggableCoaching({
   coaching,
   coachingOpen,
   setCoachingOpen,
+  checkpoints,
 }: {
   coaching: ReturnType<typeof useCoaching>;
   coachingOpen: boolean;
   setCoachingOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
+  checkpoints?: { id: string; name: string; status: CheckpointStatus }[];
 }) {
-  const [pos, setPos] = useState({ x: 16, y: 12 });
+  const [pos, setPos] = useState({ x: 16, y: 60 }); // right offset, top offset
   const draggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0, startX: 0, startY: 0 });
 
@@ -87,7 +96,10 @@ function DraggableCoaching({
     if (!draggingRef.current) return;
     const dx = e.clientX - dragStartRef.current.x;
     const dy = e.clientY - dragStartRef.current.y;
-    setPos({ x: dragStartRef.current.startX + dx, y: dragStartRef.current.startY + dy });
+    setPos({
+      x: Math.max(8, dragStartRef.current.startX - dx), // right anchor: drag right → smaller right offset
+      y: Math.max(8, dragStartRef.current.startY + dy),
+    });
   }, []);
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {
@@ -97,8 +109,8 @@ function DraggableCoaching({
 
   return (
     <div
-      className="absolute z-20 w-64"
-      style={{ left: pos.x, top: pos.y }}
+      className="fixed z-50 w-64"
+      style={{ right: pos.x, top: pos.y }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -110,6 +122,7 @@ function DraggableCoaching({
         progressPercent={coaching.progressPercent}
         isOpen={coachingOpen}
         onToggle={() => setCoachingOpen((o) => !o)}
+        checkpoints={checkpoints}
       />
     </div>
   );
@@ -139,6 +152,7 @@ function HeyGenTestInner() {
   const timeLeftRef = useRef<number | null>(null);
   const resumeTimeLeftRef = useRef<number | null>(null);
   const heygenSessionDbIdRef = useRef<string | null>(null);
+  const simSessionDbIdRef = useRef<string | null>(null);
   const startedAtRef = useRef<string | null>(null);
   const defaultDurationRef = useRef<number>(300); // seconds, default 5 min
 
@@ -152,6 +166,8 @@ function HeyGenTestInner() {
   const [resolvedScenarioName, setResolvedScenarioName] = useState<string | null>(null);
   const [resolvedPersonaName, setResolvedPersonaName] = useState<string | null>(null);
   const [resolvedPersonaRole, setResolvedPersonaRole] = useState<string | null>(null);
+  const [sellerInitials, setSellerInitials] = useState("U");
+  const [sellerAvatarUrl, setSellerAvatarUrl] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [feedback, setFeedback] = useState<FeedbackResult | null>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
@@ -166,6 +182,8 @@ function HeyGenTestInner() {
   const [textInput, setTextInput] = useState("");
   const [textLoading, setTextLoading] = useState(false);
   const [coachingOpen, setCoachingOpen] = useState(true);
+  const [scoringCriteria, setScoringCriteria] = useState<string | null>(null);
+  const [checkpointStatus, setCheckpointStatus] = useState<Record<string, CheckpointStatus>>({});
   const voiceCall = useVoiceCall();
   const coaching = useCoaching();
 
@@ -212,6 +230,17 @@ function HeyGenTestInner() {
     };
   }, [coaching.lastTurnResult, status]);
   coachingAnalyzeRef.current = coaching.analyze;
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      const name = user.user_metadata?.full_name ?? user.email ?? "U";
+      const initials = name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
+      setSellerInitials(initials);
+      if (user.user_metadata?.avatar_url) setSellerAvatarUrl(user.user_metadata.avatar_url);
+    });
+  }, []);
 
   const addLog = useCallback((msg: string) => {
     console.log("[heygen-test]", msg);
@@ -275,6 +304,7 @@ function HeyGenTestInner() {
       const info: SessionInfo = json;
       sessionRef.current = info;
       heygenSessionDbIdRef.current = info.heygen_session_db_id ?? null;
+      simSessionDbIdRef.current = (info as any).sim_session_db_id ?? null;
       startedAtRef.current = new Date().toISOString();
       if (info.duration_min) {
         defaultDurationRef.current = info.duration_min * 60;
@@ -284,6 +314,7 @@ function HeyGenTestInner() {
       if (heygenSessionDbIdRef.current) {
         localStorage.setItem("heygen-active-session", JSON.stringify({
           heygenSessionDbId: heygenSessionDbIdRef.current,
+          simSessionDbId: simSessionDbIdRef.current,
           startedAt: startedAtRef.current,
         }));
       }
@@ -484,12 +515,13 @@ function HeyGenTestInner() {
     transcriptRef.current = [];
     addLog("Starting voice call session…");
     coaching.reset();
+    setCheckpointStatus({});
 
     try {
       const res = await fetch("/api/simulation/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenarioId, scenarioTable }),
+        body: JSON.stringify({ scenarioId, scenarioTable, callMode: "voice" }),
       });
       const data = await res.json();
       if (!res.ok || !data.session) throw new Error(data.error ?? "Failed to create session");
@@ -530,12 +562,13 @@ function HeyGenTestInner() {
     transcriptRef.current = [];
     addLog("Starting text chat session…");
     coaching.reset();
+    setCheckpointStatus({});
 
     try {
       const res = await fetch("/api/simulation/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenarioId, scenarioTable }),
+        body: JSON.stringify({ scenarioId, scenarioTable, callMode: "text" }),
       });
       const data = await res.json();
       if (!res.ok || !data.session) throw new Error(data.error ?? "Failed to create session");
@@ -594,8 +627,24 @@ function HeyGenTestInner() {
       } else {
         console.warn("[text] no message in response:", data);
       }
-      if (data.new_state || data.buyer_response?.state_updates) {
-        coachingAnalyzeRef.current(message, buyerMsg);
+      coachingAnalyzeRef.current(message, buyerMsg);
+      if (sessionId && buyerMsg) {
+        fetch("/api/simulation/coach-turn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, sellerText: message, buyerText: buyerMsg }),
+        }).then((r) => r.json()).then((result) => {
+          if (result.fallback || result.error) return;
+          const nudgeType: "success" | "info" | "warning" =
+            result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
+          const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
+          setLiveNudge({ message: `${label}${result.nudge}`, type: nudgeType });
+          if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
+          nudgeTimerRef.current = setTimeout(() => setLiveNudge(null), 8000);
+          if (result.checkpoint_hit) {
+            setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
+          }
+        }).catch(() => {});
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -826,17 +875,30 @@ function HeyGenTestInner() {
           }
         } else {
           // Existing HeyGen video feedback
-          const res = await fetch("/api/heygen-test/feedback", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              transcript: currentTranscript,
-              scenarioName: resolvedScenarioName ?? "Simulation",
-              heygenSessionId: heygenSessionDbIdRef.current,
-              startedAt: startedAtRef.current,
+          const promises: Promise<unknown>[] = [
+            fetch("/api/heygen-test/feedback", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                transcript: currentTranscript,
+                scenarioName: resolvedScenarioName ?? "Simulation",
+                heygenSessionId: heygenSessionDbIdRef.current,
+                simSessionId: simSessionDbIdRef.current,
+                startedAt: startedAtRef.current,
+              }),
             }),
-          });
-          setFeedback(await res.json());
+          ];
+          if (simSessionDbIdRef.current) {
+            promises.push(
+              fetch("/api/simulation/end", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessionId: simSessionDbIdRef.current }),
+              })
+            );
+          }
+          const [feedbackRes] = await Promise.all(promises) as [Response];
+          setFeedback(await feedbackRes.json());
 
           const heygenSessionId = sessionRef.current?.session_id;
           if (heygenSessionId) {
@@ -857,8 +919,9 @@ function HeyGenTestInner() {
     try {
       const stored = localStorage.getItem("heygen-active-session");
       if (stored) {
-        const parsed = JSON.parse(stored) as { heygenSessionDbId: string; startedAt: string };
+        const parsed = JSON.parse(stored) as { heygenSessionDbId: string; simSessionDbId?: string; startedAt: string };
         heygenSessionDbIdRef.current = parsed.heygenSessionDbId;
+        simSessionDbIdRef.current = parsed.simSessionDbId ?? null;
         startedAtRef.current = parsed.startedAt;
       }
     } catch { /* ignore */ }
@@ -883,7 +946,7 @@ function HeyGenTestInner() {
         const supabase = createClient();
         const { data: scenario } = await supabase
           .from(scenarioTable)
-          .select("seller_company, seller_product, custom_persona, context_note, preset_persona_id, scenario_type")
+          .select("seller_company, seller_product, custom_persona, context_note, preset_persona_id, scenario_type, scoring_criteria")
           .eq("id", scenarioId)
           .single();
         if (scenario) {
@@ -902,6 +965,7 @@ function HeyGenTestInner() {
             contextNote: scenario.context_note ?? undefined,
             scenarioType: scenario.scenario_type ?? undefined,
           });
+          setScoringCriteria((scenario as any).scoring_criteria ?? null);
         }
       } catch { /* ignore */ }
     };
@@ -929,6 +993,24 @@ function HeyGenTestInner() {
       const buyerEntry = lastTwo.find((t) => t.role === "buyer");
       if (sellerEntry && buyerEntry) {
         coachingAnalyzeRef.current(sellerEntry.text, buyerEntry.text);
+        if (voiceSessionId) {
+          fetch("/api/simulation/coach-turn", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId: voiceSessionId, sellerText: sellerEntry.text, buyerText: buyerEntry.text }),
+          }).then((r) => r.json()).then((result) => {
+            if (result.fallback || result.error) return;
+            const nudgeType: "success" | "info" | "warning" =
+              result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
+            const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
+            setLiveNudge({ message: `${label}${result.nudge}`, type: nudgeType });
+            if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
+            nudgeTimerRef.current = setTimeout(() => setLiveNudge(null), 8000);
+            if (result.checkpoint_hit) {
+              setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
+            }
+          }).catch(() => {});
+        }
       }
     } else {
       // Video mode: use main transcript (role is "avatar" for buyer)
@@ -1142,7 +1224,7 @@ function HeyGenTestInner() {
         )}
 
         {/* Live Nudge Toast — floats above video/voice calls */}
-        {liveNudge && status === "connected" && callMode !== "text" && (
+        {liveNudge && status === "connected" && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 max-w-md w-[90%] animate-in fade-in slide-in-from-top-2 duration-300">
             <div
               className={`rounded-xl px-4 py-3 shadow-xl border backdrop-blur-sm flex items-start gap-3 ${
@@ -1242,7 +1324,17 @@ function HeyGenTestInner() {
                 </div>
               )}
               {transcript.map((entry, i) => (
-                <div key={i} className={`flex ${entry.role === "user" ? "justify-end" : "justify-start"} mb-3`}>
+                <div key={i} className={`flex items-end gap-2 ${entry.role === "user" ? "justify-end" : "justify-start"} mb-3`}>
+                  {/* Buyer avatar — left side */}
+                  {entry.role === "avatar" && (
+                    <div className="shrink-0 w-7 h-7 rounded-full overflow-hidden bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center border border-white/10">
+                      {avatarImageUrl ? (
+                        <img src={avatarImageUrl} alt={resolvedPersonaName ?? "Buyer"} className="w-full h-full object-cover object-top" />
+                      ) : (
+                        <span className="text-[10px] text-gray-300 font-semibold">{(resolvedPersonaName ?? "B").slice(0, 1).toUpperCase()}</span>
+                      )}
+                    </div>
+                  )}
                   <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-sm ${
                     entry.role === "user"
                       ? "bg-blue-600 text-white rounded-br-md"
@@ -1258,11 +1350,28 @@ function HeyGenTestInner() {
                       )}
                     </div>
                   </div>
+                  {/* Seller avatar — right side */}
+                  {entry.role === "user" && (
+                    <div className="shrink-0 w-7 h-7 rounded-full overflow-hidden bg-blue-700 flex items-center justify-center border border-white/10">
+                      {sellerAvatarUrl ? (
+                        <img src={sellerAvatarUrl} alt="You" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-[10px] text-white font-semibold">{sellerInitials}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
               {/* Typing indicator — WhatsApp style */}
               {textLoading && (
-                <div className="flex justify-start mb-3">
+                <div className="flex items-end gap-2 justify-start mb-3">
+                  <div className="shrink-0 w-7 h-7 rounded-full overflow-hidden bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center border border-white/10">
+                    {avatarImageUrl ? (
+                      <img src={avatarImageUrl} alt={resolvedPersonaName ?? "Buyer"} className="w-full h-full object-cover object-top" />
+                    ) : (
+                      <span className="text-[10px] text-gray-300 font-semibold">{(resolvedPersonaName ?? "B").slice(0, 1).toUpperCase()}</span>
+                    )}
+                  </div>
                   <div className="bg-[#1E293B] rounded-2xl rounded-bl-md px-5 py-4 shadow-sm min-w-[72px]">
                     <div className="flex gap-1.5 items-center h-5">
                       <div className="w-2.5 h-2.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms", animationDuration: "900ms" }} />
@@ -1375,6 +1484,15 @@ function HeyGenTestInner() {
             coaching={coaching}
             coachingOpen={coachingOpen}
             setCoachingOpen={setCoachingOpen}
+            checkpoints={
+              scoringCriteria
+                ? parseCheckpointIds(scoringCriteria).map(({ id, name }) => ({
+                    id,
+                    name,
+                    status: (checkpointStatus[id] ?? "pending") as CheckpointStatus,
+                  }))
+                : undefined
+            }
           />
         )}
       </div>

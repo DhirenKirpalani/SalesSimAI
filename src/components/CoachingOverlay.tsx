@@ -4,6 +4,12 @@ import { Lightbulb, ChevronRight, Users, Target, CheckCircle } from "lucide-reac
 import { cn } from "@/lib/utils";
 import { getCoachingSteps, CoachingState } from "@/lib/coaching";
 
+interface Checkpoint {
+  id: string;
+  name: string;
+  status: "hit" | "warning" | "pending";
+}
+
 interface CoachingOverlayProps {
   state: CoachingState;
   stepTip: string;
@@ -11,6 +17,7 @@ interface CoachingOverlayProps {
   progressPercent: number;
   isOpen: boolean;
   onToggle: () => void;
+  checkpoints?: Checkpoint[];
 }
 
 function StepDot({
@@ -51,6 +58,7 @@ export function CoachingOverlay({
   progressPercent,
   isOpen,
   onToggle,
+  checkpoints,
 }: CoachingOverlayProps) {
   return (
     <div className="flex flex-col gap-3">
@@ -70,6 +78,45 @@ export function CoachingOverlay({
 
       {isOpen && (
         <div className="bg-card rounded-xl border shadow-sm p-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200 max-h-[60vh] sm:max-h-none overflow-y-auto">
+
+          {/* Scoring Checkpoints — shown when scenario has scoring_criteria */}
+          {checkpoints && checkpoints.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Scoring Checkpoints</div>
+              <div className="space-y-1">
+                {checkpoints.map((cp) => (
+                  <div
+                    key={cp.id}
+                    className={cn(
+                      "flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors",
+                      cp.status === "hit"
+                        ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900"
+                        : cp.status === "warning"
+                        ? "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-900"
+                        : "bg-muted/50 text-muted-foreground border border-transparent"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0",
+                        cp.status === "hit"
+                          ? "bg-emerald-500 text-white"
+                          : cp.status === "warning"
+                          ? "bg-amber-500 text-white"
+                          : "bg-muted-foreground/20 text-muted-foreground"
+                      )}
+                    >
+                      {cp.status === "hit" ? "✓" : cp.status === "warning" ? "!" : cp.id.replace(/\D/g, "")}
+                    </div>
+                    <span className="font-semibold flex-shrink-0">{cp.id}</span>
+                    <span className="truncate">{cp.name}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="h-px bg-border" />
+            </div>
+          )}
+
           {/* Progress header */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">

@@ -25,7 +25,7 @@ const navItems = [
   { label: "AI Scenario Generator", href: "/company-onboarding", icon: Sparkles },
   { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
-  { label: "Company Knowledge", href: "/company-knowledge", icon: BookOpen, adminOnly: true },
+  { label: "Company Knowledge", href: "/company-knowledge", icon: BookOpen },
   { label: "Profile", href: "/profile", icon: User },
   { label: "Admin", href: "/admin", icon: ShieldCheck, adminOnly: true },
 ];

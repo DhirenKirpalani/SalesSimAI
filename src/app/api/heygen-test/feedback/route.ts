@@ -57,11 +57,12 @@ COACHING MOMENTS rules:
 - If the call was very short, score conservatively and note it.`;
 
 export async function POST(req: NextRequest) {
-  const { transcript, scenarioName, heygenSessionId, startedAt } = await req.json() as {
+  const { transcript, scenarioName, heygenSessionId, startedAt, simSessionId } = await req.json() as {
     transcript: TranscriptEntry[];
     scenarioName: string;
     heygenSessionId?: string;
     startedAt?: string;
+    simSessionId?: string;
   };
 
   if (!transcript?.length) {
@@ -98,22 +99,30 @@ export async function POST(req: NextRequest) {
     const analysis = JSON.parse(content);
 
     // Persist to DB before responding
+    const endedAt = new Date().toISOString();
+    const durationS = startedAt
+      ? Math.round((Date.now() - new Date(startedAt).getTime()) / 1000)
+      : null;
+
+    const svc = serviceSupabase();
     if (heygenSessionId) {
-      const durationS = startedAt
-        ? Math.round((Date.now() - new Date(startedAt).getTime()) / 1000)
-        : null;
       try {
-        await serviceSupabase()
+        await svc
           .from("heygen_sessions")
-          .update({
-            transcript,
-            analysis,
-            duration_s: durationS,
-            ended_at: new Date().toISOString(),
-          })
+          .update({ transcript, analysis, duration_s: durationS, ended_at: endedAt })
           .eq("id", heygenSessionId);
       } catch (dbErr) {
-        console.warn("[heygen-test/feedback] DB update failed:", dbErr);
+        console.warn("[heygen-test/feedback] heygen_sessions update failed:", dbErr);
+      }
+    }
+    if (simSessionId) {
+      try {
+        await svc
+          .from("simulation_sessions")
+          .update({ analysis, status: "completed", ended_at: endedAt, duration_s: durationS })
+          .eq("id", simSessionId);
+      } catch (dbErr) {
+        console.warn("[heygen-test/feedback] simulation_sessions update failed:", dbErr);
       }
     }
 

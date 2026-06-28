@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { scenarioId, scenarioTable } = await req.json();
+    const { scenarioId, scenarioTable, callMode } = await req.json();
 
     if (!scenarioId || !scenarioTable) {
       return NextResponse.json({ error: "Missing scenarioId or scenarioTable" }, { status: 400 });
@@ -31,7 +31,8 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         scenario_id: scenarioId,
         scenario_table: scenarioTable,
-        scenario_name: scenario.name ?? "Voice Simulation",
+        scenario_name: scenario.name ?? "Simulation",
+        call_mode: callMode === "text" ? "text" : "voice",
         status: "active",
         state: {
           trust_level: 30,

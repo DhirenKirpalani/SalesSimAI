@@ -64,7 +64,9 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    const params = new URLSearchParams(window.location.search);
+    const redirect = params.get("redirect");
+    router.push(redirect ?? "/dashboard");
     router.refresh();
   };
 

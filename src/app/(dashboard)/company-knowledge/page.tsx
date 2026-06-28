@@ -39,6 +39,8 @@ import {
   X,
   Search,
   Sparkles,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { useRouter } from "next/navigation";
@@ -124,6 +126,7 @@ export default function CompanyKnowledgePage() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteStatus, setInviteStatus] = useState<"idle" | "success" | "error">("idle");
   const [inviteMessage, setInviteMessage] = useState("");
+  const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
 
   // Document upload
   const [docs, setDocs] = useState<Document[]>([]);
@@ -575,20 +578,20 @@ export default function CompanyKnowledgePage() {
     }
   }
 
-  // ── Admin Gate ───────────────────────────────────────────────────────
-  if (!roleLoading && !isAdmin) {
+  // ── No access if not in any org and not an app admin ─────────────────
+  if (!roleLoading && !loading && !org && !isAdmin) {
     return (
       <div className="max-w-2xl mx-auto py-12 px-4">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-red-500" />
-              Access Denied
+              <AlertCircle className="w-5 h-5 text-amber-500" />
+              No Organization
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
-              Company Knowledge Base is only available to administrators.
+              You are not part of an organization yet. Ask your admin to invite you, or create your own.
             </p>
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
               Go to Dashboard
@@ -667,8 +670,8 @@ export default function CompanyKnowledgePage() {
 
         {/* ── Knowledge Base Tab ─────────────────────────────────────── */}
         <TabsContent value="documents" className="space-y-4">
-          {/* Website Extraction */}
-          <Card>
+          {/* Website Extraction — admin only */}
+          {isOrgAdmin && <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Sparkles className="w-4 h-4" />
@@ -685,10 +688,10 @@ export default function CompanyKnowledgePage() {
                 onChange={setOnboardingUrls}
               />
             </CardContent>
-          </Card>
+          </Card>}
 
-          {/* Document Upload */}
-          <Card>
+          {/* Document Upload — admin only */}
+          {isOrgAdmin && <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Upload className="w-4 h-4" />
@@ -799,10 +802,10 @@ export default function CompanyKnowledgePage() {
                 )}
               </div>
             </CardContent>
-          </Card>
+          </Card>}
 
-          {/* AI Bulk Upload */}
-          <Card>
+          {/* AI Bulk Upload — admin only */}
+          {isOrgAdmin && <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Sparkles className="w-4 h-4" />
@@ -957,7 +960,7 @@ export default function CompanyKnowledgePage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </Card>}
 
           {/* Document List */}
           <Card>
@@ -970,7 +973,9 @@ export default function CompanyKnowledgePage() {
             <CardContent>
               {docs.length === 0 ? (
                 <p className="text-muted-foreground text-sm text-center py-8">
-                  No documents uploaded yet. Upload your first document above.
+                  {isOrgAdmin
+                    ? "No documents uploaded yet. Upload your first document above."
+                    : "No documents uploaded yet. Ask your admin to upload documents."}
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -1106,9 +1111,28 @@ export default function CompanyKnowledgePage() {
                           <Mail className="w-3 h-3 text-muted-foreground" />
                           <span className="text-sm">{inv.email}</span>
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(inv.created_at).toLocaleDateString()}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(inv.created_at).toLocaleDateString()}
+                          </span>
+                          <Button
+                            size="icon-xs"
+                            variant="ghost"
+                            title="Copy invite link"
+                            onClick={() => {
+                              const link = `${window.location.origin}/invite/${inv.id}`;
+                              navigator.clipboard.writeText(link);
+                              setCopiedInviteId(inv.id);
+                              setTimeout(() => setCopiedInviteId(null), 2000);
+                            }}
+                          >
+                            {copiedInviteId === inv.id ? (
+                              <Check className="w-3 h-3 text-emerald-500" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
