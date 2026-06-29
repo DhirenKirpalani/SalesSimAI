@@ -32,7 +32,7 @@ interface UseVoiceCallReturn {
   micMuted: boolean;
   audioEnergyRef: React.MutableRefObject<number>;
   micEnergyRef: React.MutableRefObject<number>;
-  start: (sessionId: string, voiceId?: string, language?: VoiceLanguage) => void;
+  start: (sessionId: string, voiceId: string, language?: VoiceLanguage) => void;
   stop: () => void;
   toggleMic: () => void;
   togglePause: () => void;
@@ -155,8 +155,14 @@ export function useVoiceCall(): UseVoiceCallReturn {
     }
   }, []);
 
-  const start = useCallback(async (sessionId: string, voiceId?: string, language?: VoiceLanguage) => {
+  const start = useCallback(async (sessionId: string, voiceId: string, language?: VoiceLanguage) => {
     console.log("[useVoiceCall] start called:", { sessionId, voiceId, language });
+    if (!voiceId) {
+      console.error("[useVoiceCall] ❌ voiceId is required — refusing to start without an explicit voice to prevent silent fallback");
+      setError("Voice ID missing — cannot start call without an explicit voice.");
+      setStatus("error");
+      return;
+    }
     abortRef.current = false;
     setError(null);
     setTranscript([]);
@@ -166,7 +172,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
     setMicMuted(false);
     lastBuyerTextRef.current = "";
     sessionIdRef.current = sessionId;
-    voiceIdRef.current = voiceId ?? null;
+    voiceIdRef.current = voiceId;
     languageRef.current = language ?? "en";
     unsubscribeFromRealtime();
     subscribeToRealtime(sessionId);
@@ -335,48 +341,35 @@ export function useVoiceCall(): UseVoiceCallReturn {
     }
   }, [unsubscribeFromRealtime]);
 
-  const toggleMic = useCallback(async () => {
-    console.log("[useVoiceCall] toggleMic called");
+  const toggleMic = useCallback(() => {
+    console.log("[useVoiceCall] toggleMic called, micMuted:", micMuted);
     const conversation = conversationRef.current;
     if (!conversation) {
       console.warn("[useVoiceCall] toggleMic: no conversation");
       return;
     }
-
-    try {
-      const mic = conversation as unknown as { setMicEnabled?: (enabled: boolean) => Promise<void> };
-      if (micMuted) {
-        await mic.setMicEnabled?.(true);
-        setMicMuted(false);
-        setStatus("listening");
-      } else {
-        await mic.setMicEnabled?.(false);
-        setMicMuted(true);
-        setStatus("paused");
-      }
-    } catch (e) {
-      console.error("[useVoiceCall] toggleMic error:", e);
+    const conv = conversation as unknown as { setMicMuted?: (isMuted: boolean) => void };
+    if (!conv.setMicMuted) {
+      console.error("[useVoiceCall] setMicMuted not found on conversation object");
+      return;
+    }
+    if (micMuted) {
+      conv.setMicMuted(false);
+      setMicMuted(false);
+      setStatus("listening");
+      console.log("[useVoiceCall] mic unmuted");
+    } else {
+      conv.setMicMuted(true);
+      setMicMuted(true);
+      setStatus("paused");
+      console.log("[useVoiceCall] mic muted");
     }
   }, [micMuted]);
 
-  const togglePause = useCallback(async () => {
-    console.log("[useVoiceCall] togglePause called", { status });
-    if (status === "paused") {
-      await toggleMic();
-    } else {
-      const conversation = conversationRef.current;
-      if (conversation) {
-        try {
-          const mic = conversation as unknown as { setMicEnabled?: (enabled: boolean) => Promise<void> };
-          await mic.setMicEnabled?.(false);
-          setMicMuted(true);
-          setStatus("paused");
-        } catch (e) {
-          console.error("[useVoiceCall] pause error:", e);
-        }
-      }
-    }
-  }, [status, toggleMic]);
+  const togglePause = useCallback(() => {
+    console.log("[useVoiceCall] togglePause called", { status, micMuted });
+    toggleMic();
+  }, [status, micMuted, toggleMic]);
 
   const setVolume = useCallback((v: number) => {
     console.log("[useVoiceCall] setVolume:", v);

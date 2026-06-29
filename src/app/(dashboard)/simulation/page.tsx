@@ -190,7 +190,7 @@ function HeyGenTestInner() {
 
   // Voice gender selector
   const MALE_VOICE_ID = "FXMPPfJPpDj0GSwJ6ASO";
-  const FEMALE_VOICE_ID = "6qpxBH5KUSDb40bij36w";
+  const FEMALE_VOICE_ID = "Y7xQSS5ZtS4xv4VJotWd"; // Christine — Calm & Professional
   const [buyerGender, setBuyerGender] = useState<"male" | "female">("male");
   const selectedVoiceId = buyerGender === "female" ? FEMALE_VOICE_ID : MALE_VOICE_ID;
   const selectedVoiceLanguage: VoiceLanguage = "auto";

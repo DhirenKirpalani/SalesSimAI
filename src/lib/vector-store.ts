@@ -201,6 +201,79 @@ export async function queryCompanyDocuments(
 }
 
 /**
+ * Build a RAG context string from company documents using an externally provided Supabase client.
+ * Use this from server-to-server routes (e.g. ElevenLabs webhook) where no user cookies exist,
+ * passing a service-role client so RLS is bypassed.
+ */
+export async function buildCompanyRagContextWithClient(
+  queryText: string,
+  organizationId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseClient: any,
+  opts?: {
+    docType?: string;
+    limit?: number;
+    minSimilarity?: number;
+    maxCharsPerDoc?: number;
+    maxTotalChars?: number;
+  }
+): Promise<string> {
+  try {
+    const embedding = await embedText(queryText);
+    const { data, error } = await supabaseClient.rpc("match_company_docs", {
+      query_embedding: embedding,
+      match_threshold: opts?.minSimilarity ?? 0.65,
+      match_count: opts?.limit ?? 5,
+      filter_org_id: organizationId,
+    });
+    if (error) {
+      console.error("[buildCompanyRagContextWithClient] RPC error:", error);
+      return "";
+    }
+    const chunks = (data ?? []) as CompanyDocChunk[];
+    if (chunks.length === 0) return "";
+
+    const uniqueDocIds = [...new Set(chunks.map((c) => c.id))];
+    const { data: docs } = await supabaseClient
+      .from("company_documents")
+      .select("id, name, content, document_type")
+      .in("id", uniqueDocIds)
+      .eq("organization_id", organizationId);
+
+    const docMap = new Map(((docs ?? []) as Array<{id: string; name: string; content: string; document_type: string}>).map((d) => [d.id, d]));
+    const maxCharsPerDoc = opts?.maxCharsPerDoc ?? 50_000;
+    const maxTotalChars = opts?.maxTotalChars ?? 100_000;
+    let totalChars = 0;
+    const lines: string[] = [];
+
+    for (const id of uniqueDocIds) {
+      const doc = docMap.get(id);
+      const chunk = chunks.find((c) => c.id === id)!;
+      const fullContent = doc?.content?.trim();
+      if (doc && fullContent) {
+        const truncated = fullContent.length > maxCharsPerDoc
+          ? fullContent.slice(0, maxCharsPerDoc) + "\n[document truncated]"
+          : fullContent;
+        lines.push(`[${doc.document_type || chunk.doc_type}] ${doc.name || chunk.name}:\n${truncated}`);
+        totalChars += truncated.length;
+      } else {
+        lines.push(`[${chunk.doc_type}] ${chunk.name}:\n${chunk.content}`);
+        totalChars += chunk.content.length;
+      }
+      if (totalChars >= maxTotalChars) break;
+    }
+
+    return `COMPANY KNOWLEDGE — relevant documents for context:
+${lines.join("\n\n---\n\n")}
+
+Use this information to respond accurately when the seller asks about your company's products, pricing, or policies. You are the BUYER; you may reference this knowledge naturally, but do not volunteer it unprompted.`;
+  } catch (err) {
+    console.error("[buildCompanyRagContextWithClient] error:", err);
+    return "";
+  }
+}
+
+/**
  * Build a RAG context string from company documents.
  * Uses semantic search to pick the most relevant documents, then sends the full document text
  * so the buyer has richer context than isolated chunks.
