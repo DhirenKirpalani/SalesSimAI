@@ -178,6 +178,7 @@ function HeyGenTestInner() {
   const [callMode, setCallMode] = useState<"video" | "voice" | "text">("video");
   const [showAvatarVideo, setShowAvatarVideo] = useState(true); // toggle avatar video visibility
   const [voiceSessionId, setVoiceSessionId] = useState<string | null>(null);
+  const prewarmedSessionRef = useRef<Promise<{ session: Record<string, unknown> } | null> | null>(null);
   const [textSessionId, setTextSessionId] = useState<string | null>(null);
   const [textInput, setTextInput] = useState("");
   const [textLoading, setTextLoading] = useState(false);
@@ -187,10 +188,11 @@ function HeyGenTestInner() {
   const voiceCall = useVoiceCall();
   const coaching = useCoaching();
 
-  // Voice gender selector — Male uses agent default (Kelvin), Female overrides with a female voice
-  const FEMALE_VOICE_ID = "Y7xQSS5ZtS4xv4VJotWd"; // Christine — Calm & Professional
+  // Voice gender selector
+  const MALE_VOICE_ID = "FXMPPfJPpDj0GSwJ6ASO";
+  const FEMALE_VOICE_ID = "6qpxBH5KUSDb40bij36w";
   const [buyerGender, setBuyerGender] = useState<"male" | "female">("male");
-  const selectedVoiceId = buyerGender === "female" ? FEMALE_VOICE_ID : undefined;
+  const selectedVoiceId = buyerGender === "female" ? FEMALE_VOICE_ID : MALE_VOICE_ID;
   const selectedVoiceLanguage: VoiceLanguage = "auto";
   const coachingAnalyzeRef = useRef(coaching.analyze);
 
@@ -593,21 +595,29 @@ function HeyGenTestInner() {
     setCheckpointStatus({});
 
     try {
-      const res = await fetch("/api/simulation/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenarioId, scenarioTable, callMode: "voice" }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.session) throw new Error(data.error ?? "Failed to create session");
-
-      const session = data.session;
-      setVoiceSessionId(session.id);
-      setResolvedScenarioName(session.scenario_name ?? resolvedScenarioName);
-      addLog(`✅ Voice session: ${session.id}`);
+      // Use pre-warmed session if available (created when user selected Voice Call mode)
+      let prewarmed = prewarmedSessionRef.current ? await prewarmedSessionRef.current : null;
+      prewarmedSessionRef.current = null; // consume it
+      if (!prewarmed) {
+        const res = await fetch("/api/simulation/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scenarioId, scenarioTable, callMode: "voice" }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.session) throw new Error(data.error ?? "Failed to create session");
+        prewarmed = data;
+      }
+      const session = (prewarmed as { session: Record<string, unknown> }).session;
+      const sessionId = session.id as string;
+      const sessionName = (session.scenario_name as string | undefined) ?? resolvedScenarioName;
+      const sessionDuration = (session.duration_min as number | undefined) ?? 5;
+      setVoiceSessionId(sessionId);
+      setResolvedScenarioName(sessionName);
+      addLog(`✅ Voice session: ${sessionId}`);
 
       // Start timer
-      const durationSec = (session.duration_min ?? 5) * 60;
+      const durationSec = sessionDuration * 60;
       defaultDurationRef.current = durationSec;
       setTimeLeft(durationSec);
       timerRef.current = setInterval(() => {
@@ -618,9 +628,9 @@ function HeyGenTestInner() {
       }, 1000);
 
       setStatus("connected");
-      console.log(`%c[simulation] 🎚️ Buyer gender: ${buyerGender} | voiceId: ${selectedVoiceId ?? "none (agent default — Kelvin)"}`, "color:#a78bfa;font-weight:bold;font-size:13px");
-      addLog(`🎙️ Voice: ${buyerGender === "female" ? "Christine (female)" : "Kelvin (male — default)"}`);
-      voiceCall.start(session.id, selectedVoiceId, selectedVoiceLanguage);
+      console.log(`%c[simulation] 🎚️ Buyer gender: ${buyerGender} | voiceId: ${selectedVoiceId}`, "color:#a78bfa;font-weight:bold;font-size:13px");
+      addLog(`🎙️ Voice: ${buyerGender === "female" ? "Female" : "Male"} (${selectedVoiceId})`);
+      voiceCall.start(sessionId, selectedVoiceId, selectedVoiceLanguage);
       addLog("🎙️ Voice call started");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -1234,6 +1244,19 @@ function HeyGenTestInner() {
       .then((stream) => stream.getTracks().forEach((t) => t.stop()))
       .catch(() => {}); // silently ignore — user can deny at connect time
   }, [callMode, status]);
+
+  // Pre-create voice session as soon as user selects voice mode so DB round-trip is hidden
+  useEffect(() => {
+    if (callMode !== "voice" || status !== "idle" || !scenarioId || !scenarioTable) return;
+    prewarmedSessionRef.current = fetch("/api/simulation/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scenarioId, scenarioTable, callMode: "voice" }),
+    })
+      .then((r) => r.json())
+      .then((d) => (d.session ? d : null))
+      .catch(() => null);
+  }, [callMode, status, scenarioId, scenarioTable]);
 
   // Cleanup on unmount
   useEffect(() => () => { stop(); }, [stop]);

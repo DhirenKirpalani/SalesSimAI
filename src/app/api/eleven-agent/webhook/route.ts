@@ -155,8 +155,8 @@ export async function POST(req: NextRequest) {
     }
     console.log("[eleven-agent] session loaded:", { id: session.id, user_id: session.user_id, state: session.state, scenario_id: session.scenario_id });
 
-    // Load profile and messages in parallel
-    const [{ data: profile }, { data: recentMessages }] = await Promise.all([
+    // Load profile, messages, and scenario all in parallel (scenario_id/table are on the session)
+    const [{ data: profile }, { data: recentMessages }, { data: scenario }] = await Promise.all([
       supabase.from("profiles").select("full_name, position, company, organization_id").eq("id", session.user_id).single(),
       supabase
         .from("simulation_messages")
@@ -164,20 +164,20 @@ export async function POST(req: NextRequest) {
         .eq("session_id", sessionId)
         .order("created_at", { ascending: true })
         .limit(20),
+      supabase
+        .from(session.scenario_table)
+        .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product, difficulty, scenario_type, duration, product_type")
+        .eq("id", session.scenario_id)
+        .single(),
     ]);
 
     console.log("[eleven-agent] profile:", profile, "recentMessages count:", recentMessages?.length ?? 0);
-    const { data: scenario } = await supabase
-      .from(session.scenario_table)
-      .select(
-        "custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product, difficulty, scenario_type, duration, product_type"
-      )
-      .eq("id", session.scenario_id)
-      .single();
 
     if (!scenario) {
       console.error("[eleven-agent] scenario not found:", session.scenario_id, session.scenario_table);
-      return NextResponse.json({ error: "Scenario not found" }, { status: 404 });
+      const enc = new TextEncoder();
+      const fb = new ReadableStream({ start(c) { c.enqueue(enc.encode(sseFallback(completionId, "Sorry, I seem to have lost context. Could you repeat that?"))); c.close(); } });
+      return new NextResponse(fb, { status: 200, headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
     }
     console.log("[eleven-agent] scenario loaded:", { name: scenario.name, type: scenario.scenario_type, difficulty: scenario.difficulty });
 
@@ -308,9 +308,6 @@ export async function POST(req: NextRequest) {
     let finalEmotion = "neutral";
     let finalIntent = "answer";
 
-    const thinkingDelay = computeThinkingDelay(state, persona);
-    console.log("[eleven-agent] streaming with thinkingDelay:", thinkingDelay);
-
     const readable = new ReadableStream({
       async start(controller) {
         let firstChunk = true;
@@ -331,10 +328,6 @@ export async function POST(req: NextRequest) {
           )) {
             if (chunk.type === "sentence") {
               console.log("[eleven-agent] SSE sentence chunk:", chunk.text);
-              if (firstChunk && thinkingDelay > 0) {
-                console.log("[eleven-agent] applying thinkingDelay:", thinkingDelay);
-                await new Promise((resolve) => setTimeout(resolve, thinkingDelay));
-              }
               controller.enqueue(encoder.encode(sseChunk(completionId, chunk.text + " ", firstChunk)));
               firstChunk = false;
               fullResponseText += (fullResponseText ? " " : "") + chunk.text;
