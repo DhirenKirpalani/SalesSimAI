@@ -137,6 +137,8 @@ export interface CustomScenario {
   avatar_id: string | null;
   avatar_name: string | null;
   voice_id: string | null;
+  voice_avatar_image_url: string | null;
+  elevenlabs_voice_id: string | null;
   scoring_criteria: string | null;
   evaluation_framework: string | null;
   created_at: string;

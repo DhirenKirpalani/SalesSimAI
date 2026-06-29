@@ -7,6 +7,26 @@ import { VoiceLanguage, VOICE_LANGUAGE_MAP as AppVoiceMap } from "./voice-langua
 
 export type ElevenLabsLanguage = "en" | "ms" | "id" | "zh" | undefined;
 
+export interface PersonaContext {
+  buyerName?: string;
+  buyerTitle?: string;
+  buyerCompany?: string;
+  buyerIndustry?: string;
+  buyerPersonality?: string;
+  buyerPainPoints?: string[];
+  buyerGoals?: string[];
+  buyerCompanyGoal?: string;
+  buyerOpeningLine?: string;
+  buyerHiddenConcern?: string;
+  buyerBudgetStatus?: string;
+  buyerCommunicationStyle?: string;
+  buyerCommunicationLanguage?: string;
+  sellerCompany?: string;
+  sellerProduct?: string;
+  contextNote?: string;
+  scenarioType?: string;
+}
+
 export interface VoiceConfig {
   /** ElevenLabs agent ID (set via ELEVENLABS_AGENT_ID env var). */
   agentId: string;
@@ -36,16 +56,39 @@ export function getElevenLabsLanguage(language: VoiceLanguage): ElevenLabsLangua
 export function buildVoiceConfig(
   sessionId: string,
   language: VoiceLanguage = "en",
-  voiceId?: string
+  voiceId?: string,
+  persona?: PersonaContext
 ): VoiceConfig {
+  const dynamicVariables: Record<string, string | number | boolean> = {
+    session_id: sessionId,
+    language: language,
+  };
+
+  if (persona) {
+    if (persona.buyerName) dynamicVariables.buyer_name = persona.buyerName;
+    if (persona.buyerTitle) dynamicVariables.buyer_title = persona.buyerTitle;
+    if (persona.buyerCompany) dynamicVariables.buyer_company = persona.buyerCompany;
+    if (persona.buyerIndustry) dynamicVariables.buyer_industry = persona.buyerIndustry;
+    if (persona.buyerPersonality) dynamicVariables.buyer_personality = persona.buyerPersonality;
+    if (persona.buyerPainPoints?.length) dynamicVariables.buyer_pain_points = persona.buyerPainPoints.join("; ");
+    if (persona.buyerGoals?.length) dynamicVariables.buyer_goals = persona.buyerGoals.join("; ");
+    if (persona.buyerCompanyGoal) dynamicVariables.buyer_company_goal = persona.buyerCompanyGoal;
+    if (persona.buyerOpeningLine) dynamicVariables.buyer_opening_line = persona.buyerOpeningLine;
+    if (persona.buyerHiddenConcern) dynamicVariables.buyer_hidden_concern = persona.buyerHiddenConcern;
+    if (persona.buyerBudgetStatus) dynamicVariables.buyer_budget_status = persona.buyerBudgetStatus;
+    if (persona.buyerCommunicationStyle) dynamicVariables.buyer_communication_style = persona.buyerCommunicationStyle;
+    if (persona.buyerCommunicationLanguage) dynamicVariables.buyer_communication_language = persona.buyerCommunicationLanguage;
+    if (persona.sellerCompany) dynamicVariables.seller_company = persona.sellerCompany;
+    if (persona.sellerProduct) dynamicVariables.seller_product = persona.sellerProduct;
+    if (persona.contextNote) dynamicVariables.context_note = persona.contextNote;
+    if (persona.scenarioType) dynamicVariables.scenario_type = persona.scenarioType;
+  }
+
   return {
     agentId: process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID ?? "",
     language: getElevenLabsLanguage(language),
     voiceId,
     speed: 1.0,
-    dynamicVariables: {
-      session_id: sessionId,
-      language: language,
-    },
+    dynamicVariables,
   };
 }

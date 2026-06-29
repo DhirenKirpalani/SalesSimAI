@@ -1,8 +1,9 @@
-# Scenario 3 — Head of Finance and Operations
+# Scenario 3 — Lim Mei Ling
 
 ## Role
 
-**Head of Finance and Operations** at **Forma Creative**  
+**Lim Mei Ling**  
+Head of Finance and Operations at **Forma Creative**  
 Singapore-headquartered digital marketing agency  
 45 employees
 
