@@ -110,6 +110,7 @@ function resolveSessionId(req: NextRequest, body: Record<string, unknown>): stri
 }
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
   const completionId = `chatcmpl-${Date.now()}`;
 
   try {
@@ -173,7 +174,7 @@ export async function POST(req: NextRequest) {
         .select("*")
         .eq("session_id", sessionId)
         .order("created_at", { ascending: true })
-        .limit(10),
+        .limit(5),
       supabase
         .from(session.scenario_table)
         .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product, difficulty, scenario_type, duration, product_type")
@@ -289,7 +290,8 @@ export async function POST(req: NextRequest) {
         scenario.scenario_type ?? undefined,
         companyRag,
         scenario.duration ?? undefined,
-        elapsedMin
+        elapsedMin,
+        "gpt-4o-mini"
       )) {
         if (chunk.type === "sentence") {
           chunks.push(chunk.text);
@@ -322,6 +324,7 @@ export async function POST(req: NextRequest) {
 
     const readable = new ReadableStream({
       async start(controller) {
+        const streamStartTime = Date.now();
         let firstChunk = true;
         try {
           for await (const chunk of processTurnStream(
@@ -336,10 +339,11 @@ export async function POST(req: NextRequest) {
             scenario.scenario_type ?? undefined,
             companyRag,
             scenario.duration ?? undefined,
-            elapsedMin
+            elapsedMin,
+            "gpt-4o-mini"
           )) {
             if (chunk.type === "sentence") {
-              console.log("[eleven-agent] SSE sentence chunk:", chunk.text);
+              console.log("[eleven-agent] SSE sentence chunk:", chunk.text, "firstByteMs:", Date.now() - streamStartTime);
               controller.enqueue(encoder.encode(sseChunk(completionId, chunk.text + " ", firstChunk)));
               firstChunk = false;
               fullResponseText += (fullResponseText ? " " : "") + chunk.text;
@@ -355,7 +359,7 @@ export async function POST(req: NextRequest) {
           console.error("[eleven-agent] stream error:", err);
           controller.enqueue(encoder.encode(sseDone(completionId)));
         } finally {
-          console.log("[eleven-agent] stream closing. fullResponseText:", fullResponseText, "finalEmotion:", finalEmotion, "finalIntent:", finalIntent);
+          console.log("[eleven-agent] stream closing. fullResponseText:", fullResponseText, "finalEmotion:", finalEmotion, "finalIntent:", finalIntent, "totalMs:", Date.now() - startTime);
           controller.close();
           // Persist after streaming completes
           const newState = applyStateUpdates(state, finalStateUpdates, ((recentMessages ?? []).length) + 1);
