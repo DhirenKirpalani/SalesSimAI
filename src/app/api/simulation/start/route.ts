@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       { data: scenario, error: scenarioError },
     ] = await Promise.all([
       supabase.auth.getUser(),
-      supabase.from(scenarioTable).select("id, name").eq("id", scenarioId).single(),
+      supabase.from(scenarioTable).select("id, name, duration").eq("id", scenarioId).single(),
     ]);
 
     if (authError || !user) {
@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
         scenario_id: scenarioId,
         scenario_table: scenarioTable,
         scenario_name: scenario.name ?? "Simulation",
+        duration_s: (scenario.duration ?? 5) * 60,
         call_mode: callMode === "text" ? "text" : "voice",
         status: "active",
         state: {

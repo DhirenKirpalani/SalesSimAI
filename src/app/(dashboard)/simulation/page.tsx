@@ -630,21 +630,14 @@ function HeyGenTestInner() {
       const session = (prewarmed as { session: Record<string, unknown> }).session;
       const sessionId = session.id as string;
       const sessionName = (session.scenario_name as string | undefined) ?? resolvedScenarioName;
-      const sessionDuration = (session.duration_min as number | undefined) ?? 5;
+      const sessionDurationSec = (session.duration_s as number | undefined) ?? 300;
       setVoiceSessionId(sessionId);
       setResolvedScenarioName(sessionName);
       addLog(`✅ Voice session: ${sessionId}`);
 
-      // Start timer
-      const durationSec = sessionDuration * 60;
-      defaultDurationRef.current = durationSec;
-      setTimeLeft(durationSec);
-      timerRef.current = setInterval(() => {
-        setTimeLeft((t) => {
-          if (t === null || t <= 1) return 0;
-          return t - 1;
-        });
-      }, 1000);
+      // Set duration but don't start timer yet — wait for voice connection
+      defaultDurationRef.current = sessionDurationSec;
+      setTimeLeft(sessionDurationSec);
 
       console.log(`%c[simulation] �️ Voice call starting — dashboard controlled voice`, "color:#a78bfa;font-weight:bold;font-size:13px");
       addLog(`🎙️ Voice: ${elevenlabsVoiceIdParam ?? "dashboard default"}`);
@@ -948,6 +941,23 @@ function HeyGenTestInner() {
       setFeedbackLoading(true);
       try {
         if (currentCallMode === "voice" && currentVoiceSessionId) {
+          // Persist voice transcript to simulation_messages (built-in LLM doesn't save these)
+          const supabase = createClient();
+          const existingMsgs = await supabase
+            .from("simulation_messages")
+            .select("id")
+            .eq("session_id", currentVoiceSessionId)
+            .limit(1);
+          if (existingMsgs.data && existingMsgs.data.length === 0) {
+            const inserts = currentTranscript.map((entry) => ({
+              session_id: currentVoiceSessionId,
+              role: entry.role === "user" ? "user" : "buyer",
+              content: entry.text,
+            }));
+            await supabase.from("simulation_messages").insert(inserts);
+            addLog(`📝 Persisted ${inserts.length} transcript messages`);
+          }
+
           // Voice calls — run coaching evaluator
           const [coachRes, endRes] = await Promise.all([
             fetch("/api/simulation/coach", {
@@ -1283,6 +1293,15 @@ function HeyGenTestInner() {
     // Transition from connecting → connected when the voice session is actually live
     if (status === "connecting" && (voiceCall.status === "listening" || voiceCall.status === "speaking")) {
       setStatus("connected");
+      // Start timer now that the voice connection is live
+      const startTime = timeLeftRef.current ?? defaultDurationRef.current;
+      setTimeLeft(startTime);
+      timerRef.current = setInterval(() => {
+        setTimeLeft((t) => {
+          if (t === null || t <= 1) return 0;
+          return t - 1;
+        });
+      }, 1000);
       return;
     }
     // Propagate voice call errors during connecting
