@@ -200,6 +200,19 @@ function HeyGenTestInner() {
   const [liveNudges, setLiveNudges] = useState<{ id: number; message: string; type: "success" | "info" | "warning" }[]>([]);
   const nudgeIdRef = useRef(0);
   const lastNudgeSignatureRef = useRef<string | null>(null);
+
+  /** Fuzzy nudge deduplication — returns true if newMsg is semantically too similar to any existing nudge */
+  const isSimilarNudge = useCallback((existing: { message: string }[], newMsg: string): boolean => {
+    const keywords = (s: string) =>
+      s.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(w => w.length > 3);
+    const newKw = keywords(newMsg);
+    return existing.some(n => {
+      const existingKw = keywords(n.message);
+      if (existingKw.length === 0 || newKw.length === 0) return n.message === newMsg;
+      const overlap = newKw.filter(w => existingKw.includes(w)).length;
+      return overlap / Math.min(newKw.length, existingKw.length) >= 0.55;
+    });
+  }, []);
   const [nudgePos, setNudgePos] = useState<{ x: number; y: number }>({ x: 16, y: 16 });
   const [isDraggingNudge, setIsDraggingNudge] = useState(false);
   const nudgeDragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -727,11 +740,12 @@ function HeyGenTestInner() {
           const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
           const nudgeMessage = `${label}${result.nudge}`;
           setLiveNudges((prev) => {
-            if (prev.some((n) => n.message === nudgeMessage)) {
-              console.log("[simulation] skipping duplicate coach-turn nudge:", nudgeMessage);
+            if (isSimilarNudge(prev, nudgeMessage)) {
+              console.log("[simulation] skipping similar coach-turn nudge:", nudgeMessage);
               return prev;
             }
-            return [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
+            const next = [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
+            return next.length > 6 ? next.slice(next.length - 6) : next;
           });
           if (result.checkpoint_hit) {
             setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
@@ -1140,11 +1154,12 @@ function HeyGenTestInner() {
             const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
             const nudgeMessage = `${label}${result.nudge}`;
             setLiveNudges((prev) => {
-              if (prev.some((n) => n.message === nudgeMessage)) {
-                console.log("[simulation] skipping duplicate coach-turn nudge:", nudgeMessage);
+              if (isSimilarNudge(prev, nudgeMessage)) {
+                console.log("[simulation] skipping similar coach-turn nudge:", nudgeMessage);
                 return prev;
               }
-              return [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
+              const next = [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
+              return next.length > 6 ? next.slice(next.length - 6) : next;
             });
             if (result.checkpoint_hit) {
               setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
@@ -1182,11 +1197,12 @@ function HeyGenTestInner() {
             const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
             const nudgeMessage = `${label}${result.nudge}`;
             setLiveNudges((prev) => {
-              if (prev.some((n) => n.message === nudgeMessage)) {
-                console.log("[simulation] skipping duplicate coach-turn nudge:", nudgeMessage);
+              if (isSimilarNudge(prev, nudgeMessage)) {
+                console.log("[simulation] skipping similar coach-turn nudge:", nudgeMessage);
                 return prev;
               }
-              return [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
+              const next = [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
+              return next.length > 6 ? next.slice(next.length - 6) : next;
             });
             if (result.checkpoint_hit) {
               setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
@@ -1204,7 +1220,7 @@ function HeyGenTestInner() {
         }
       }
     }
-  }, [voiceCall.transcript, transcript, callMode]);
+  }, [voiceCall.transcript, transcript, callMode, isSimilarNudge]);
 
   // Sync VoiceCallPanel pause/resume with page-level status and timer
   useEffect(() => {

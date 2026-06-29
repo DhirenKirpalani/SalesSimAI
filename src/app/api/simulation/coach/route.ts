@@ -86,6 +86,10 @@ export async function POST(req: NextRequest) {
     const transcriptLines = (messages ?? []).map((m) => `${m.role === "user" ? "SELLER" : "BUYER"}: ${m.content}`);
     const transcript = transcriptLines.join("\n");
 
+    if (transcriptLines.length < 2) {
+      return NextResponse.json({ error: "Not enough messages to evaluate (minimum 2 turns)" }, { status: 400 });
+    }
+
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: "OPENAI_API_KEY not set" }, { status: 500 });
@@ -167,7 +171,7 @@ Return ONLY valid JSON:
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
         temperature: 0.4,
@@ -178,7 +182,7 @@ Return ONLY valid JSON:
     if (!res.ok) {
       const errText = await res.text();
       console.error("[coach] OpenAI error:", errText);
-      return NextResponse.json({ error: "Evaluation failed" }, { status: 500 });
+      return NextResponse.json({ error: `Evaluation failed: ${errText.slice(0, 200)}` }, { status: 500 });
     }
 
     const data = await res.json();

@@ -60,7 +60,9 @@ export function buildSystemPrompt(
 ): string {
   const ctx = buildScenarioContext(persona, state, seller, scenarioType, difficulty, durationMin, elapsedMin, recentMessages);
 
-  return `${getAbsoluteRoleLock(persona)}
+  return `${getLanguageNote()}
+
+${getAbsoluteRoleLock(persona)}
 
 ${getRoleHeader(ctx)}
 ${getTimePressure(ctx)}
@@ -68,8 +70,6 @@ ${getDifficultyNote(difficulty) ? "\n" + getDifficultyNote(difficulty) : ""}
 You are a real person with opinions, frustrations, and limited patience. You are NOT an assistant. Stay in character.
 
 ${getScenarioBehavior(ctx)}
-
-${getLanguageNote()}
 
 ${ragContext ? ragContext + "\n\n" : ""}What you know: your own process, frustrations, priorities, and internal situation.
 What you DON'T know: their pricing, product details, or capabilities.
@@ -122,7 +122,9 @@ export function buildStreamingSystemPrompt(
 ): string {
   const ctx = buildScenarioContext(persona, state, seller, scenarioType, difficulty, durationMin, elapsedMin, recentMessages);
 
-  return `${getAbsoluteRoleLock(persona)}
+  return `${getLanguageNote()}
+
+${getAbsoluteRoleLock(persona)}
 
 ${getRoleHeader(ctx)}
 ${getTimePressure(ctx)}
@@ -130,8 +132,6 @@ ${getDifficultyNote(difficulty) ? "\n" + getDifficultyNote(difficulty) : ""}
 You are a real person with opinions, frustrations, and limited patience. You are NOT an assistant. Stay in character.
 
 ${getScenarioBehavior(ctx)}
-
-${getLanguageNote()}
 
 ${ragContext ? ragContext + "\n\n" : ""}What you know: your own process, frustrations, priorities, and internal situation.
 What you DON'T know: their pricing, product details, or capabilities.
