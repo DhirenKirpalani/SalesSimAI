@@ -7,9 +7,7 @@
  *
  * Configure the agent in the ElevenLabs dashboard:
  *   LLM provider: Custom LLM
- *   Server URL: https://your-app.com/api/eleven-agent
- *   Endpoint: Chat Completions
- *   Path: /chat/completions
+ *   URL: https://your-app.com/api/eleven-agent/webhook
  *   Custom LLM extra body: enabled
  *
  * The frontend passes session_id via dynamicVariables; ElevenLabs forwards it
@@ -18,11 +16,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { processTurnStream, applyStateUpdates, buildBuyerContext, renderBuyerContext, extractMemoryUpdates, defaultBuyerMemory, computeRagStateImpact, mergeRagImpactIntoStateUpdates } from "@/lib/buyer-brain";
-import { getConditionalRagContext, shouldRetrieveRag } from "@/lib/buyer-brain/rag";
-import type { BuyerMemory, RagStateImpact } from "@/lib/buyer-brain";
+import { processTurnStream, applyStateUpdates } from "@/lib/buyer-brain";
+import { buildCompanyRagContext } from "@/lib/vector-store";
 import { CustomPersona } from "@/types";
-import { SimulationState, SimulationMessage, BuyerResponse } from "@/types/simulation";
+import { SimulationState, SimulationMessage } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
 
 function serviceSupabase() {
@@ -89,9 +86,10 @@ function computeThinkingDelay(state: SimulationState, persona: CustomPersona): n
 }
 
 function resolveSessionId(req: NextRequest, body: Record<string, unknown>): string | null {
-  // Header fallback (useful when dynamic variables are passed as headers)
-  const headerSessionId = req.headers.get("x-session-id");
-  if (typeof headerSessionId === "string" && headerSessionId) return headerSessionId;
+  // ElevenLabs can forward the session ID as a custom request header
+  const headerSessionId = req.headers.get("X-Session-Id");
+  console.log("[eleven-agent] resolveSessionId headers:", Object.fromEntries(req.headers.entries()), "body keys:", Object.keys(body));
+  if (headerSessionId) return headerSessionId;
 
   // ElevenLabs forwards dynamic variables in elevenlabs_extra_body
   const extra = body.elevenlabs_extra_body as Record<string, unknown> | undefined;
@@ -109,35 +107,35 @@ function resolveSessionId(req: NextRequest, body: Record<string, unknown>): stri
 
 export async function POST(req: NextRequest) {
   const completionId = `chatcmpl-${Date.now()}`;
-  console.log("[eleven-agent] request received", { completionId });
 
   try {
     const body = (await req.json()) as Record<string, unknown>;
+    console.log("[eleven-agent] POST body:", JSON.stringify(body, null, 2));
     const stream = (body.stream as boolean) ?? true;
     const sessionId = resolveSessionId(req, body);
     console.log("[eleven-agent] resolved sessionId:", sessionId, "stream:", stream);
 
     if (!sessionId) {
-      console.warn("[eleven-agent] missing session_id");
+      console.error("[eleven-agent] missing session_id");
       return NextResponse.json({ error: "Missing session_id" }, { status: 400 });
     }
 
     const messages = (body.messages ?? []) as Array<{ role: string; content?: string }>;
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
     const userText = lastUserMsg?.content?.trim() ?? "";
-    console.log("[eleven-agent] userText:", userText, "message count:", messages.length);
 
     if (!userText) {
-      console.warn("[eleven-agent] no user message found");
+      console.error("[eleven-agent] no user text found in messages:", messages);
       return NextResponse.json({ error: "No user message found" }, { status: 400 });
     }
+    console.log("[eleven-agent] userText:", userText);
 
     const supabase = serviceSupabase();
 
     // Load session first (we need the user_id to load the profile)
     const { data: session, error: sessionError } = await supabase
       .from("simulation_sessions")
-      .select("*, buyer_context, buyer_memory")
+      .select("*")
       .eq("id", sessionId)
       .single();
 
@@ -145,6 +143,7 @@ export async function POST(req: NextRequest) {
       console.error("[eleven-agent] session not found:", sessionId, sessionError);
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
+    console.log("[eleven-agent] session loaded:", { id: session.id, user_id: session.user_id, state: session.state, scenario_id: session.scenario_id });
 
     // Load profile and messages in parallel
     const [{ data: profile }, { data: recentMessages }] = await Promise.all([
@@ -157,6 +156,7 @@ export async function POST(req: NextRequest) {
         .limit(20),
     ]);
 
+    console.log("[eleven-agent] profile:", profile, "recentMessages count:", recentMessages?.length ?? 0);
     const { data: scenario } = await supabase
       .from(session.scenario_table)
       .select(
@@ -166,8 +166,10 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (!scenario) {
+      console.error("[eleven-agent] scenario not found:", session.scenario_id, session.scenario_table);
       return NextResponse.json({ error: "Scenario not found" }, { status: 404 });
     }
+    console.log("[eleven-agent] scenario loaded:", { name: scenario.name, type: scenario.scenario_type, difficulty: scenario.difficulty });
 
     // Resolve persona
     let persona: CustomPersona = scenario.custom_persona as CustomPersona;
@@ -185,6 +187,7 @@ export async function POST(req: NextRequest) {
         };
       }
     }
+    console.log("[eleven-agent] persona:", persona?.name ?? "fallback");
     if (!persona) {
       persona = {
         name: "Alex Buyer",
@@ -204,7 +207,19 @@ export async function POST(req: NextRequest) {
     if (scenario.seller_product) contextParts.push(`Product: ${scenario.seller_product}`);
     if (scenario.context_note) contextParts.push(`Backstory: ${scenario.context_note}`);
     const richContextNote = contextParts.join("\n");
+    console.log("[eleven-agent] richContextNote:", richContextNote);
 
+    // Company RAG
+    let companyRag = "";
+    if (profile?.organization_id) {
+      try {
+        companyRag = await buildCompanyRagContext(userText, profile.organization_id, { limit: 3 });
+      } catch (e) {
+        console.warn("[eleven-agent] company RAG failed:", e);
+      }
+    }
+
+    console.log("[eleven-agent] companyRag:", companyRag ? `${companyRag.slice(0, 200)}...` : "none");
     const state = (session.state ?? {
       trust_level: 30,
       buyer_mood: 0,
@@ -214,22 +229,6 @@ export async function POST(req: NextRequest) {
       engagement_level: 30,
     }) as SimulationState;
 
-    // Company RAG — only retrieve when the turn actually asks for company knowledge.
-    // Session memory (persona, state, scenario) is already injected via the prompt.
-    let companyRag = "";
-    let ragImpact: RagStateImpact | null = null;
-    const needsRag = shouldRetrieveRag(userText);
-    if (needsRag && profile?.organization_id) {
-      try {
-        companyRag = await getConditionalRagContext(userText, profile.organization_id, { limit: 3 });
-        console.log("[eleven-agent] RAG triggered:", userText.slice(0, 60));
-        ragImpact = await computeRagStateImpact(userText, companyRag, state);
-        console.log("[eleven-agent] RAG impact:", ragImpact);
-      } catch (e) {
-        console.warn("[eleven-agent] company RAG failed:", e);
-      }
-    }
-
     const sessionStart = new Date(session.created_at ?? Date.now());
     const elapsedMin = Math.max(0, Math.round((Date.now() - sessionStart.getTime()) / 60000));
     const sellerInfo = {
@@ -238,45 +237,19 @@ export async function POST(req: NextRequest) {
       company: profile?.company ?? undefined,
     };
 
-    // Load or build the static buyer context (system prompt) once per session.
-    let buyerContextString: string | null = null;
-    const storedContext = session.buyer_context as { response_format?: { mode?: string } } | null;
-    if (storedContext?.response_format?.mode === "streaming") {
-      buyerContextString = renderBuyerContext(storedContext as any);
-    }
-
-    const buyerMemory = (session.buyer_memory as BuyerMemory | null) ?? defaultBuyerMemory;
-
-    if (!buyerContextString) {
-      const freshContext = buildBuyerContext(
-        persona,
-        scenario.scenario_type ?? "Discovery Call",
-        scenario.difficulty ?? "Intermediate",
-        sellerInfo,
-        "streaming"
-      );
-      buyerContextString = renderBuyerContext(freshContext);
-      const { error: cacheError } = await supabase
-        .from("simulation_sessions")
-        .update({ buyer_context: freshContext as any })
-        .eq("id", sessionId);
-      if (cacheError) {
-        console.warn("[eleven-agent] failed to cache buyer_context:", cacheError);
-      }
-    }
-
     console.log(
       "[eleven-agent] session:", sessionId,
       "scenario:", scenario.scenario_type,
       "difficulty:", scenario.difficulty,
-      "persona:", persona.name
+      "persona:", persona.name,
+      "elapsedMin:", elapsedMin,
+      "sellerInfo:", sellerInfo
     );
 
     if (!stream) {
       // Non-streaming fallback (shouldn't be used by ElevenLabs, but keeps the endpoint compatible)
-      console.log("[eleven-agent] non-streaming path");
       const chunks: string[] = [];
-      let finalResponse: BuyerResponse = {
+      let finalResponse: { message: string; emotion: string; intent: string; state_updates: { trust_delta: number; mood_delta: number; facts_revealed: string[] } } = {
         message: "",
         emotion: "neutral",
         intent: "answer",
@@ -294,10 +267,7 @@ export async function POST(req: NextRequest) {
         scenario.scenario_type ?? undefined,
         companyRag,
         scenario.duration ?? undefined,
-        elapsedMin,
-        "gpt-4.1-mini",
-        buyerContextString,
-        buyerMemory
+        elapsedMin
       )) {
         if (chunk.type === "sentence") {
           chunks.push(chunk.text);
@@ -306,13 +276,8 @@ export async function POST(req: NextRequest) {
         }
       }
       const responseText = chunks.join(" ");
-      const mergedStateUpdates = ragImpact
-        ? mergeRagImpactIntoStateUpdates(finalResponse.state_updates, ragImpact)
-        : finalResponse.state_updates;
-      const newState = applyStateUpdates(state, mergedStateUpdates, ((recentMessages ?? []).length) + 1);
-      const updatedMemory = await extractMemoryUpdates(buyerMemory, userText, responseText, (recentMessages ?? []) as SimulationMessage[]);
-      console.log("[eleven-agent] non-streaming response:", responseText, "metadata:", finalResponse);
-      persistTurn(supabase, sessionId, userText, responseText, finalResponse.emotion, finalResponse.intent, newState, updatedMemory, finalResponse.action);
+      const newState = applyStateUpdates(state, finalResponse.state_updates, ((recentMessages ?? []).length) + 1);
+      persistTurn(supabase, sessionId, userText, responseText, finalResponse.emotion, finalResponse.intent, newState);
       return NextResponse.json({
         id: completionId,
         object: "chat.completion",
@@ -332,16 +297,14 @@ export async function POST(req: NextRequest) {
     };
     let finalEmotion = "neutral";
     let finalIntent = "answer";
-    let finalAction: string | undefined;
 
     const thinkingDelay = computeThinkingDelay(state, persona);
+    console.log("[eleven-agent] streaming with thinkingDelay:", thinkingDelay);
 
     const readable = new ReadableStream({
       async start(controller) {
         let firstChunk = true;
-        let chunkCount = 0;
         try {
-          console.log("[eleven-agent] starting response stream");
           for await (const chunk of processTurnStream(
             persona,
             richContextNote,
@@ -354,48 +317,38 @@ export async function POST(req: NextRequest) {
             scenario.scenario_type ?? undefined,
             companyRag,
             scenario.duration ?? undefined,
-            elapsedMin,
-            "gpt-4.1-mini",
-            buyerContextString,
-            buyerMemory
+            elapsedMin
           )) {
-            chunkCount++;
             if (chunk.type === "sentence") {
+              console.log("[eleven-agent] SSE sentence chunk:", chunk.text);
               if (firstChunk && thinkingDelay > 0) {
+                console.log("[eleven-agent] applying thinkingDelay:", thinkingDelay);
                 await new Promise((resolve) => setTimeout(resolve, thinkingDelay));
               }
-              console.log("[eleven-agent] sentence chunk:", chunk.text);
               controller.enqueue(encoder.encode(sseChunk(completionId, chunk.text + " ", firstChunk)));
               firstChunk = false;
               fullResponseText += (fullResponseText ? " " : "") + chunk.text;
             } else {
-              console.log("[eleven-agent] metadata chunk:", chunk.response);
+              console.log("[eleven-agent] SSE done chunk metadata:", chunk.response);
               finalStateUpdates = chunk.response.state_updates;
               finalEmotion = chunk.response.emotion ?? finalEmotion;
               finalIntent = chunk.response.intent ?? finalIntent;
-              finalAction = chunk.response.action ?? finalAction;
             }
           }
-          console.log("[eleven-agent] stream complete, chunks:", chunkCount, "fullResponseText:", fullResponseText);
           controller.enqueue(encoder.encode(sseDone(completionId)));
         } catch (err) {
           console.error("[eleven-agent] stream error:", err);
           controller.enqueue(encoder.encode(sseDone(completionId)));
         } finally {
+          console.log("[eleven-agent] stream closing. fullResponseText:", fullResponseText, "finalEmotion:", finalEmotion, "finalIntent:", finalIntent);
           controller.close();
           // Persist after streaming completes
-          const mergedStateUpdates = ragImpact
-            ? mergeRagImpactIntoStateUpdates(finalStateUpdates, ragImpact)
-            : finalStateUpdates;
-          const newState = applyStateUpdates(state, mergedStateUpdates, ((recentMessages ?? []).length) + 1);
-          const updatedMemory = await extractMemoryUpdates(buyerMemory, userText, fullResponseText, (recentMessages ?? []) as SimulationMessage[]);
-          console.log("[eleven-agent] persisting turn", { sessionId, userText, fullResponseText, finalEmotion, finalIntent, finalAction });
-          persistTurn(supabase, sessionId, userText, fullResponseText, finalEmotion, finalIntent, newState, updatedMemory, finalAction);
+          const newState = applyStateUpdates(state, finalStateUpdates, ((recentMessages ?? []).length) + 1);
+          persistTurn(supabase, sessionId, userText, fullResponseText, finalEmotion, finalIntent, newState);
         }
       },
     });
 
-    console.log("[eleven-agent] returning streaming response");
     return new NextResponse(readable, {
       status: 200,
       headers: {
@@ -418,10 +371,9 @@ function persistTurn(
   responseText: string,
   emotion: string,
   intent: string,
-  newState: SimulationState,
-  buyerMemory?: BuyerMemory,
-  action?: string
+  newState: SimulationState
 ) {
+  console.log("[eleven-agent] persistTurn:", { sessionId, userText, responseText: responseText.slice(0, 100), emotion, intent, newState });
   Promise.all([
     supabase.from("simulation_messages").insert({ session_id: sessionId, role: "user", content: userText }),
     supabase.from("simulation_messages").insert({
@@ -430,11 +382,7 @@ function persistTurn(
       content: responseText,
       emotion,
       intent,
-      action: action as any,
     }),
-    supabase.from("simulation_sessions").update({
-      state: newState,
-      ...(buyerMemory ? { buyer_memory: buyerMemory as any } : {}),
-    }).eq("id", sessionId),
+    supabase.from("simulation_sessions").update({ state: newState }).eq("id", sessionId),
   ]).catch((e) => console.error("[eleven-agent] persist error:", e));
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { processTurn, applyStateUpdates, getConditionalRagContext, shouldRetrieveRag, buildBuyerContext, renderBuyerContext, extractMemoryUpdates, defaultBuyerMemory, computeRagStateImpact, mergeRagImpactIntoStateUpdates } from "@/lib/buyer-brain";
-import type { BuyerMemory, RagStateImpact } from "@/lib/buyer-brain";
+import { processTurn, applyStateUpdates } from "@/lib/buyer-brain";
+import { buildCompanyRagContext } from "@/lib/vector-store";
 import { CustomPersona } from "@/types";
 import { SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     }
 
     const [{ data: session, error: sessionError }, { data: profile }] = await Promise.all([
-      supabase.from("simulation_sessions").select("*, buyer_context, buyer_memory").eq("id", sessionId).eq("user_id", user.id).single(),
+      supabase.from("simulation_sessions").select("*").eq("id", sessionId).eq("user_id", user.id).single(),
       supabase.from("profiles").select("full_name, position, company, organization_id").eq("id", user.id).single(),
     ]);
 
@@ -86,7 +86,6 @@ export async function POST(req: NextRequest) {
 
     const messages = recentMessages ?? [];
     const state = session.state as SimulationState;
-    const buyerMemory = (session.buyer_memory as BuyerMemory | null) ?? defaultBuyerMemory;
 
     // Build a rich context note: call type + seller info + optional backstory
     const contextParts: string[] = [];
@@ -103,38 +102,11 @@ export async function POST(req: NextRequest) {
       company: profile?.company ?? undefined,
     };
 
-    // Load or build the static buyer context (system prompt) once per session.
-    let buyerContextString: string | null = null;
-    const storedContext = session.buyer_context as { response_format?: { mode?: string } } | null;
-    if (storedContext?.response_format?.mode === "json") {
-      buyerContextString = renderBuyerContext(storedContext as any);
-    }
-    if (!buyerContextString) {
-      const freshContext = buildBuyerContext(
-        persona,
-        scenario.scenario_type ?? "Discovery Call",
-        scenario.difficulty ?? "Intermediate",
-        sellerInfo,
-        "json"
-      );
-      buyerContextString = renderBuyerContext(freshContext);
-      const { error: cacheError } = await supabase
-        .from("simulation_sessions")
-        .update({ buyer_context: freshContext as any })
-        .eq("id", sessionId);
-      if (cacheError) {
-        console.warn("[simulation/turn] failed to cache buyer_context:", cacheError);
-      }
-    }
-
-    // Company RAG — only retrieve when the turn actually asks for company knowledge.
+    // Company RAG — fetch relevant docs from the org's knowledge base
     let companyRag = "";
-    let ragImpact: RagStateImpact | null = null;
-    const trimmedMessage = message.trim();
-    if (shouldRetrieveRag(trimmedMessage) && profile?.organization_id) {
+    if (profile?.organization_id) {
       try {
-        companyRag = await getConditionalRagContext(trimmedMessage, profile.organization_id, { limit: 3 });
-        ragImpact = await computeRagStateImpact(trimmedMessage, companyRag, state);
+        companyRag = await buildCompanyRagContext(message.trim(), profile.organization_id, { limit: 3 });
       } catch (e) {
         console.warn("[simulation/turn] company RAG failed:", e);
       }
@@ -156,18 +128,11 @@ export async function POST(req: NextRequest) {
       scenario.scenario_type ?? undefined,
       companyRag,
       scenario.duration ?? undefined,
-      elapsedMin,
-      "gpt-4o",
-      buyerContextString,
-      buyerMemory
+      elapsedMin
     );
     console.log("[simulation/turn] buyer-brain response:", buyerResponse.message.slice(0, 100));
 
-    const mergedStateUpdates = ragImpact
-      ? mergeRagImpactIntoStateUpdates(buyerResponse.state_updates, ragImpact)
-      : buyerResponse.state_updates;
-    const newState = applyStateUpdates(state, mergedStateUpdates, messages.length + 1);
-    const updatedMemory = await extractMemoryUpdates(buyerMemory, message.trim(), buyerResponse.message, messages);
+    const newState = applyStateUpdates(state, buyerResponse.state_updates, messages.length + 1);
 
     const [userMsgResult, buyerMsgResult] = await Promise.all([
       supabase.from("simulation_messages").insert({
@@ -181,19 +146,17 @@ export async function POST(req: NextRequest) {
         content: buyerResponse.message,
         emotion: buyerResponse.emotion,
         intent: buyerResponse.intent,
-        action: buyerResponse.action as any,
       }).select().single(),
     ]);
 
     await supabase
       .from("simulation_sessions")
-      .update({ state: newState, buyer_memory: updatedMemory as any })
+      .update({ state: newState })
       .eq("id", sessionId);
 
     return NextResponse.json({
       buyer_response: buyerResponse,
       new_state: newState,
-      buyer_memory: updatedMemory,
       user_message: userMsgResult.data,
       buyer_message: buyerMsgResult.data,
     });
