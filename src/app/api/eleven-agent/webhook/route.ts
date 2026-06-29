@@ -45,6 +45,10 @@ function sseChunk(id: string, content: string, first = false): string {
   );
 }
 
+function sseFallback(id: string, text: string): string {
+  return sseChunk(id, text, true) + sseDone(id);
+}
+
 function sseDone(id: string): string {
   return (
     "data: " +
@@ -116,8 +120,10 @@ export async function POST(req: NextRequest) {
     console.log("[eleven-agent] resolved sessionId:", sessionId, "stream:", stream);
 
     if (!sessionId) {
-      console.error("[eleven-agent] missing session_id");
-      return NextResponse.json({ error: "Missing session_id" }, { status: 400 });
+      console.error("[eleven-agent] missing session_id — returning SSE fallback");
+      const enc = new TextEncoder();
+      const fb = new ReadableStream({ start(c) { c.enqueue(enc.encode(sseFallback(completionId, "Sorry, give me a moment."))); c.close(); } });
+      return new NextResponse(fb, { status: 200, headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
     }
 
     const messages = (body.messages ?? []) as Array<{ role: string; content?: string }>;
@@ -125,8 +131,10 @@ export async function POST(req: NextRequest) {
     const userText = lastUserMsg?.content?.trim() ?? "";
 
     if (!userText) {
-      console.error("[eleven-agent] no user text found in messages:", messages);
-      return NextResponse.json({ error: "No user message found" }, { status: 400 });
+      console.error("[eleven-agent] no user text — returning SSE done");
+      const enc = new TextEncoder();
+      const fb = new ReadableStream({ start(c) { c.enqueue(enc.encode(sseDone(completionId))); c.close(); } });
+      return new NextResponse(fb, { status: 200, headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
     }
     console.log("[eleven-agent] userText:", userText);
 
@@ -141,7 +149,9 @@ export async function POST(req: NextRequest) {
 
     if (sessionError || !session) {
       console.error("[eleven-agent] session not found:", sessionId, sessionError);
-      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+      const enc = new TextEncoder();
+      const fb = new ReadableStream({ start(c) { c.enqueue(enc.encode(sseFallback(completionId, "Sorry, I seem to have lost context. Could you repeat that?"))); c.close(); } });
+      return new NextResponse(fb, { status: 200, headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
     }
     console.log("[eleven-agent] session loaded:", { id: session.id, user_id: session.user_id, state: session.state, scenario_id: session.scenario_id });
 
@@ -359,8 +369,10 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("[eleven-agent] error:", err);
-    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    console.error("[eleven-agent] unhandled error:", err);
+    const enc = new TextEncoder();
+    const fb = new ReadableStream({ start(c) { c.enqueue(enc.encode(sseFallback(completionId, "Sorry, give me a moment."))); c.close(); } });
+    return new NextResponse(fb, { status: 200, headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
   }
 }
 
