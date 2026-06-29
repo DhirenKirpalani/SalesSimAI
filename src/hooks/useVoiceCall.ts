@@ -193,20 +193,22 @@ export function useVoiceCall(): UseVoiceCallReturn {
       console.log("[useVoiceCall] voiceConfig:", voiceConfig);
       // ─────────────────────────────────────────────────────────────────────
 
+      const configOverride = {
+        ...(voiceConfig.language ? { agent: { language: voiceConfig.language } } : {}),
+        ...(voiceConfig.voiceId || voiceConfig.speed ? {
+          tts: {
+            ...(voiceConfig.voiceId ? { voice_id: voiceConfig.voiceId } : {}),
+            ...(voiceConfig.speed ? { speed: voiceConfig.speed } : {}),
+          },
+        } : {}),
+      };
+      console.log("%c[useVoiceCall] 📤 conversationConfigOverride being sent to ElevenLabs:", "color:#fb923c;font-weight:bold;font-size:13px", JSON.stringify(configOverride, null, 2));
       console.log("[useVoiceCall] calling Conversation.startSession...");
       const conversation = await Conversation.startSession({
         agentId,
         connectionType: "webrtc",
         dynamicVariables: voiceConfig.dynamicVariables,
-        conversationConfigOverride: {
-          ...(voiceConfig.language ? { agent: { language: voiceConfig.language } } : {}),
-          ...(voiceConfig.voiceId || voiceConfig.speed ? {
-            tts: {
-              ...(voiceConfig.voiceId ? { voice_id: voiceConfig.voiceId } : {}),
-              ...(voiceConfig.speed ? { speed: voiceConfig.speed } : {}),
-            },
-          } : {}),
-        } as Record<string, unknown>,
+        conversationConfigOverride: configOverride as Record<string, unknown>,
         onConnect: () => {
           console.log("[useVoiceCall] onConnect");
           setStatus("listening");
@@ -292,7 +294,16 @@ export function useVoiceCall(): UseVoiceCallReturn {
       });
 
       conversationRef.current = conversation;
-      console.log("[useVoiceCall] conversation started:", conversation);
+      // ── VOICE VERIFICATION LOG ──────────────────────────────────────────
+      const convAny = conversation as unknown as Record<string, unknown>;
+      const resolvedVoiceId =
+        (convAny?.options as Record<string, unknown>)?.voice_id ??
+        (convAny?.options as Record<string, unknown>)?.tts ??
+        ((convAny?.options as Record<string, unknown>)?.conversationConfigOverride as Record<string, unknown>)?.tts ??
+        "(not exposed by SDK)";
+      console.log("%c[useVoiceCall] ✅ Session started. SDK-reported voice info:", "color:#34d399;font-weight:bold;font-size:13px", resolvedVoiceId);
+      console.log("[useVoiceCall] full conversation object:", conversation);
+      // ────────────────────────────────────────────────────────────────────
     } catch (err) {
       console.error("[useVoiceCall] start error:", err);
       setError(err instanceof Error ? err.message : "Failed to start voice call");
