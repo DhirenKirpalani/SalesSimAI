@@ -199,22 +199,22 @@ export function useVoiceCall(): UseVoiceCallReturn {
       console.log("[useVoiceCall] voiceConfig:", voiceConfig);
       // ─────────────────────────────────────────────────────────────────────
 
-      const configOverride = {
+      const overrides = {
         ...(voiceConfig.language ? { agent: { language: voiceConfig.language } } : {}),
         ...(voiceConfig.voiceId || voiceConfig.speed ? {
           tts: {
-            ...(voiceConfig.voiceId ? { voice_id: voiceConfig.voiceId } : {}),
+            ...(voiceConfig.voiceId ? { voiceId: voiceConfig.voiceId } : {}),
             ...(voiceConfig.speed ? { speed: voiceConfig.speed } : {}),
           },
         } : {}),
       };
-      console.log("%c[useVoiceCall] 📤 conversationConfigOverride being sent to ElevenLabs:", "color:#fb923c;font-weight:bold;font-size:13px", JSON.stringify(configOverride, null, 2));
+      console.log("%c[useVoiceCall] 📤 overrides being sent to ElevenLabs:", "color:#fb923c;font-weight:bold;font-size:13px", JSON.stringify(overrides, null, 2));
       console.log("[useVoiceCall] calling Conversation.startSession...");
       const conversation = await Conversation.startSession({
         agentId,
         connectionType: "webrtc",
         dynamicVariables: voiceConfig.dynamicVariables,
-        conversationConfigOverride: configOverride as Record<string, unknown>,
+        overrides: overrides as Parameters<typeof Conversation.startSession>[0]["overrides"],
         onConnect: () => {
           console.log("[useVoiceCall] onConnect");
           setStatus("listening");
