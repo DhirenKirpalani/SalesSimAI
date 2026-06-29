@@ -9,8 +9,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { processTurn, applyStateUpdates } from "@/lib/buyer-brain";
-import { buildCompanyRagContext } from "@/lib/vector-store";
+import { processTurn, applyStateUpdates, getConditionalRagContext, shouldRetrieveRag, buildBuyerContext, renderBuyerContext, extractMemoryUpdates, defaultBuyerMemory, computeRagStateImpact, mergeRagImpactIntoStateUpdates } from "@/lib/buyer-brain";
+import type { BuyerMemory, RagStateImpact } from "@/lib/buyer-brain";
 import { CustomPersona } from "@/types";
 import { SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
@@ -74,7 +74,7 @@ export async function POST(
     const supabase = serviceSupabase();
     const { data: session, error: sessionError } = await supabase
       .from("simulation_sessions")
-      .select("*")
+      .select("*, buyer_context, buyer_memory")
       .eq("id", sessionId)
       .single();
 
@@ -121,17 +121,44 @@ export async function POST(
 
     const state = session.state as SimulationState;
     const sellerInfo = { name: profile?.full_name, position: profile?.position, company: profile?.company };
+    const buyerMemory = (session.buyer_memory as BuyerMemory | null) ?? defaultBuyerMemory;
+
+    // Load or build the static buyer context (system prompt) once per session.
+    let buyerContextString: string | null = null;
+    const storedContext = session.buyer_context as { response_format?: { mode?: string } } | null;
+    if (storedContext?.response_format?.mode === "json") {
+      buyerContextString = renderBuyerContext(storedContext as any);
+    }
+    if (!buyerContextString) {
+      const freshContext = buildBuyerContext(
+        persona,
+        scenario?.scenario_type ?? "Discovery Call",
+        scenario?.difficulty ?? "Intermediate",
+        sellerInfo,
+        "json"
+      );
+      buyerContextString = renderBuyerContext(freshContext);
+      const { error: cacheError } = await supabase
+        .from("simulation_sessions")
+        .update({ buyer_context: freshContext as any })
+        .eq("id", sessionId);
+      if (cacheError) {
+        console.warn("[llm-proxy] failed to cache buyer_context:", cacheError);
+      }
+    }
 
     // Time awareness for buyer
     const sessionStart = new Date(session.created_at ?? Date.now());
     const elapsedMin = Math.max(0, Math.round((Date.now() - sessionStart.getTime()) / 60000));
     const durationMin = scenario?.duration ?? undefined;
 
-    // Company RAG — fetch relevant docs from the org's knowledge base
+    // Company RAG — only retrieve when the turn actually asks for company knowledge.
     let companyRag = "";
-    if (profile?.organization_id) {
+    let ragImpact: RagStateImpact | null = null;
+    if (shouldRetrieveRag(userText) && profile?.organization_id) {
       try {
-        companyRag = await buildCompanyRagContext(userText, profile.organization_id, { limit: 3 });
+        companyRag = await getConditionalRagContext(userText, profile.organization_id, { limit: 3 });
+        ragImpact = await computeRagStateImpact(userText, companyRag, state);
       } catch (e) {
         console.warn("[llm-proxy] company RAG failed:", e);
       }
@@ -152,17 +179,24 @@ export async function POST(
       scenario?.scenario_type ?? undefined,
       companyRag,
       durationMin,
-      elapsedMin
+      elapsedMin,
+      "gpt-4o",
+      buyerContextString,
+      buyerMemory
     );
 
-    const newState = applyStateUpdates(state, buyerResponse.state_updates, (recentMessages?.length ?? 0) + 1);
+    const mergedStateUpdates = ragImpact
+      ? mergeRagImpactIntoStateUpdates(buyerResponse.state_updates, ragImpact)
+      : buyerResponse.state_updates;
+    const newState = applyStateUpdates(state, mergedStateUpdates, (recentMessages?.length ?? 0) + 1);
+    const updatedMemory = await extractMemoryUpdates(buyerMemory, userText, buyerResponse.message, recentMessages ?? []);
     const responseText = buyerResponse.message;
 
-    // Persist messages + updated state (fire-and-forget)
+    // Persist messages + updated state + memory + action (fire-and-forget)
     Promise.all([
       supabase.from("simulation_messages").insert({ session_id: sessionId, role: "user", content: userText }),
-      supabase.from("simulation_messages").insert({ session_id: sessionId, role: "buyer", content: responseText, emotion: buyerResponse.emotion, intent: buyerResponse.intent }),
-      supabase.from("simulation_sessions").update({ state: newState }).eq("id", sessionId),
+      supabase.from("simulation_messages").insert({ session_id: sessionId, role: "buyer", content: responseText, emotion: buyerResponse.emotion, intent: buyerResponse.intent, action: buyerResponse.action as any }),
+      supabase.from("simulation_sessions").update({ state: newState, buyer_memory: updatedMemory as any }).eq("id", sessionId),
     ]).catch((e) => console.error("[llm-proxy] supabase persist error:", e));
 
     console.log("[llm-proxy] buyer response:", responseText.slice(0, 80));

@@ -22,6 +22,13 @@ create table if not exists public.simulation_sessions (
     "engagement_level": 50
   }',
   heygen_session_id text,
+  buyer_context  jsonb,
+  buyer_memory   jsonb not null default '{
+    "pain_points_discovered": [],
+    "objections_raised": [],
+    "seller_promises": [],
+    "unanswered_questions": []
+  }',
   analysis       jsonb,
   started_at     timestamptz not null default now(),
   ended_at       timestamptz,

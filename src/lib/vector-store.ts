@@ -202,7 +202,8 @@ export async function queryCompanyDocuments(
 
 /**
  * Build a RAG context string from company documents.
- * Injects relevant company knowledge (pricing, objections, product info) into the buyer prompt.
+ * Uses semantic search to pick the most relevant documents, then sends the full document text
+ * so the buyer has richer context than isolated chunks.
  */
 export async function buildCompanyRagContext(
   queryText: string,
@@ -211,18 +212,60 @@ export async function buildCompanyRagContext(
     docType?: string;
     limit?: number;
     minSimilarity?: number;
+    maxCharsPerDoc?: number;
+    maxTotalChars?: number;
   }
 ): Promise<string> {
   try {
     const chunks = await queryCompanyDocuments(queryText, organizationId, opts);
     if (chunks.length === 0) return "";
 
-    const lines = chunks
-      .map((c) => `[${c.doc_type}] ${c.name}:\n${c.content}`)
-      .join("\n\n---\n\n");
+    const supabase = await createClient();
+
+    // Fetch the full document text for each document that produced a matching chunk
+    const uniqueDocIds = [...new Set(chunks.map((c) => c.id))];
+    const { data: docs } = await supabase
+      .from("company_documents")
+      .select("id, name, content, document_type")
+      .in("id", uniqueDocIds)
+      .eq("organization_id", organizationId);
+
+    const docMap = new Map((docs ?? []).map((d) => [d.id, d]));
+
+    const maxCharsPerDoc = opts?.maxCharsPerDoc ?? 50_000;
+    const maxTotalChars = opts?.maxTotalChars ?? 100_000;
+
+    let totalChars = 0;
+    const lines: string[] = [];
+
+    for (const id of uniqueDocIds) {
+      const doc = docMap.get(id);
+      const chunk = chunks.find((c) => c.id === id)!;
+      const fullContent = doc?.content?.trim();
+      if (doc && fullContent) {
+        const truncated =
+          fullContent.length > maxCharsPerDoc
+            ? fullContent.slice(0, maxCharsPerDoc) + "\n[document truncated due to length]"
+            : fullContent;
+        if (fullContent.length > maxCharsPerDoc) {
+          console.warn(`[buildCompanyRagContext] truncated document ${doc.name} from ${fullContent.length} to ${maxCharsPerDoc} chars`);
+        }
+        lines.push(`[${doc.document_type || chunk.doc_type}] ${doc.name || chunk.name}:\n${truncated}`);
+        totalChars += truncated.length;
+      } else {
+        // Fallback for older documents uploaded before full-text storage
+        lines.push(`[${chunk.doc_type}] ${chunk.name}:\n${chunk.content}`);
+        totalChars += chunk.content.length;
+      }
+
+      if (totalChars >= maxTotalChars) {
+        console.warn(`[buildCompanyRagContext] total context exceeded ${maxTotalChars} chars; truncating remaining documents`);
+        break;
+      }
+    }
 
     return `COMPANY KNOWLEDGE — relevant documents for context:
-${lines}
+${lines.join("\n\n---\n\n")}
 
 Use this information to respond accurately when the seller asks about your company's products, pricing, or policies. You are the BUYER; you may reference this knowledge naturally, but do not volunteer it unprompted.`;
   } catch (err) {

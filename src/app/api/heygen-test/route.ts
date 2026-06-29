@@ -11,6 +11,7 @@ import {
 } from "@/lib/heygen";
 import { CustomScenario, CustomPersona } from "@/types";
 import { mockPersonas } from "@/lib/data/mockData";
+import { buildBuyerContext, renderBuyerContext } from "@/lib/buyer-brain";
 
 function serviceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -253,6 +254,13 @@ export async function POST(req: NextRequest) {
     let scenarioAvatarId: string | undefined;
     let scenarioVoiceId: string | undefined;
     let scenarioDuration = 25; // minutes, default
+    let scenarioType: string | undefined;
+    let scenarioDifficulty: string | undefined;
+    let scenarioSellerCompany: string | undefined;
+    let scenarioSellerProduct: string | undefined;
+    let scenarioContextNote: string | undefined;
+    let resolvedPersona: CustomPersona | null = null;
+    let buyerContextJson: unknown = null;
 
     if (scenarioId && scenarioTable) {
       console.log("[heygen-test] Looking up scenario from Supabase…");
@@ -273,6 +281,11 @@ export async function POST(req: NextRequest) {
           scenarioAvatarId = scenario.avatar_id ?? undefined;
           scenarioVoiceId = scenario.voice_id ?? undefined;
           scenarioDuration = scenario.duration ?? 25;
+          scenarioType = scenario.scenario_type ?? undefined;
+          scenarioDifficulty = scenario.difficulty ?? undefined;
+          scenarioSellerCompany = scenario.seller_company ?? undefined;
+          scenarioSellerProduct = scenario.seller_product ?? undefined;
+          scenarioContextNote = scenario.context_note ?? undefined;
           console.log("[heygen-test] ✅ Scenario found:", scenarioName);
           console.log("[heygen-test] scenario avatar_id:", scenarioAvatarId ?? "(none — will use env fallback)");
           console.log("[heygen-test] scenario voice_id:", scenarioVoiceId ?? "(none — will use env fallback)");
@@ -283,32 +296,45 @@ export async function POST(req: NextRequest) {
           console.log("[heygen-test] has custom_persona:", !!scenario.custom_persona);
           console.log("[heygen-test] preset_persona_id:", scenario.preset_persona_id ?? "(none)");
 
-          let persona: CustomPersona | null = scenario.custom_persona as CustomPersona ?? null;
-          if (!persona && scenario.preset_persona_id) {
+          resolvedPersona = scenario.custom_persona as CustomPersona ?? null;
+          if (!resolvedPersona && scenario.preset_persona_id) {
             const preset = mockPersonas.find((p) => p.id === scenario.preset_persona_id);
             if (preset) {
-              persona = { name: preset.name, jobTitle: preset.jobTitle, company: preset.company, industry: preset.industry, personality: preset.personality, painPoints: preset.painPoints, goals: preset.goals };
+              resolvedPersona = { name: preset.name, jobTitle: preset.jobTitle, company: preset.company, industry: preset.industry, personality: preset.personality, painPoints: preset.painPoints, goals: preset.goals };
               console.log("[heygen-test] Resolved preset persona:", preset.name, "-", preset.jobTitle);
             } else {
               console.warn("[heygen-test] ⚠️  preset_persona_id not found in mockPersonas:", scenario.preset_persona_id);
             }
-          } else if (persona) {
-            console.log("[heygen-test] Using custom_persona:", persona.name, "-", persona.jobTitle, "at", persona.company);
+          } else if (resolvedPersona) {
+            console.log("[heygen-test] Using custom_persona:", resolvedPersona.name, "-", resolvedPersona.jobTitle, "at", resolvedPersona.company);
           } else {
             console.warn("[heygen-test] ⚠️  No persona found — using fallback");
           }
 
           const isInterview = scenario.scenario_type === "Product Knowledge Interview";
           if (isInterview) {
-            personaPrompt = buildInterviewerPrompt(scenario as CustomScenario, persona, sellerName ?? "the candidate", previousTranscript);
+            personaPrompt = buildInterviewerPrompt(scenario as CustomScenario, resolvedPersona, sellerName ?? "the candidate", previousTranscript);
             openingText = previousTranscript
               ? "Let's continue where we left off."
-              : `Hi ${sellerName ?? "there"}, I'm ${persona?.name ?? "Sarah"}, ${persona?.jobTitle ?? "HR Business Partner"} at ${scenario.seller_company}. Thanks for making time today. I'll be assessing your product knowledge — just be yourself and answer as naturally as you can. Ready to begin?`;
+              : `Hi ${sellerName ?? "there"}, I'm ${resolvedPersona?.name ?? "Sarah"}, ${resolvedPersona?.jobTitle ?? "HR Business Partner"} at ${scenario.seller_company}. Thanks for making time today. I'll be assessing your product knowledge — just be yourself and answer as naturally as you can. Ready to begin?`;
           } else {
-            personaPrompt = buildPersonaPrompt(scenario as CustomScenario, persona, sellerName ?? "the seller", previousTranscript);
+            personaPrompt = buildPersonaPrompt(scenario as CustomScenario, resolvedPersona, sellerName ?? "the seller", previousTranscript);
             openingText = previousTranscript
               ? "Sorry about that — where were we?"
-              : `Hi, I'm ${persona?.name ?? "Alex"}. Thanks for reaching out — go ahead.`;
+              : `Hi, I'm ${resolvedPersona?.name ?? "Alex"}. Thanks for reaching out — go ahead.`;
+          }
+
+          // Pre-build the static buyer context for the unified simulation session.
+          if (resolvedPersona) {
+            const buyerCtx = buildBuyerContext(
+              resolvedPersona,
+              scenarioType ?? "Discovery Call",
+              scenarioDifficulty ?? "Intermediate",
+              { name: sellerName ?? undefined, company: scenarioSellerCompany ?? undefined },
+              "json"
+            );
+            renderBuyerContext(buyerCtx);
+            buyerContextJson = buyerCtx;
           }
 
           console.log("[heygen-test] ── PERSONA PROMPT ──────────────────────────");
@@ -456,6 +482,7 @@ export async function POST(req: NextRequest) {
               call_mode: "video",
               status: "active",
               heygen_session_id: heygenSessionDbId,
+              buyer_context: buyerContextJson as any,
               state: {
                 trust_level: 30, buyer_mood: 0, stage: "opening",
                 facts_discovered: { budget: false, decision_maker: false, timeline: false, current_solution: false },

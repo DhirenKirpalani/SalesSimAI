@@ -1,6 +1,7 @@
 export type SimulationStage = "opening" | "discovery" | "qualification" | "objection" | "closing";
 export type BuyerEmotion = "neutral" | "skeptical" | "interested" | "frustrated";
 export type BuyerIntent = "answer" | "objection" | "question" | "redirect";
+export type BuyerAction = "reveal_pain" | "challenge" | "ask_question" | "push_back" | "engage" | "deflect" | "end_call" | "close";
 
 export interface SimulationState {
   trust_level: number;
@@ -20,6 +21,7 @@ export interface BuyerResponse {
   message: string;
   emotion: BuyerEmotion;
   intent: BuyerIntent;
+  action?: BuyerAction;
   state_updates: {
     trust_delta: number;
     mood_delta: number;
@@ -48,6 +50,7 @@ export interface SimulationMessage {
   content: string;
   emotion?: string | null;
   intent?: string | null;
+  action?: string | null;
   created_at: string;
 }
 
