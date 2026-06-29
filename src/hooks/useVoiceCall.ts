@@ -132,7 +132,12 @@ export function useVoiceCall(): UseVoiceCallReturn {
           }) => {
             const msg = payload.new;
             if (msg.role !== "buyer") return;
-            patchLatestBuyerTranscript(msg.content, msg.emotion, msg.intent);
+            // Only patch an existing buyer entry; don't create one. The streaming
+            // ElevenLabs agent-response event is the primary source for voice.
+            const lastBuyer = [...transcriptRef.current].reverse().find((t) => t.role === "buyer");
+            if (lastBuyer) {
+              patchLatestBuyerTranscript(msg.content, msg.emotion, msg.intent);
+            }
           }
         )
         .subscribe();
@@ -191,11 +196,13 @@ export function useVoiceCall(): UseVoiceCallReturn {
           } : {}),
         } as Record<string, unknown>,
         onConnect: () => {
+          console.log("[useVoiceCall] connected");
           setStatus("listening");
           audioEnergyRef.current = 0;
           micEnergyRef.current = 0;
         },
         onDisconnect: () => {
+          console.log("[useVoiceCall] disconnected");
           if (!abortRef.current) {
             setStatus("idle");
           }
@@ -208,43 +215,61 @@ export function useVoiceCall(): UseVoiceCallReturn {
         onMessage: (message: MessagePayload) => {
           const msg = (message as unknown) as Record<string, unknown>;
           if (typeof msg.type !== "string") return;
+          console.log("[useVoiceCall] onMessage type:", msg.type, "payload:", msg);
 
           // Track speaking state
           if (msg.type === "agent-started-speaking") {
+            console.log("[useVoiceCall] agent started speaking");
             setIsSpeaking(true);
             setStatus("speaking");
           } else if (msg.type === "agent-stopped-speaking") {
+            console.log("[useVoiceCall] agent stopped speaking");
             setIsSpeaking(false);
             setStatus("listening");
             setTimeout(() => setCurrentBuyerText(""), 3000);
           } else if (msg.type === "user-started-speaking") {
+            console.log("[useVoiceCall] user started speaking");
             setStatus("listening");
             turnAddedRef.current = false;
             setCurrentBuyerText("");
           } else if (msg.type === "user-stopped-speaking") {
+            console.log("[useVoiceCall] user stopped speaking");
             setStatus("listening");
-          } else if (msg.type === "user-transcript") {
-            const text = String(msg.text ?? "").trim();
+          } else if (msg.type === "user-transcript" || msg.type === "user_transcript" || msg.type === "userTranscript" || msg.type === "transcript") {
+            const raw = msg.text ?? msg.transcript ?? msg.message ?? msg.user_transcript ?? msg.payload ?? "";
+            const text = String(raw).trim();
+            console.log("[useVoiceCall] user-transcript raw:", raw, "text:", text);
             if (text) {
               addTranscript("user", text);
+              console.log("[useVoiceCall] added user transcript:", text);
+            } else {
+              console.warn("[useVoiceCall] user-transcript had no text");
             }
           } else if (msg.type === "agent-response") {
             const text = String(msg.text ?? "").trim();
+            console.log("[useVoiceCall] agent-response text:", text);
             if (text) {
               lastBuyerTextRef.current = text;
               setCurrentBuyerText(text);
               if (!turnAddedRef.current) {
                 turnAddedRef.current = true;
                 addTranscript("buyer", text);
+                console.log("[useVoiceCall] added first buyer response:", text);
               } else {
                 patchLatestBuyerTranscript(text);
+                console.log("[useVoiceCall] patched buyer response:", text);
               }
             }
+          } else if (msg.type === "audio") {
+            console.log("[useVoiceCall] audio chunk received");
+          } else {
+            console.log("[useVoiceCall] unhandled event type:", msg.type);
           }
         },
         onAgentResponseCorrection: (correction: Parameters<NonNullable<StartSessionOptions["onAgentResponseCorrection"]>>[0]) => {
           const data = (correction as unknown) as { corrected_agent_response?: string };
           const text = String(data.corrected_agent_response ?? "").trim();
+          console.log("[useVoiceCall] agent response correction:", text);
           if (text) {
             lastBuyerTextRef.current = text;
             patchLatestBuyerTranscript(text);

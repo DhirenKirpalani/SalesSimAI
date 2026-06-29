@@ -6,7 +6,7 @@ import { parseOpenAIJsonResponse, parseOpenAIStream } from "./parser";
 import { StreamChunk, SellerInfo } from "./types";
 import { callOpenAIChat, callOpenAIStream } from "./llm";
 import { BuyerMemory, renderBuyerMemory } from "./memory";
-import { decideBuyerAction, renderBuyerAction, BuyerAction } from "./action-decision";
+import { decideBuyerAction, renderBuyerAction, BuyerAction, defaultBuyerAction } from "./action-decision";
 
 function buildTimePressure(durationMin: number | undefined, elapsedMin: number | undefined): string {
   const totalMin = durationMin ?? 5;
@@ -154,20 +154,15 @@ export async function* processTurnStream(
         elapsedMin
       );
 
-  // Step 1: decide the buyer's internal action before generating the response.
-  const buyerMemoryText = buyerMemory ? renderBuyerMemory(buyerMemory) : undefined;
-  const buyerAction = await decideBuyerAction(
-    state,
-    recentMessages,
-    userMessage,
-    contextNote,
-    ragContext,
-    buyerMemoryText
-  );
+  // Voice/real-time: skip the explicit action decision LLM call to reduce latency.
+  // Use a rule-based default action derived from buyer state. The response model
+  // will still record the actual action via the record_buyer_metadata tool.
+  const buyerAction = defaultBuyerAction(state);
 
-  // Step 2: generate the spoken response using the chosen action.
   const dynamicContext = buildDynamicContext(state, recentMessages, userMessage, contextNote, sellerDescription, ragContext, durationMin, elapsedMin, buyerMemory, buyerAction);
-  const response = await callOpenAIStream(model, systemPrompt, [], dynamicContext, true);
+  // Use the text+JSON separator format (no tools) so the model reliably streams
+  // spoken text and emits metadata separately rather than speaking it.
+  const response = await callOpenAIStream(model, systemPrompt, [], dynamicContext, false);
   yield* parseOpenAIStream(response, userMessage);
 }
 

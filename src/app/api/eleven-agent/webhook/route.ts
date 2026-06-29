@@ -109,21 +109,26 @@ function resolveSessionId(req: NextRequest, body: Record<string, unknown>): stri
 
 export async function POST(req: NextRequest) {
   const completionId = `chatcmpl-${Date.now()}`;
+  console.log("[eleven-agent] request received", { completionId });
 
   try {
     const body = (await req.json()) as Record<string, unknown>;
     const stream = (body.stream as boolean) ?? true;
     const sessionId = resolveSessionId(req, body);
+    console.log("[eleven-agent] resolved sessionId:", sessionId, "stream:", stream);
 
     if (!sessionId) {
+      console.warn("[eleven-agent] missing session_id");
       return NextResponse.json({ error: "Missing session_id" }, { status: 400 });
     }
 
     const messages = (body.messages ?? []) as Array<{ role: string; content?: string }>;
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
     const userText = lastUserMsg?.content?.trim() ?? "";
+    console.log("[eleven-agent] userText:", userText, "message count:", messages.length);
 
     if (!userText) {
+      console.warn("[eleven-agent] no user message found");
       return NextResponse.json({ error: "No user message found" }, { status: 400 });
     }
 
@@ -269,6 +274,7 @@ export async function POST(req: NextRequest) {
 
     if (!stream) {
       // Non-streaming fallback (shouldn't be used by ElevenLabs, but keeps the endpoint compatible)
+      console.log("[eleven-agent] non-streaming path");
       const chunks: string[] = [];
       let finalResponse: BuyerResponse = {
         message: "",
@@ -305,6 +311,7 @@ export async function POST(req: NextRequest) {
         : finalResponse.state_updates;
       const newState = applyStateUpdates(state, mergedStateUpdates, ((recentMessages ?? []).length) + 1);
       const updatedMemory = await extractMemoryUpdates(buyerMemory, userText, responseText, (recentMessages ?? []) as SimulationMessage[]);
+      console.log("[eleven-agent] non-streaming response:", responseText, "metadata:", finalResponse);
       persistTurn(supabase, sessionId, userText, responseText, finalResponse.emotion, finalResponse.intent, newState, updatedMemory, finalResponse.action);
       return NextResponse.json({
         id: completionId,
@@ -332,7 +339,9 @@ export async function POST(req: NextRequest) {
     const readable = new ReadableStream({
       async start(controller) {
         let firstChunk = true;
+        let chunkCount = 0;
         try {
+          console.log("[eleven-agent] starting response stream");
           for await (const chunk of processTurnStream(
             persona,
             richContextNote,
@@ -350,20 +359,24 @@ export async function POST(req: NextRequest) {
             buyerContextString,
             buyerMemory
           )) {
+            chunkCount++;
             if (chunk.type === "sentence") {
               if (firstChunk && thinkingDelay > 0) {
                 await new Promise((resolve) => setTimeout(resolve, thinkingDelay));
               }
+              console.log("[eleven-agent] sentence chunk:", chunk.text);
               controller.enqueue(encoder.encode(sseChunk(completionId, chunk.text + " ", firstChunk)));
               firstChunk = false;
               fullResponseText += (fullResponseText ? " " : "") + chunk.text;
             } else {
+              console.log("[eleven-agent] metadata chunk:", chunk.response);
               finalStateUpdates = chunk.response.state_updates;
               finalEmotion = chunk.response.emotion ?? finalEmotion;
               finalIntent = chunk.response.intent ?? finalIntent;
               finalAction = chunk.response.action ?? finalAction;
             }
           }
+          console.log("[eleven-agent] stream complete, chunks:", chunkCount, "fullResponseText:", fullResponseText);
           controller.enqueue(encoder.encode(sseDone(completionId)));
         } catch (err) {
           console.error("[eleven-agent] stream error:", err);
@@ -376,11 +389,13 @@ export async function POST(req: NextRequest) {
             : finalStateUpdates;
           const newState = applyStateUpdates(state, mergedStateUpdates, ((recentMessages ?? []).length) + 1);
           const updatedMemory = await extractMemoryUpdates(buyerMemory, userText, fullResponseText, (recentMessages ?? []) as SimulationMessage[]);
+          console.log("[eleven-agent] persisting turn", { sessionId, userText, fullResponseText, finalEmotion, finalIntent, finalAction });
           persistTurn(supabase, sessionId, userText, fullResponseText, finalEmotion, finalIntent, newState, updatedMemory, finalAction);
         }
       },
     });
 
+    console.log("[eleven-agent] returning streaming response");
     return new NextResponse(readable, {
       status: 200,
       headers: {

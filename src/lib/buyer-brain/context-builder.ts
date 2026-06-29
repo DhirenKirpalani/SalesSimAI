@@ -95,15 +95,12 @@ export function buildBuyerContext(
     .map((line) => line.replace(/^- ?/, ""))
     .slice(0, 10);
 
-  const streamingInstructions = `RESPOND WITH PLAIN TEXT ONLY. Do not include JSON, labels, or formatting in your spoken response.
+  const streamingInstructions = `OUTPUT FORMAT — two sections separated by exactly "---":
 
-After your spoken response, you MUST use the record_buyer_metadata tool to record:
-- emotion (neutral|skeptical|interested|frustrated)
-- intent (answer|objection|question|redirect)
-- trust_delta (integer between -15 and +15)
-- mood_delta (integer between -5 and +5)
-- facts_revealed (array of budget|decision_maker|timeline|current_solution)
-- follow_up_question (optional string)
+Section 1: Your spoken response (plain text, 1-3 sentences, NO JSON).
+---
+Section 2: JSON only, including the buyer action:
+{"emotion":"neutral|skeptical|interested|frustrated","intent":"answer|objection|question|redirect","action":"reveal_pain|challenge|ask_question|push_back|engage|deflect|end_call|close","state_updates":{"trust_delta":<-15 to 15>,"mood_delta":<-5 to 5>,"facts_revealed":[]},"follow_up_question":"<optional>"}
 
 Keep spoken responses to 1-3 sentences.`;
 
