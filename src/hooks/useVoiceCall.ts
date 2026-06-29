@@ -32,7 +32,7 @@ interface UseVoiceCallReturn {
   micMuted: boolean;
   audioEnergyRef: React.MutableRefObject<number>;
   micEnergyRef: React.MutableRefObject<number>;
-  start: (sessionId: string, voiceId: string, language?: VoiceLanguage) => void;
+  start: (sessionId: string, voiceId?: string, language?: VoiceLanguage) => void;
   stop: () => void;
   toggleMic: () => void;
   togglePause: () => void;
@@ -155,14 +155,8 @@ export function useVoiceCall(): UseVoiceCallReturn {
     }
   }, []);
 
-  const start = useCallback(async (sessionId: string, voiceId: string, language?: VoiceLanguage) => {
+  const start = useCallback(async (sessionId: string, voiceId?: string, language?: VoiceLanguage) => {
     console.log("[useVoiceCall] start called:", { sessionId, voiceId, language });
-    if (!voiceId) {
-      console.error("[useVoiceCall] ❌ voiceId is required — refusing to start without an explicit voice to prevent silent fallback");
-      setError("Voice ID missing — cannot start call without an explicit voice.");
-      setStatus("error");
-      return;
-    }
     abortRef.current = false;
     setError(null);
     setTranscript([]);
@@ -172,7 +166,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
     setMicMuted(false);
     lastBuyerTextRef.current = "";
     sessionIdRef.current = sessionId;
-    voiceIdRef.current = voiceId;
+    voiceIdRef.current = voiceId ?? null;
     languageRef.current = language ?? "en";
     unsubscribeFromRealtime();
     subscribeToRealtime(sessionId);
@@ -191,22 +185,16 @@ export function useVoiceCall(): UseVoiceCallReturn {
       const voiceConfig = buildVoiceConfig(sessionId, languageRef.current, voiceId ?? undefined);
 
       // ── VOICE SELECTION LOG ──────────────────────────────────────────────
-      if (voiceConfig.voiceId) {
-        console.log(`%c[useVoiceCall] 🎙️ VOICE OVERRIDE → ${voiceConfig.voiceId}`, "color:#f472b6;font-weight:bold;font-size:13px");
-      } else {
-        console.log(`%c[useVoiceCall] 🎙️ VOICE → Agent default (Kelvin)`, "color:#60a5fa;font-weight:bold;font-size:13px");
-      }
+      // Voice is controlled by the ElevenLabs agent dashboard (Christine is primary).
+      // We do NOT send a runtime tts override because the SDK/server rejects it and crashes.
+      console.log(`%c[useVoiceCall] 🎙️ SELECTED VOICE: ${voiceConfig.voiceId ?? "dashboard default"} (dashboard controlled)`, "color:#f472b6;font-weight:bold;font-size:13px");
       console.log("[useVoiceCall] voiceConfig:", voiceConfig);
       // ─────────────────────────────────────────────────────────────────────
 
       const overrides = {
         ...(voiceConfig.language ? { agent: { language: voiceConfig.language } } : {}),
-        ...(voiceConfig.voiceId || voiceConfig.speed ? {
-          tts: {
-            ...(voiceConfig.voiceId ? { voiceId: voiceConfig.voiceId } : {}),
-            ...(voiceConfig.speed ? { speed: voiceConfig.speed } : {}),
-          },
-        } : {}),
+        // Voice is controlled by the ElevenLabs agent dashboard (Christine as primary).
+        // Runtime tts.voiceId overrides caused the SDK to crash when the server rejected the session.
       };
       console.log("%c[useVoiceCall] 📤 overrides being sent to ElevenLabs:", "color:#fb923c;font-weight:bold;font-size:13px", JSON.stringify(overrides, null, 2));
       console.log("[useVoiceCall] calling Conversation.startSession...");

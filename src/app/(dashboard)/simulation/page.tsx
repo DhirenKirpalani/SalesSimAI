@@ -187,12 +187,9 @@ function HeyGenTestInner() {
   const [checkpointStatus, setCheckpointStatus] = useState<Record<string, CheckpointStatus>>({});
   const voiceCall = useVoiceCall();
   const coaching = useCoaching();
+  const { setScenarioContext } = coaching;
 
-  // Voice gender selector
-  const MALE_VOICE_ID = "FXMPPfJPpDj0GSwJ6ASO";
-  const FEMALE_VOICE_ID = "Y7xQSS5ZtS4xv4VJotWd"; // Christine — Calm & Professional
-  const [buyerGender, setBuyerGender] = useState<"male" | "female">("male");
-  const selectedVoiceId = buyerGender === "female" ? FEMALE_VOICE_ID : MALE_VOICE_ID;
+  // Voice/language controlled by the ElevenLabs agent dashboard (no runtime buyer voice selector).
   const selectedVoiceLanguage: VoiceLanguage = "auto";
   const coachingAnalyzeRef = useRef(coaching.analyze);
 
@@ -641,9 +638,9 @@ function HeyGenTestInner() {
       }, 1000);
 
       setStatus("connected");
-      console.log(`%c[simulation] 🎚️ Buyer gender: ${buyerGender} | voiceId: ${selectedVoiceId}`, "color:#a78bfa;font-weight:bold;font-size:13px");
-      addLog(`🎙️ Voice: ${buyerGender === "female" ? "Female" : "Male"} (${selectedVoiceId})`);
-      voiceCall.start(sessionId, selectedVoiceId, selectedVoiceLanguage);
+      console.log(`%c[simulation] �️ Voice call starting — dashboard controlled voice`, "color:#a78bfa;font-weight:bold;font-size:13px");
+      addLog(`🎙️ Voice: dashboard default`);
+      voiceCall.start(sessionId, undefined, selectedVoiceLanguage);
       addLog("🎙️ Voice call started");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -651,7 +648,7 @@ function HeyGenTestInner() {
       setStatus("error");
       addLog("❌ " + msg);
     }
-  }, [addLog, scenarioId, scenarioTable, resolvedScenarioName, voiceCall, coaching, selectedVoiceId, selectedVoiceLanguage]);
+  }, [addLog, scenarioId, scenarioTable, resolvedScenarioName, voiceCall, coaching, selectedVoiceLanguage]);
 
   // Text chat start — creates a simulation session for typed conversation
   const startText = useCallback(async () => {
@@ -1092,7 +1089,7 @@ function HeyGenTestInner() {
           setResolvedPersonaName(persona?.name ?? null);
           setResolvedPersonaRole(persona?.jobTitle ?? null);
 
-          coaching.setScenarioContext({
+          setScenarioContext({
             sellerCompany: scenario.seller_company ?? undefined,
             sellerProduct: scenario.seller_product ?? undefined,
             buyerName: persona?.name ?? undefined,
@@ -1108,7 +1105,7 @@ function HeyGenTestInner() {
       } catch { /* ignore */ }
     };
     load();
-  }, [scenarioId, scenarioTable, coaching]);
+  }, [scenarioId, scenarioTable, setScenarioContext]);
 
   // Sync voice call transcripts into the page transcript (shows in Conversation modal)
   // AI/buyer messages are delayed until the avatar finishes speaking so it feels natural.
@@ -1366,38 +1363,6 @@ function HeyGenTestInner() {
                     <MessageSquare className="w-3.5 h-3.5" />
                     Text Chat
                   </button>
-                </div>
-              )}
-              {/* Buyer Voice Gender — shown in voice mode when idle */}
-              {status === "idle" && callMode === "voice" && (
-                <div className="flex flex-col items-center gap-1">
-                  <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Buyer Voice</p>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setBuyerGender("male")}
-                      title="Male buyer voice (Kelvin)"
-                      className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
-                        buyerGender === "male"
-                          ? "bg-blue-600/20 border-blue-500 text-blue-300"
-                          : "bg-white/5 border-white/10 text-gray-500 hover:text-gray-300 hover:border-white/20"
-                      }`}
-                    >
-                      <span className="text-lg leading-none">♂</span>
-                      <span className="text-[10px]">Kelvin</span>
-                    </button>
-                    <button
-                      onClick={() => setBuyerGender("female")}
-                      title="Female buyer voice (Christine)"
-                      className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
-                        buyerGender === "female"
-                          ? "bg-pink-600/20 border-pink-500 text-pink-300"
-                          : "bg-white/5 border-white/10 text-gray-500 hover:text-gray-300 hover:border-white/20"
-                      }`}
-                    >
-                      <span className="text-lg leading-none">♀</span>
-                      <span className="text-[10px]">Christine</span>
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
