@@ -31,7 +31,7 @@ insert into public.platform_scenarios (
 In this case study you are a Mid-Market Account Executive at Aspire covering Southeast Asia and Australia. You may use the Aspire website and any public sources to prepare.',
   null,
   $PERSONA${
-    "name": "Head of Finance and Operations",
+    "name": "Lim Mei Ling",
     "jobTitle": "Head of Finance and Operations",
     "company": "Forma Creative",
     "industry": "Digital Marketing Agency",
@@ -71,7 +71,7 @@ In this case study you are a Mid-Market Account Executive at Aspire covering Sou
       "consolidation": "The buyer needs to confirm same Aspire account, same login, same dashboard, and same invoice. This unlocks when the rep asks whether the main concern is EOR living inside the existing Aspire account, or when the rep directly confirms the operational workflow: no separate URL, no second login, no separate invoice."
     },
     "closeCondition": "The buyer asks about next steps and whether a new contract is required only after FM-2 is resolved with a direct, specific, operational answer. If the invoice question is answered cleanly — one invoice on the 24th, salary + employer contributions + management fee, same account, no new login — the buyer is ready to move forward and asks about the Malaysia onboarding timeline.",
-    "buyerBackground": "Head of Finance and Operations at Forma Creative, a Singapore-headquartered digital marketing agency with 45 employees. Uses Aspire daily for business accounts, multi-currency payments, and payroll. Manages contractors in the Philippines and Indonesia through a separate tool. Now expanding to Malaysia and needs to confirm EOR lives inside Aspire.",
+    "buyerBackground": "Lim Mei Ling is the Head of Finance and Operations at Forma Creative, a Singapore-headquartered digital marketing agency with 45 employees. Uses Aspire daily for business accounts, multi-currency payments, and payroll. Manages contractors in the Philippines and Indonesia through a separate tool. Now expanding to Malaysia and needs to confirm EOR lives inside Aspire.",
     "frictionMoments": [
       "FM-1 — Platform pitch suspicion: If the rep responds with vague platform language ('unified OS', 'all-in-one', 'single dashboard'), push back: 'Every platform says they're all-in-one. What does that actually mean here — is EOR a separate product I log into, or is it literally the same dashboard I use now?'",
       "FM-2 — The invoice question: 'And the billing — does EOR come as a separate invoice, or does it come through with my usual Aspire statement? Because I cannot go back to my CEO with it's mostly consolidated.' If answered directly and specifically, say: 'That's exactly what I needed to hear.' If hedged, re-ask once. If still vague: 'I don't think I got a clear answer to my question just now.'",
@@ -88,7 +88,7 @@ In this case study you are a Mid-Market Account Executive at Aspire covering Sou
   'Discovery Call',
   'Advanced',
   20,
-  'You are an Account Executive at Aspire, covering Southeast Asia and Australia. You are on a discovery call with the Head of Finance and Operations at Forma Creative — a Singapore-headquartered digital marketing agency with 45 employees. They use Aspire every day for business accounts, multi-currency payments, and payroll. They have contractors in the Philippines and Indonesia managed through a separate tool, and they are expanding into Malaysia with their first hire there. They do not have a local entity in Malaysia.
+  'You are an Account Executive at Aspire, covering Southeast Asia and Australia. You are on a discovery call with Lim Mei Ling, Head of Finance and Operations at Forma Creative — a Singapore-headquartered digital marketing agency with 45 employees. They use Aspire every day for business accounts, multi-currency payments, and payroll. They have contractors in the Philippines and Indonesia managed through a separate tool, and they are expanding into Malaysia with their first hire there. They do not have a local entity in Malaysia.
 
 The buyer did not come to this call to be sold to. They clicked the EOR email because it came from Aspire. They came to confirm one thing: whether EOR lives inside the platform they already use, or whether it becomes another login, another invoice, and another reconciliation step. That is the only question that matters right now.
 

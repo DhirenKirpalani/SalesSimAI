@@ -111,7 +111,9 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
     const voiceParam = !overrideAvatarId && overrideVoiceId ? `&voiceId=${encodeURIComponent(overrideVoiceId)}` : "";
     const nameParam = scenario.name ? `&scenarioName=${encodeURIComponent(scenario.name)}` : "";
     const avatarNameParam = scenario.avatar_name ? `&avatarName=${encodeURIComponent(scenario.avatar_name.split(" ")[0])}` : "";
-    router.push(`/simulation?scenarioId=${scenario.id}&scenarioTable=${table}${avatarParam}${voiceParam}${nameParam}${avatarNameParam}`);
+    const voiceAvatarParam = scenario.voice_avatar_image_url ? `&voiceAvatarImageUrl=${encodeURIComponent(scenario.voice_avatar_image_url)}` : "";
+    const elevenVoiceParam = scenario.elevenlabs_voice_id ? `&elevenlabsVoiceId=${encodeURIComponent(scenario.elevenlabs_voice_id)}` : "";
+    router.push(`/simulation?scenarioId=${scenario.id}&scenarioTable=${table}${avatarParam}${voiceParam}${nameParam}${avatarNameParam}${voiceAvatarParam}${elevenVoiceParam}`);
   };
 
   return (

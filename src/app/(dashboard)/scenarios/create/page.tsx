@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,9 @@ import {
   Clock,
   Sparkles,
   Image,
+  Phone,
+  Upload,
+  X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { mockPersonas } from "@/lib/data/mockData";
@@ -124,6 +127,8 @@ interface FormState {
   avatarId: string;
   avatarName: string;
   voiceId: string;
+  voiceAvatarImageUrl: string;
+  elevenlabsVoiceId: string;
   scoringCriteria: string;
   evaluationFramework: string;
   customEvaluationFramework: string;
@@ -165,6 +170,8 @@ const INITIAL: FormState = {
   avatarId: "",
   avatarName: "",
   voiceId: "",
+  voiceAvatarImageUrl: "",
+  elevenlabsVoiceId: "",
   scoringCriteria: "",
   evaluationFramework: "",
   customEvaluationFramework: "",
@@ -193,6 +200,8 @@ function CreateScenarioPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [loadingEdit, setLoadingEdit] = useState(isEditMode);
+  const [uploadingVoiceAvatar, setUploadingVoiceAvatar] = useState(false);
+  const voiceAvatarInputRef = useRef<HTMLInputElement>(null);
 
   // Restore from localStorage on client mount (avoid hydration mismatch)
   useEffect(() => {
@@ -248,6 +257,8 @@ function CreateScenarioPage() {
           avatarId: data.avatar_id ?? "",
           avatarName: data.avatar_name ?? "",
           voiceId: data.voice_id ?? "",
+          voiceAvatarImageUrl: data.voice_avatar_image_url ?? "",
+          elevenlabsVoiceId: data.elevenlabs_voice_id ?? "",
           scoringCriteria: data.scoring_criteria ?? "",
           evaluationFramework: isKnownFramework(data.evaluation_framework) ? data.evaluation_framework : "Custom",
           customEvaluationFramework: isKnownFramework(data.evaluation_framework) ? "" : (data.evaluation_framework ?? ""),
@@ -284,6 +295,26 @@ function CreateScenarioPage() {
     return true;
   };
 
+  const handleVoiceAvatarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingVoiceAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/scenarios/voice-avatar", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      set("voiceAvatarImageUrl", data.url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      setError(msg);
+    } finally {
+      setUploadingVoiceAvatar(false);
+      if (voiceAvatarInputRef.current) voiceAvatarInputRef.current.value = "";
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError("");
@@ -298,8 +329,7 @@ function CreateScenarioPage() {
       .single();
     const organizationId = userProfile?.organization_id ?? null;
 
-    const payload = {
-      name: scenarioName,
+    const payload: Record<string, unknown> = {
       seller_company: form.sellerCompany,
       seller_product: form.sellerProduct,
       product_type: form.productType,
@@ -334,6 +364,8 @@ function CreateScenarioPage() {
       avatar_id: form.avatarId || null,
       avatar_name: form.avatarName || null,
       voice_id: form.voiceId || null,
+      voice_avatar_image_url: form.voiceAvatarImageUrl || null,
+      elevenlabs_voice_id: form.elevenlabsVoiceId || null,
       scoring_criteria: form.scoringCriteria || null,
       evaluation_framework: form.evaluationFramework === "Custom"
         ? (form.customEvaluationFramework || "Custom")
@@ -347,6 +379,7 @@ function CreateScenarioPage() {
     } else {
       const { error: dbErr } = await supabase.from("custom_scenarios").insert({
         ...payload,
+        name: scenarioName,
         user_id: user.id,
         created_by: user.id,
         organization_id: organizationId,
@@ -807,6 +840,85 @@ Examples:
                     onChange={(e) => set("scoringCriteria", e.target.value)}
                   />
                 </div>
+
+                <div className="border-t pt-5 mt-2">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide mb-4">
+                    <Phone className="w-3.5 h-3.5" />
+                    Voice Call Settings
+                  </div>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">
+                        Voice Call Avatar <span className="font-normal text-muted-foreground">(optional)</span>
+                      </Label>
+                      <div className="flex items-center gap-3">
+                        {form.voiceAvatarImageUrl && (
+                          <img
+                            src={form.voiceAvatarImageUrl}
+                            alt="Voice avatar preview"
+                            className="w-12 h-12 rounded-lg object-cover border shrink-0"
+                          />
+                        )}
+                        <input
+                          ref={voiceAvatarInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleVoiceAvatarFileSelect}
+                          className="hidden"
+                          disabled={uploadingVoiceAvatar}
+                        />
+                        <div
+                          onClick={() => !uploadingVoiceAvatar && voiceAvatarInputRef.current?.click()}
+                          className={cn(
+                            "w-full flex items-center gap-2 px-3 py-2.5 rounded-md border border-input bg-background text-sm transition-colors",
+                            uploadingVoiceAvatar
+                              ? "opacity-60 cursor-not-allowed"
+                              : "cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                          )}
+                        >
+                          {uploadingVoiceAvatar ? (
+                            <Loader2 className="w-4 h-4 text-muted-foreground shrink-0 animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+                          )}
+                          <span className="truncate flex-1">
+                            {uploadingVoiceAvatar
+                              ? "Uploading…"
+                              : form.voiceAvatarImageUrl
+                                ? "Change avatar"
+                                : "Click to upload an image"}
+                          </span>
+                          {form.voiceAvatarImageUrl && !uploadingVoiceAvatar && (
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                set("voiceAvatarImageUrl", "");
+                                if (voiceAvatarInputRef.current) voiceAvatarInputRef.current.value = "";
+                              }}
+                              className="ml-auto text-muted-foreground hover:text-red-500 cursor-pointer shrink-0"
+                            >
+                              <X className="w-4 h-4" />
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">Upload a PNG/JPG image. It will be shown in the voice call panel during audio-only simulations.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="elevenlabsVoiceId" className="text-xs font-medium">
+                        ElevenLabs Voice ID <span className="font-normal text-muted-foreground">(optional)</span>
+                      </Label>
+                      <Input
+                        id="elevenlabsVoiceId"
+                        className="rounded-xl"
+                        placeholder="e.g. Y7xQSS5ZtS4xv4VJotWd"
+                        value={form.elevenlabsVoiceId}
+                        onChange={(e) => set("elevenlabsVoiceId", e.target.value)}
+                      />
+                      <p className="text-[11px] text-muted-foreground">ElevenLabs voice ID used for the audio-only buyer voice. Leave empty to use the agent default.</p>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -999,6 +1111,23 @@ Examples:
                   <div className="rounded-xl border p-3 space-y-1">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Scoring Criteria</p>
                     <p className="text-xs text-muted-foreground whitespace-pre-line">{form.scoringCriteria}</p>
+                  </div>
+                )}
+
+                {(form.voiceAvatarImageUrl || form.elevenlabsVoiceId) && (
+                  <div className="rounded-xl border p-3 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Voice Call Settings</p>
+                    {form.voiceAvatarImageUrl && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted border">
+                          <img src={form.voiceAvatarImageUrl} alt="Voice avatar" className="w-full h-full object-cover" />
+                        </div>
+                        <p className="text-xs text-muted-foreground">Voice call avatar uploaded</p>
+                      </div>
+                    )}
+                    {form.elevenlabsVoiceId && (
+                      <p className="text-xs text-muted-foreground">Voice ID: <span className="font-medium text-foreground">{form.elevenlabsVoiceId}</span></p>
+                    )}
                   </div>
                 )}
 

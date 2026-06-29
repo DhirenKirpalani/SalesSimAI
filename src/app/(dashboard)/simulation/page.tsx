@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { createClient } from "@/lib/supabase/client";
 import { useVoiceCall, VoiceStatus, VoiceLanguage } from "@/hooks/useVoiceCall";
+import type { PersonaContext } from "@/lib/voice-config";
 import { useCoaching } from "@/hooks/useCoaching";
 import { VoiceCallPanel } from "@/components/VoiceCallPanel";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
@@ -136,6 +137,8 @@ function HeyGenTestInner() {
   const voiceId = searchParams.get("voiceId") ?? undefined;
   const scenarioNameParam = searchParams.get("scenarioName") ?? undefined;
   const avatarNameParam = searchParams.get("avatarName") ?? undefined;
+  const voiceAvatarImageUrlParam = searchParams.get("voiceAvatarImageUrl") ?? undefined;
+  const elevenlabsVoiceIdParam = searchParams.get("elevenlabsVoiceId") ?? undefined;
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -173,6 +176,8 @@ function HeyGenTestInner() {
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
+  const [voiceAvatarImageUrl, setVoiceAvatarImageUrl] = useState<string | null>(null);
+  const personaContextRef = useRef<PersonaContext | null>(null);
 
   // Call mode + coaching state
   const [callMode, setCallMode] = useState<"video" | "voice" | "text">("video");
@@ -355,6 +360,10 @@ function HeyGenTestInner() {
       })
       .catch(() => { /* ignore */ });
   }, [avatarId, scenarioId]);
+
+  useEffect(() => {
+    setVoiceAvatarImageUrl(voiceAvatarImageUrlParam ?? null);
+  }, [voiceAvatarImageUrlParam]);
 
   const start = useCallback(async () => {
     const isResume = resumeTimeLeftRef.current !== null;
@@ -637,10 +646,26 @@ function HeyGenTestInner() {
         });
       }, 1000);
 
-      setStatus("connected");
       console.log(`%c[simulation] �️ Voice call starting — dashboard controlled voice`, "color:#a78bfa;font-weight:bold;font-size:13px");
-      addLog(`🎙️ Voice: dashboard default`);
-      voiceCall.start(sessionId, undefined, selectedVoiceLanguage);
+      addLog(`🎙️ Voice: ${elevenlabsVoiceIdParam ?? "dashboard default"}`);
+
+      const agentId = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
+      if (elevenlabsVoiceIdParam && agentId) {
+        addLog(`🎙️ Updating ElevenLabs agent voice to ${elevenlabsVoiceIdParam}…`);
+        const updateRes = await fetch("/api/elevenlabs/update-agent-voice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentId, voiceId: elevenlabsVoiceIdParam }),
+        });
+        if (!updateRes.ok) {
+          const updateData = await updateRes.json().catch(() => ({}));
+          addLog(`⚠️ Failed to update agent voice: ${updateData.error ?? updateRes.status}`);
+        } else {
+          addLog("🎙️ Agent voice updated");
+        }
+      }
+
+      voiceCall.start(sessionId, elevenlabsVoiceIdParam, selectedVoiceLanguage, personaContextRef.current ?? undefined);
       addLog("🎙️ Voice call started");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -648,7 +673,7 @@ function HeyGenTestInner() {
       setStatus("error");
       addLog("❌ " + msg);
     }
-  }, [addLog, scenarioId, scenarioTable, resolvedScenarioName, voiceCall, coaching, selectedVoiceLanguage]);
+  }, [addLog, scenarioId, scenarioTable, resolvedScenarioName, voiceCall, coaching, selectedVoiceLanguage, elevenlabsVoiceIdParam]);
 
   // Text chat start — creates a simulation session for typed conversation
   const startText = useCallback(async () => {
@@ -950,28 +975,41 @@ function HeyGenTestInner() {
 
           if (!coachRes.ok) {
             const coachErr = await coachRes.json().catch(() => ({}));
-            console.error("[handleEnd] voice coach failed:", coachRes.status, coachErr);
-            addLog("⚠️ Coaching analysis failed: " + (coachErr.error || coachRes.status));
-          }
-
-          const coachData = await coachRes.json().catch(() => ({}));
-          if (coachData.evaluation) {
+            if (coachErr.error?.includes("minimum 2 turns")) {
+              addLog("ℹ️ Not enough conversation turns for coaching analysis");
+            } else {
+              console.error("[handleEnd] voice coach failed:", coachRes.status, coachErr);
+              addLog("⚠️ Coaching analysis failed: " + (coachErr.error || coachRes.status));
+            }
             setFeedback({
-              overall_score: coachData.evaluation.overall_score,
-              breakdown: {
-                metrics: coachData.evaluation.discovery_score,
-                economic_buyer: coachData.evaluation.empathy_score,
-                decision_criteria: 0,
-                decision_process: 0,
-                identify_pain: coachData.evaluation.objection_score,
-                champion: 0,
-              },
-              strengths: coachData.evaluation.recommendations.slice(0, 3),
-              weaknesses: coachData.evaluation.missed_opportunities,
-              missed_opportunities: coachData.evaluation.missed_opportunities,
-              coaching_recommendations: coachData.evaluation.recommendations,
+              overall_score: 0,
+              breakdown: { metrics: 0, economic_buyer: 0, decision_criteria: 0, decision_process: 0, identify_pain: 0, champion: 0 },
+              strengths: [],
+              weaknesses: [],
+              missed_opportunities: [],
+              coaching_recommendations: [],
               coaching_moments: [],
-            });
+            } as FeedbackResult & { error?: string });
+          } else {
+            const coachData = await coachRes.json().catch(() => ({}));
+            if (coachData.evaluation) {
+              setFeedback({
+                overall_score: coachData.evaluation.overall_score,
+                breakdown: {
+                  metrics: coachData.evaluation.discovery_score,
+                  economic_buyer: coachData.evaluation.empathy_score,
+                  decision_criteria: 0,
+                  decision_process: 0,
+                  identify_pain: coachData.evaluation.objection_score,
+                  champion: 0,
+                },
+                strengths: coachData.evaluation.recommendations.slice(0, 3),
+                weaknesses: coachData.evaluation.missed_opportunities,
+                missed_opportunities: coachData.evaluation.missed_opportunities,
+                coaching_recommendations: coachData.evaluation.recommendations,
+                coaching_moments: [],
+              });
+            }
           }
         } else if (currentCallMode === "text" && currentTextSessionId) {
           // Text chat — run MEDDIC analysis
@@ -1088,6 +1126,26 @@ function HeyGenTestInner() {
           const persona = scenario.custom_persona as any;
           setResolvedPersonaName(persona?.name ?? null);
           setResolvedPersonaRole(persona?.jobTitle ?? null);
+
+          personaContextRef.current = {
+            buyerName: persona?.name ?? undefined,
+            buyerTitle: persona?.jobTitle ?? undefined,
+            buyerCompany: persona?.company ?? undefined,
+            buyerIndustry: persona?.industry ?? undefined,
+            buyerPersonality: persona?.personality ?? undefined,
+            buyerPainPoints: persona?.painPoints ?? undefined,
+            buyerGoals: persona?.goals ?? undefined,
+            buyerCompanyGoal: persona?.companyGoal ?? undefined,
+            buyerOpeningLine: persona?.openingLine ?? undefined,
+            buyerHiddenConcern: persona?.hiddenConcern ?? undefined,
+            buyerBudgetStatus: persona?.budgetStatus ?? undefined,
+            buyerCommunicationStyle: persona?.communicationStyle ?? undefined,
+            buyerCommunicationLanguage: persona?.communicationLanguage ?? undefined,
+            sellerCompany: scenario.seller_company ?? undefined,
+            sellerProduct: scenario.seller_product ?? undefined,
+            contextNote: scenario.context_note ?? undefined,
+            scenarioType: scenario.scenario_type ?? undefined,
+          };
 
           setScenarioContext({
             sellerCompany: scenario.seller_company ?? undefined,
@@ -1219,9 +1277,19 @@ function HeyGenTestInner() {
     }
   }, [voiceCall.transcript, transcript, callMode, isSimilarNudge]);
 
-  // Sync VoiceCallPanel pause/resume with page-level status and timer
+  // Sync page-level status with voiceCall.status (connecting → connected, pause/resume, error)
   useEffect(() => {
     if (callMode !== "voice") return;
+    // Transition from connecting → connected when the voice session is actually live
+    if (status === "connecting" && (voiceCall.status === "listening" || voiceCall.status === "speaking")) {
+      setStatus("connected");
+      return;
+    }
+    // Propagate voice call errors during connecting
+    if (status === "connecting" && voiceCall.status === "error") {
+      setStatus("error");
+      return;
+    }
     if (voiceCall.status === "paused" && status === "connected") {
       // Voice was paused via VoiceCallPanel — pause page timer
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -1314,8 +1382,17 @@ function HeyGenTestInner() {
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B0E14]">
             <div className="text-center space-y-4">
               <div className="w-20 h-20 rounded-full mx-auto ring-1 ring-white/10 overflow-hidden bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-                {avatarImageUrl ? (
-                  <img src={avatarImageUrl} alt={resolvedPersonaName ?? avatarNameParam ?? "Avatar"} className="w-full h-full object-cover object-top" />
+                {status === "connecting" && callMode === "voice" ? (
+                  <svg className="w-8 h-8 text-blue-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : ((callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? undefined) ? (
+                  <img
+                    src={(callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? undefined}
+                    alt={resolvedPersonaName ?? avatarNameParam ?? "Avatar"}
+                    className="w-full h-full object-cover object-top"
+                  />
                 ) : (
                   <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
@@ -1324,7 +1401,8 @@ function HeyGenTestInner() {
               </div>
               <div>
                 <p className="text-gray-300 font-medium">
-                  {status === "connecting" ? `Connecting to ${resolvedPersonaName ?? avatarNameParam ?? "avatar"}…` :
+                  {status === "connecting" && callMode === "voice" ? `Connecting to ${resolvedPersonaName ?? avatarNameParam ?? "voice agent"}…` :
+                   status === "connecting" ? `Connecting to ${resolvedPersonaName ?? avatarNameParam ?? "avatar"}…` :
                    status === "error" ? "Connection failed" :
                    status === "paused" ? "Session paused" :
                    "Ready to practice"}
@@ -1380,7 +1458,7 @@ function HeyGenTestInner() {
               isSpeaking={voiceCall.isSpeaking}
               micMuted={voiceCall.micMuted}
               avatarName={resolvedPersonaName ?? avatarNameParam ?? "Buyer"}
-              avatarImageUrl={avatarImageUrl}
+              avatarImageUrl={voiceAvatarImageUrl ?? avatarImageUrl}
               sellerAvatarUrl={sellerAvatarUrl}
               sellerInitials={sellerInitials}
               audioEnergyRef={voiceCall.audioEnergyRef}
@@ -1818,6 +1896,12 @@ function HeyGenTestInner() {
             {feedbackLoading && <p className="text-gray-400 text-sm animate-pulse">Analyzing your call with MEDDIC framework…</p>}
             {feedback && (
               <>
+                {feedback.overall_score === 0 && !feedback.strengths?.length && !feedback.weaknesses?.length ? (
+                  <div className="text-center py-6">
+                    <p className="text-gray-400 text-sm">Analysis could not be completed.</p>
+                    <p className="text-gray-500 text-xs mt-1">Make sure the conversation has at least 2 turns before ending the call.</p>
+                  </div>
+                ) : null}
                 {feedback.breakdown && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {([

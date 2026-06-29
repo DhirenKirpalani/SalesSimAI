@@ -4,6 +4,7 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { Conversation } from "@elevenlabs/client";
 import { createClient } from "@/lib/supabase/client";
 import { buildVoiceConfig } from "@/lib/voice-config";
+import type { PersonaContext } from "@/lib/voice-config";
 
 export type VoiceStatus = "idle" | "connecting" | "listening" | "processing" | "speaking" | "paused" | "error";
 
@@ -32,7 +33,7 @@ interface UseVoiceCallReturn {
   micMuted: boolean;
   audioEnergyRef: React.MutableRefObject<number>;
   micEnergyRef: React.MutableRefObject<number>;
-  start: (sessionId: string, voiceId?: string, language?: VoiceLanguage) => void;
+  start: (sessionId: string, voiceId?: string, language?: VoiceLanguage, persona?: PersonaContext) => void;
   stop: () => void;
   toggleMic: () => void;
   togglePause: () => void;
@@ -47,6 +48,18 @@ export function useVoiceCall(): UseVoiceCallReturn {
   const [volume, setVolumeState] = useState(1.0);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [micMuted, setMicMuted] = useState(false);
+
+  // Catch ElevenLabs SDK unhandled rejections (e.g. malformed error_event crash)
+  useEffect(() => {
+    const handler = (e: PromiseRejectionEvent) => {
+      console.error("[useVoiceCall] unhandled rejection:", e.reason);
+      setError(e.reason instanceof Error ? e.reason.message : "Voice connection error");
+      setStatus("error");
+      e.preventDefault();
+    };
+    window.addEventListener("unhandledrejection", handler);
+    return () => window.removeEventListener("unhandledrejection", handler);
+  }, []);
 
   const sessionIdRef = useRef<string | null>(null);
   const voiceIdRef = useRef<string | null>(null);
@@ -155,8 +168,8 @@ export function useVoiceCall(): UseVoiceCallReturn {
     }
   }, []);
 
-  const start = useCallback(async (sessionId: string, voiceId?: string, language?: VoiceLanguage) => {
-    console.log("[useVoiceCall] start called:", { sessionId, voiceId, language });
+  const start = useCallback(async (sessionId: string, voiceId?: string, language?: VoiceLanguage, persona?: PersonaContext) => {
+    console.log("[useVoiceCall] start called:", { sessionId, voiceId, language, persona });
     abortRef.current = false;
     setError(null);
     setTranscript([]);
@@ -182,7 +195,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
     setStatus("connecting");
 
     try {
-      const voiceConfig = buildVoiceConfig(sessionId, languageRef.current, voiceId ?? undefined);
+      const voiceConfig = buildVoiceConfig(sessionId, languageRef.current, voiceId ?? undefined, persona);
 
       // ── VOICE SELECTION LOG ──────────────────────────────────────────────
       // Voice is controlled by the ElevenLabs agent dashboard (Christine is primary).
