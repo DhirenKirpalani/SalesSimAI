@@ -219,17 +219,19 @@ export async function POST(req: NextRequest) {
     const richContextNote = contextParts.join("\n");
     console.log("[eleven-agent] richContextNote:", richContextNote);
 
-    // Company RAG
+    // Company RAG — use service client (bypasses RLS) since this is a server-to-server call with no user cookies
     let companyRag = "";
     if (profile?.organization_id) {
       try {
-        companyRag = await buildCompanyRagContext(userText, profile.organization_id, { limit: 3 });
+        const { buildCompanyRagContextWithClient } = await import("@/lib/vector-store");
+        companyRag = await buildCompanyRagContextWithClient(userText, profile.organization_id, supabase, { limit: 3 });
+        console.log("[eleven-agent] companyRag (service client):", companyRag ? `${companyRag.slice(0, 300)}...` : "none — no matching docs");
       } catch (e) {
         console.warn("[eleven-agent] company RAG failed:", e);
       }
+    } else {
+      console.log("[eleven-agent] companyRag skipped — no organization_id on profile");
     }
-
-    console.log("[eleven-agent] companyRag:", companyRag ? `${companyRag.slice(0, 200)}...` : "none");
     const state = (session.state ?? {
       trust_level: 30,
       buyer_mood: 0,
