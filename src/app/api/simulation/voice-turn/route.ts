@@ -18,9 +18,9 @@ import { createClient } from "@/lib/supabase/server";
 import { CustomPersona } from "@/types";
 import { SimulationMessage, SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
+import { buildCompanyRagContext } from "@/lib/vector-store";
 import { VOICE_LANGUAGE_MAP, VoiceLanguage } from "@/lib/voice-language";
-import { buildSystemPrompt, applyStateUpdates, getConditionalRagContext, shouldRetrieveRag, buildBuyerContext, renderBuyerContext, extractMemoryUpdates, renderBuyerMemory, defaultBuyerMemory, computeRagStateImpact, mergeRagImpactIntoStateUpdates } from "@/lib/buyer-brain";
-import type { BuyerMemory, RagStateImpact } from "@/lib/buyer-brain";
+import { buildSystemPrompt, applyStateUpdates } from "@/lib/buyer-brain";
 
 function sseLine(data: unknown): string {
   return `data: ${JSON.stringify(data)}\n\n`;
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
         // Load session + scenario + profile in parallel
         const [{ data: session, error: sessionError }, { data: profile }, { data: recentMessages }] = await Promise.all([
-          supabase.from("simulation_sessions").select("*, buyer_context, buyer_memory").eq("id", sessionId).eq("user_id", user.id).single(),
+          supabase.from("simulation_sessions").select("*").eq("id", sessionId).eq("user_id", user.id).single(),
           supabase.from("profiles").select("full_name, position, company, organization_id").eq("id", user.id).single(),
           supabase
             .from("simulation_messages")
@@ -121,50 +121,35 @@ export async function POST(req: NextRequest) {
         if (scenario.context_note) contextParts.push(`Backstory: ${scenario.context_note}`);
         const richContextNote = contextParts.join("\n");
 
-        const messages: SimulationMessage[] = (recentMessages ?? []) as SimulationMessage[];
-        const state = (session.state ?? { trust_level: 30, buyer_mood: 0, stage: "opening", facts_discovered: { budget: false, decision_maker: false, timeline: false, current_solution: false }, objections_used: [], engagement_level: 30 }) as SimulationState;
-
-        // Company RAG — only retrieve when the turn actually asks for company knowledge.
+        // Company RAG — fetch relevant docs from the org's knowledge base
         let companyRag = "";
-        let ragImpact: RagStateImpact | null = null;
-        const trimmedTranscript = transcript.trim();
-        if (shouldRetrieveRag(trimmedTranscript) && profile?.organization_id) {
+        if (profile?.organization_id) {
           try {
-            companyRag = await getConditionalRagContext(trimmedTranscript, profile.organization_id, { limit: 3 });
-            ragImpact = await computeRagStateImpact(trimmedTranscript, companyRag, state);
+            companyRag = await buildCompanyRagContext(transcript.trim(), profile.organization_id, { limit: 3 });
           } catch (e) {
             console.warn("[voice-turn] company RAG failed:", e);
           }
         }
 
+        const messages: SimulationMessage[] = (recentMessages ?? []) as SimulationMessage[];
+        const state = (session.state ?? { trust_level: 30, buyer_mood: 0, stage: "opening", facts_discovered: { budget: false, decision_maker: false, timeline: false, current_solution: false }, objections_used: [], engagement_level: 30 }) as SimulationState;
         const sessionStart = new Date(session.created_at ?? Date.now());
         const elapsedMin = Math.max(0, Math.round((Date.now() - sessionStart.getTime()) / 60000));
         const sellerInfo = { name: profile?.full_name ?? undefined, position: profile?.position ?? undefined, company: profile?.company ?? undefined };
-        const buyerMemory = (session.buyer_memory as BuyerMemory | null) ?? defaultBuyerMemory;
 
-        // Load or build the static buyer context (system prompt) once per session.
-        let systemPrompt: string | null = null;
-        const storedContext = session.buyer_context as { response_format?: { mode?: string } } | null;
-        if (storedContext?.response_format?.mode === "streaming") {
-          systemPrompt = renderBuyerContext(storedContext as any);
-        }
-        if (!systemPrompt) {
-          const freshContext = buildBuyerContext(
-            persona,
-            scenario.scenario_type ?? "Discovery Call",
-            scenario.difficulty ?? "Intermediate",
-            sellerInfo,
-            "streaming"
-          );
-          systemPrompt = renderBuyerContext(freshContext);
-          const { error: cacheError } = await supabase
-            .from("simulation_sessions")
-            .update({ buyer_context: freshContext as any })
-            .eq("id", sessionId);
-          if (cacheError) {
-            console.warn("[voice-turn] failed to cache buyer_context:", cacheError);
-          }
-        }
+        let systemPrompt = buildSystemPrompt(
+          persona,
+          richContextNote,
+          scenario.seller_description || "",
+          state,
+          sellerInfo,
+          scenario.difficulty ?? undefined,
+          scenario.scenario_type ?? undefined,
+          messages,
+          companyRag,
+          scenario.duration ?? undefined,
+          elapsedMin
+        );
 
         // Voice-specific language override for explicit language selection
         if (voiceLanguage !== "auto" && voiceLanguage !== "en") {
@@ -185,7 +170,6 @@ export async function POST(req: NextRequest) {
         let buyerText = "I'm not sure what to say.";
         let buyerEmotion = "neutral";
         let buyerIntent = "answer";
-        let action: string | undefined;
 
         // ── Streaming pipeline: GPT-4o stream → sentence buffer → TTS per sentence → SSE audio chunks ──
         if (openAiKey) {
@@ -206,11 +190,6 @@ Section 2: JSON only:
 {"emotion":"neutral|skeptical|interested|frustrated","intent":"answer|objection|question|redirect","state_updates":{"trust_delta":<-15 to 15>,"mood_delta":<-5 to 5>,"facts_revealed":[]},"follow_up_question":"<optional>"}`
             );
 
-            const memoryText = renderBuyerMemory(buyerMemory);
-            const userPrompt = memoryText
-              ? `${memoryText}\n\nSELLER SAID:\n${transcript.trim()}`
-              : transcript.trim();
-
             const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
               method: "POST",
               headers: {
@@ -222,7 +201,7 @@ Section 2: JSON only:
                 messages: [
                   { role: "system", content: voiceSystemPrompt },
                   ...chatHistory,
-                  { role: "user", content: userPrompt },
+                  { role: "user", content: transcript.trim() },
                 ],
                 stream: true,
                 temperature: 0.75,
@@ -389,16 +368,9 @@ Section 2: JSON only:
                 const parsed = JSON.parse(jsonStr);
                 buyerEmotion = parsed.emotion || "neutral";
                 buyerIntent = parsed.intent || "answer";
-                if (parsed.action) {
-                  action = parsed.action;
-                }
                 if (parsed.state_updates) {
-                  const mergedStateUpdates = ragImpact
-                    ? mergeRagImpactIntoStateUpdates(parsed.state_updates, ragImpact)
-                    : parsed.state_updates;
-                  const newState = applyStateUpdates(state, mergedStateUpdates, messages.length + 1);
-                  const updatedMemory = await extractMemoryUpdates(buyerMemory, transcript.trim(), buyerText, messages);
-                  supabase.from("simulation_sessions").update({ state: newState, buyer_memory: updatedMemory as any }).eq("id", sessionId).then(() => {});
+                  const newState = applyStateUpdates(state, parsed.state_updates, messages.length + 1);
+                  supabase.from("simulation_sessions").update({ state: newState }).eq("id", sessionId).then(() => {});
                 }
               } catch { /* use defaults */ }
             } else {
@@ -418,7 +390,6 @@ Section 2: JSON only:
             content: buyerText,
             emotion: buyerEmotion,
             intent: buyerIntent,
-            action: action as any,
           }),
         ]);
 

@@ -1,4 +1,4 @@
-import { BuyerResponse, BuyerEmotion, BuyerIntent, BuyerAction } from "@/types/simulation";
+import { BuyerResponse } from "@/types/simulation";
 import { StreamChunk } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -18,64 +18,8 @@ export function buildFallbackResponse(_userMessage: string): BuyerResponse {
 
 const SENTENCE_END = /[.!?]["']?\s/;
 
-interface ParsedMetadata {
-  emotion: string;
-  intent: string;
-  action?: string;
-  trust_delta: number;
-  mood_delta: number;
-  facts_revealed: string[];
-  follow_up_question?: string;
-}
-
-function parseMetadataJson(content: string, userMessage: string): ParsedMetadata {
-  try {
-    const jsonStr = content.trim().replace(/^```json\s*/, "").replace(/```\s*$/, "");
-    const meta = JSON.parse(jsonStr);
-    return {
-      emotion: meta.emotion ?? "neutral",
-      intent: meta.intent ?? "answer",
-      action: meta.action,
-      trust_delta: meta.state_updates?.trust_delta ?? meta.trust_delta ?? 0,
-      mood_delta: meta.state_updates?.mood_delta ?? meta.mood_delta ?? 0,
-      facts_revealed: meta.state_updates?.facts_revealed ?? meta.facts_revealed ?? [],
-      follow_up_question: meta.follow_up_question,
-    };
-  } catch {
-    return { emotion: "neutral", intent: "answer", trust_delta: 0, mood_delta: 0, facts_revealed: [] };
-  }
-}
-
-function buildResponseFromMetadata(
-  fullMessage: string,
-  metadata: ParsedMetadata,
-  userMessage: string
-): BuyerResponse {
-  const validEmotions: BuyerEmotion[] = ["neutral", "skeptical", "interested", "frustrated"];
-  const validIntents: BuyerIntent[] = ["answer", "objection", "question", "redirect"];
-  const validActions: BuyerAction[] = ["reveal_pain", "challenge", "ask_question", "push_back", "engage", "deflect", "end_call", "close"];
-  const action = metadata.action && validActions.includes(metadata.action as BuyerAction)
-    ? (metadata.action as BuyerAction)
-    : undefined;
-  return {
-    message: fullMessage.trim() || "I see.",
-    emotion: (validEmotions.includes(metadata.emotion as BuyerEmotion) ? metadata.emotion : "neutral") as BuyerEmotion,
-    intent: (validIntents.includes(metadata.intent as BuyerIntent) ? metadata.intent : "answer") as BuyerIntent,
-    action,
-    state_updates: {
-      trust_delta: metadata.trust_delta,
-      mood_delta: metadata.mood_delta,
-      facts_revealed: metadata.facts_revealed,
-    },
-    follow_up_question: metadata.follow_up_question,
-  };
-}
-
 /**
  * Parses an OpenAI SSE stream and yields sentence chunks, then a final metadata chunk.
- * Supports two metadata modes:
- *   1. Legacy text separator mode: "text\n---\nJSON"
- *   2. Tool call mode: plain text + record_buyer_metadata function call
  */
 export async function* parseOpenAIStream(
   response: Response,
@@ -95,11 +39,6 @@ export async function* parseOpenAIStream(
   let metaBuffer = "";
   let pastSeparator = false;
   let sentenceBuffer = "";
-
-  // Tool call state
-  const toolCallBuffers: Record<number, { name: string; arguments: string }> = {};
-  let activeToolCallIndex: number | null = null;
-  let metadataToolCall: string | null = null;
 
   const flushSentence = function* (force = false): Generator<StreamChunk> {
     const trimmed = sentenceBuffer.trim();
@@ -124,52 +63,28 @@ export async function* parseOpenAIStream(
       if (raw === "[DONE]") break;
       try {
         const chunk = JSON.parse(raw);
-        const choice = chunk.choices?.[0];
-        const delta = choice?.delta ?? {};
-
-        // Handle tool call deltas
-        if (delta.tool_calls?.length) {
-          for (const tc of delta.tool_calls) {
-            const index = tc.index ?? 0;
-            if (!toolCallBuffers[index]) {
-              toolCallBuffers[index] = { name: "", arguments: "" };
-            }
-            if (tc.function?.name) {
-              toolCallBuffers[index].name += tc.function.name;
-            }
-            if (tc.function?.arguments) {
-              toolCallBuffers[index].arguments += tc.function.arguments;
-            }
-            if (toolCallBuffers[index].name === "record_buyer_metadata") {
-              metadataToolCall = toolCallBuffers[index].arguments;
-            }
-          }
-          continue;
-        }
-
-        // Handle content deltas (spoken text)
-        const content: string = delta.content ?? "";
-        if (!content) continue;
+        const delta: string = chunk.choices?.[0]?.delta?.content ?? "";
+        if (!delta) continue;
 
         if (!pastSeparator) {
-          textBuffer += content;
+          textBuffer += delta;
           const sepIdx = textBuffer.indexOf("\n---");
           if (sepIdx !== -1) {
             pastSeparator = true;
-            const textBeforeThisDelta = textBuffer.length - content.length;
+            const textBeforeThisDelta = textBuffer.length - delta.length;
             const tailFromDelta = sepIdx > textBeforeThisDelta
-              ? content.slice(0, sepIdx - textBeforeThisDelta)
+              ? delta.slice(0, sepIdx - textBeforeThisDelta)
               : "";
             sentenceBuffer += tailFromDelta;
             yield* flushSentence(true);
             metaBuffer = textBuffer.slice(sepIdx + 4);
             textBuffer = "";
           } else {
-            sentenceBuffer += content;
+            sentenceBuffer += delta;
             yield* flushSentence();
           }
         } else {
-          metaBuffer += content;
+          metaBuffer += delta;
         }
       } catch {
         // malformed chunk — skip
@@ -182,15 +97,25 @@ export async function* parseOpenAIStream(
   }
 
   const fullMessage = textBuffer + (pastSeparator ? "" : sentenceBuffer);
-
-  let metadata: ParsedMetadata;
-  if (metadataToolCall) {
-    metadata = parseMetadataJson(metadataToolCall, userMessage);
-  } else {
-    metadata = parseMetadataJson(metaBuffer, userMessage);
+  let buyerResponse: BuyerResponse;
+  try {
+    const jsonStr = metaBuffer.trim().replace(/^```json\s*/, "").replace(/```\s*$/, "");
+    const meta = JSON.parse(jsonStr);
+    buyerResponse = {
+      message: fullMessage.trim() || "I see.",
+      emotion: meta.emotion ?? "neutral",
+      intent: meta.intent ?? "answer",
+      state_updates: {
+        trust_delta: meta.state_updates?.trust_delta ?? 0,
+        mood_delta: meta.state_updates?.mood_delta ?? 0,
+        facts_revealed: meta.state_updates?.facts_revealed ?? [],
+      },
+      follow_up_question: meta.follow_up_question,
+    };
+  } catch {
+    buyerResponse = buildFallbackResponse(userMessage);
+    buyerResponse.message = fullMessage.trim() || buyerResponse.message;
   }
-
-  const buyerResponse = buildResponseFromMetadata(fullMessage, metadata, userMessage);
 
   yield { type: "done", response: buyerResponse };
 }

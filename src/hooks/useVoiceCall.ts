@@ -69,11 +69,13 @@ export function useVoiceCall(): UseVoiceCallReturn {
 
   const addTranscript = useCallback((role: "user" | "buyer", text: string, emotion?: string, intent?: string, timeOverride?: string) => {
     const entry: TranscriptEntry = { role, text, time: timeOverride ?? new Date().toLocaleTimeString(), emotion, intent };
+    console.log("[useVoiceCall] addTranscript:", { role, text, emotion, intent, entryCount: transcriptRef.current.length + 1 });
     transcriptRef.current = [...transcriptRef.current, entry];
     setTranscript((prev) => [...prev, entry]);
   }, []);
 
   const patchLatestBuyerTranscript = useCallback((text: string, emotion?: string, intent?: string) => {
+    console.log("[useVoiceCall] patchLatestBuyerTranscript:", { text, emotion, intent });
     setTranscript((prev) => {
       const next = [...prev];
       // Find the last buyer entry, or create one if missing
@@ -91,6 +93,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
 
   const fetchLatestBuyerMessage = useCallback(async (expectedText?: string) => {
     const sessionId = sessionIdRef.current;
+    console.log("[useVoiceCall] fetchLatestBuyerMessage:", { sessionId, expectedText });
     if (!sessionId) return;
     try {
       const res = await fetch(`/api/simulation/messages/latest?sessionId=${encodeURIComponent(sessionId)}`);
@@ -110,6 +113,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
   }, [patchLatestBuyerTranscript]);
 
   const subscribeToRealtime = useCallback((sessionId: string) => {
+    console.log("[useVoiceCall] subscribeToRealtime:", { sessionId });
     try {
       const supabase = createClient();
       const channel = supabase
@@ -131,13 +135,9 @@ export function useVoiceCall(): UseVoiceCallReturn {
             };
           }) => {
             const msg = payload.new;
+            console.log("[useVoiceCall] realtime message received:", { role: msg.role, content: msg.content, emotion: msg.emotion, intent: msg.intent });
             if (msg.role !== "buyer") return;
-            // Only patch an existing buyer entry; don't create one. The streaming
-            // ElevenLabs agent-response event is the primary source for voice.
-            const lastBuyer = [...transcriptRef.current].reverse().find((t) => t.role === "buyer");
-            if (lastBuyer) {
-              patchLatestBuyerTranscript(msg.content, msg.emotion, msg.intent);
-            }
+            patchLatestBuyerTranscript(msg.content, msg.emotion, msg.intent);
           }
         )
         .subscribe();
@@ -156,6 +156,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
   }, []);
 
   const start = useCallback(async (sessionId: string, voiceId?: string, language?: VoiceLanguage) => {
+    console.log("[useVoiceCall] start called:", { sessionId, voiceId, language });
     abortRef.current = false;
     setError(null);
     setTranscript([]);
@@ -171,6 +172,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
     subscribeToRealtime(sessionId);
 
     const agentId = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
+    console.log("[useVoiceCall] agentId:", agentId);
     if (!agentId) {
       setError("ElevenLabs agent ID is not configured.");
       setStatus("error");
@@ -182,6 +184,16 @@ export function useVoiceCall(): UseVoiceCallReturn {
     try {
       const voiceConfig = buildVoiceConfig(sessionId, languageRef.current, voiceId ?? undefined);
 
+      // ── VOICE SELECTION LOG ──────────────────────────────────────────────
+      if (voiceConfig.voiceId) {
+        console.log(`%c[useVoiceCall] 🎙️ VOICE OVERRIDE → ${voiceConfig.voiceId}`, "color:#f472b6;font-weight:bold;font-size:13px");
+      } else {
+        console.log(`%c[useVoiceCall] 🎙️ VOICE → Agent default (Kelvin)`, "color:#60a5fa;font-weight:bold;font-size:13px");
+      }
+      console.log("[useVoiceCall] voiceConfig:", voiceConfig);
+      // ─────────────────────────────────────────────────────────────────────
+
+      console.log("[useVoiceCall] calling Conversation.startSession...");
       const conversation = await Conversation.startSession({
         agentId,
         connectionType: "webrtc",
@@ -196,80 +208,80 @@ export function useVoiceCall(): UseVoiceCallReturn {
           } : {}),
         } as Record<string, unknown>,
         onConnect: () => {
-          console.log("[useVoiceCall] connected");
+          console.log("[useVoiceCall] onConnect");
           setStatus("listening");
           audioEnergyRef.current = 0;
           micEnergyRef.current = 0;
         },
         onDisconnect: () => {
-          console.log("[useVoiceCall] disconnected");
+          console.log("[useVoiceCall] onDisconnect", { abort: abortRef.current });
           if (!abortRef.current) {
             setStatus("idle");
           }
         },
         onError: (err: unknown) => {
-          console.error("[useVoiceCall] ElevenLabs error:", err);
+          console.error("[useVoiceCall] onError:", err);
           setError(err instanceof Error ? err.message : "Voice call error");
           setStatus("error");
         },
         onMessage: (message: MessagePayload) => {
           const msg = (message as unknown) as Record<string, unknown>;
-          if (typeof msg.type !== "string") return;
-          console.log("[useVoiceCall] onMessage type:", msg.type, "payload:", msg);
+          console.log("[useVoiceCall] onMessage raw:", msg);
+
+          // ElevenLabs SDK uses two shapes:
+          // 1. Speaking state events: { type: "agent_started_speaking" | ... }
+          // 2. Transcript/response events: { source: "user" | "ai", role: "user" | "agent", message: string }
+          const eventType = typeof msg.type === "string" ? msg.type : undefined;
+          const source = typeof msg.source === "string" ? msg.source : undefined;
+          const role = typeof msg.role === "string" ? msg.role : undefined;
+          const text = String(msg.message ?? msg.text ?? "").trim();
 
           // Track speaking state
-          if (msg.type === "agent-started-speaking") {
-            console.log("[useVoiceCall] agent started speaking");
+          if (eventType === "agent_started_speaking") {
+            console.log("[useVoiceCall] agent_started_speaking");
             setIsSpeaking(true);
             setStatus("speaking");
-          } else if (msg.type === "agent-stopped-speaking") {
-            console.log("[useVoiceCall] agent stopped speaking");
+          } else if (eventType === "agent_stopped_speaking") {
+            console.log("[useVoiceCall] agent_stopped_speaking");
             setIsSpeaking(false);
             setStatus("listening");
             setTimeout(() => setCurrentBuyerText(""), 3000);
-          } else if (msg.type === "user-started-speaking") {
-            console.log("[useVoiceCall] user started speaking");
+          } else if (eventType === "user_started_speaking") {
+            console.log("[useVoiceCall] user_started_speaking");
             setStatus("listening");
             turnAddedRef.current = false;
             setCurrentBuyerText("");
-          } else if (msg.type === "user-stopped-speaking") {
-            console.log("[useVoiceCall] user stopped speaking");
+          } else if (eventType === "user_stopped_speaking") {
+            console.log("[useVoiceCall] user_stopped_speaking");
             setStatus("listening");
-          } else if (msg.type === "user-transcript" || msg.type === "user_transcript" || msg.type === "userTranscript" || msg.type === "transcript") {
-            const raw = msg.text ?? msg.transcript ?? msg.message ?? msg.user_transcript ?? msg.payload ?? "";
-            const text = String(raw).trim();
-            console.log("[useVoiceCall] user-transcript raw:", raw, "text:", text);
+          } else if (source === "user" || role === "user") {
+            console.log("[useVoiceCall] user transcript:", { text });
+            turnAddedRef.current = false; // reset so next agent response creates a new entry
             if (text) {
               addTranscript("user", text);
-              console.log("[useVoiceCall] added user transcript:", text);
-            } else {
-              console.warn("[useVoiceCall] user-transcript had no text");
             }
-          } else if (msg.type === "agent-response") {
-            const text = String(msg.text ?? "").trim();
-            console.log("[useVoiceCall] agent-response text:", text);
+          } else if (source === "ai" || role === "agent") {
+            console.log("[useVoiceCall] agent response:", { text, turnAdded: turnAddedRef.current });
             if (text) {
               lastBuyerTextRef.current = text;
               setCurrentBuyerText(text);
               if (!turnAddedRef.current) {
                 turnAddedRef.current = true;
                 addTranscript("buyer", text);
-                console.log("[useVoiceCall] added first buyer response:", text);
               } else {
                 patchLatestBuyerTranscript(text);
-                console.log("[useVoiceCall] patched buyer response:", text);
               }
             }
-          } else if (msg.type === "audio") {
-            console.log("[useVoiceCall] audio chunk received");
+          } else if (eventType) {
+            console.log("[useVoiceCall] unhandled onMessage type:", eventType);
           } else {
-            console.log("[useVoiceCall] unhandled event type:", msg.type);
+            console.warn("[useVoiceCall] onMessage missing type/source/role:", msg);
           }
         },
         onAgentResponseCorrection: (correction: Parameters<NonNullable<StartSessionOptions["onAgentResponseCorrection"]>>[0]) => {
           const data = (correction as unknown) as { corrected_agent_response?: string };
+          console.log("[useVoiceCall] onAgentResponseCorrection:", data);
           const text = String(data.corrected_agent_response ?? "").trim();
-          console.log("[useVoiceCall] agent response correction:", text);
           if (text) {
             lastBuyerTextRef.current = text;
             patchLatestBuyerTranscript(text);
@@ -280,6 +292,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
       });
 
       conversationRef.current = conversation;
+      console.log("[useVoiceCall] conversation started:", conversation);
     } catch (err) {
       console.error("[useVoiceCall] start error:", err);
       setError(err instanceof Error ? err.message : "Failed to start voice call");
@@ -288,6 +301,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
   }, [addTranscript, patchLatestBuyerTranscript, fetchLatestBuyerMessage]);
 
   const stop = useCallback(async () => {
+    console.log("[useVoiceCall] stop called");
     abortRef.current = true;
     setMicMuted(false);
     turnAddedRef.current = false;
@@ -299,6 +313,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
     unsubscribeFromRealtime();
 
     const conversation = conversationRef.current;
+    console.log("[useVoiceCall] ending conversation:", conversation);
     conversationRef.current = null;
     if (conversation) {
       try {
@@ -310,8 +325,12 @@ export function useVoiceCall(): UseVoiceCallReturn {
   }, [unsubscribeFromRealtime]);
 
   const toggleMic = useCallback(async () => {
+    console.log("[useVoiceCall] toggleMic called");
     const conversation = conversationRef.current;
-    if (!conversation) return;
+    if (!conversation) {
+      console.warn("[useVoiceCall] toggleMic: no conversation");
+      return;
+    }
 
     try {
       const mic = conversation as unknown as { setMicEnabled?: (enabled: boolean) => Promise<void> };
@@ -330,6 +349,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
   }, [micMuted]);
 
   const togglePause = useCallback(async () => {
+    console.log("[useVoiceCall] togglePause called", { status });
     if (status === "paused") {
       await toggleMic();
     } else {
@@ -348,6 +368,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
   }, [status, toggleMic]);
 
   const setVolume = useCallback((v: number) => {
+    console.log("[useVoiceCall] setVolume:", v);
     setVolumeState(v);
     // ElevenLabs manages output gain internally; keep value for UI sync.
   }, []);

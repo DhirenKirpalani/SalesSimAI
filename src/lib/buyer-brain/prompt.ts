@@ -82,8 +82,13 @@ ${contextNote}
 SELLER INFO (you do NOT know this in detail):
 ${sellerDescription}
 
-TRUST: ${state.trust_level}/100 | MOOD: ${state.buyer_mood}
+TRUST: ${state.trust_level}/100 | MOOD: ${state.buyer_mood} | STAGE: ${state.stage}
 FACTS REVEALED: ${getDiscoveredFacts(state)}
+OBJECTIONS ALREADY RAISED: ${state.objections_used?.length ? state.objections_used.join(", ") : "none"} — do NOT repeat these; find a new angle or move on.
+
+RESPONSE LENGTH — Keep your message to 1–2 short sentences maximum. Do NOT lecture or repeat yourself. Real buyers speak in short, direct bursts.
+
+CALL ENDING — If the seller says anything like "bye", "goodbye", "see you", "talk soon", "thanks for your time", "take care", or any other farewell, you MUST respond with a brief goodbye (1 sentence) and nothing else. Do not raise new topics or objections when the call is ending.
 
 RESPONSE FORMAT — return ONLY valid JSON, no extra text:
 {
@@ -139,13 +144,18 @@ ${contextNote}
 SELLER INFO (you do NOT know this in detail):
 ${sellerDescription}
 
-TRUST: ${state.trust_level}/100 | MOOD: ${state.buyer_mood}
+TRUST: ${state.trust_level}/100 | MOOD: ${state.buyer_mood} | STAGE: ${state.stage}
 FACTS REVEALED: ${getDiscoveredFacts(state)}
+OBJECTIONS ALREADY RAISED: ${state.objections_used?.length ? state.objections_used.join(", ") : "none"} — do NOT repeat these; find a new angle or move on.
+
+RESPONSE LENGTH — Keep your spoken response to 1–2 sentences maximum. Real buyers are brief, not monologuing.
+
+CALL ENDING — If the seller says anything like "bye", "goodbye", "see you", "talk soon", "thanks for your time", "take care", or any farewell phrase, you MUST reply with a brief goodbye only (e.g. "Sure, talk soon.") and DO NOT introduce any new topic, objection, or question. The call is over.
 
 OUTPUT FORMAT — two sections separated by exactly "---":
 
-Section 1: Your spoken response (plain text, 1-3 sentences, NO JSON).
+Section 1: Your spoken response (plain text, 1-2 sentences MAX, NO JSON).
 ---
-Section 2: JSON only, including the buyer action:
-{"emotion":"neutral|skeptical|interested|frustrated","intent":"answer|objection|question|redirect","action":"reveal_pain|challenge|ask_question|push_back|engage|deflect|end_call|close","state_updates":{"trust_delta":<-15 to 15>,"mood_delta":<-5 to 5>,"facts_revealed":[]},"follow_up_question":"<optional>"}`;
+Section 2: JSON only:
+{"emotion":"neutral|skeptical|interested|frustrated","intent":"answer|objection|question|redirect","state_updates":{"trust_delta":<-15 to 15>,"mood_delta":<-5 to 5>,"facts_revealed":[]},"follow_up_question":"<optional>"}`;
 }

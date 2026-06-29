@@ -52,7 +52,15 @@ export function getDifficultyNote(difficulty?: string): string {
 }
 
 export function getLanguageNote(): string {
-  return `LANGUAGE: Mirror the human's language, accent, and style exactly. Match their vocabulary, tone, slang, and sentence structure. If they switch language mid-conversation, switch with them seamlessly. Never default to generic American English.`;
+  return `LANGUAGE RULE (CRITICAL): Detect and respond in the EXACT same language the seller is currently speaking.
+- If they speak English → respond in English.
+- If they speak Malay / Bahasa Malaysia → respond in Malay.
+- If they speak Indonesian / Bahasa Indonesia → respond in Indonesian.
+- If they speak Mandarin Chinese → respond in Chinese.
+- If they mix languages (code-switch), mirror the mix naturally.
+- NEVER reply in English if the seller addressed you in another language.
+- Match their vocabulary, formality level, tone, and regional slang.
+- If they switch language mid-call, switch immediately and maintain the rest of the conversation in that language.`;
 }
 
 export function getAbsoluteRoleLock(persona: CustomPersona): string {

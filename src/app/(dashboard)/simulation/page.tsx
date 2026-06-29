@@ -4,11 +4,11 @@ import { useRef, useState, useCallback, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { createClient } from "@/lib/supabase/client";
-import { useVoiceCall, VoiceStatus, VOICE_LANGUAGE_MAP, VoiceLanguage } from "@/hooks/useVoiceCall";
+import { useVoiceCall, VoiceStatus, VoiceLanguage } from "@/hooks/useVoiceCall";
 import { useCoaching } from "@/hooks/useCoaching";
 import { VoiceCallPanel } from "@/components/VoiceCallPanel";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
-import { Video, Mic, MessageSquare, Send, Globe } from "lucide-react";
+import { Video, Mic, MessageSquare, Send } from "lucide-react";
 
 type Status = "idle" | "connecting" | "connected" | "paused" | "error";
 
@@ -187,23 +187,17 @@ function HeyGenTestInner() {
   const voiceCall = useVoiceCall();
   const coaching = useCoaching();
 
-  // Voice selector (ElevenLabs voices)
-  const [selectedVoiceId, setSelectedVoiceId] = useState<string>("21m00Tcm4TlvDq8ikWAM");
-  const [selectedVoiceLanguage, setSelectedVoiceLanguage] = useState<VoiceLanguage>("auto");
-  const voiceOptions = [
-    { id: "21m00Tcm4TlvDq8ikWAM", label: "Rachel — Warm & Natural" },
-    { id: "TxGEqnHWrfWFTfGW9XjX", label: "Josh — Deep & Authoritative" },
-    { id: "ErXwobaYiN019PkySvjV", label: "Antoni — Calm & Thoughtful" },
-    { id: "MF3mGyEYCl7XYWbV9V6O", label: "Elli — Young & Energetic" },
-    { id: "EXAVITQu4vr4xnSDxMaL", label: "Sarah — Soft & Expressive" },
-    { id: "pNInz6obpgDQGcFmaJgB", label: "Adam — Professional & Neutral" },
-    { id: "XB0fDUnXU5powFXSHcV", label: "Bella — Professional & Calm" },
-  ];
+  // Voice gender selector — Male uses agent default (Kelvin), Female overrides with a female voice
+  const FEMALE_VOICE_ID = "Y7xQSS5ZtS4xv4VJotWd"; // Christine — Calm & Professional
+  const [buyerGender, setBuyerGender] = useState<"male" | "female">("male");
+  const selectedVoiceId = buyerGender === "female" ? FEMALE_VOICE_ID : undefined;
+  const selectedVoiceLanguage: VoiceLanguage = "auto";
   const coachingAnalyzeRef = useRef(coaching.analyze);
 
-  // Live nudge bubbles — ephemeral coaching feedback after each turn
-  const [liveNudge, setLiveNudge] = useState<{ message: string; type: "success" | "info" | "warning" } | null>(null);
-  const nudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Live nudge bubbles — persistent coaching feedback log that accumulates after each turn
+  const [liveNudges, setLiveNudges] = useState<{ id: number; message: string; type: "success" | "info" | "warning" }[]>([]);
+  const nudgeIdRef = useRef(0);
+  const lastNudgeSignatureRef = useRef<string | null>(null);
   const [nudgePos, setNudgePos] = useState<{ x: number; y: number }>({ x: 16, y: 16 });
   const [isDraggingNudge, setIsDraggingNudge] = useState(false);
   const nudgeDragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -212,6 +206,15 @@ function HeyGenTestInner() {
   useEffect(() => {
     if (!coaching.lastTurnResult || status !== "connected") return;
     const update = coaching.lastTurnResult;
+
+    // Build a signature from the result so we don't add the same nudge repeatedly
+    const signature = JSON.stringify({
+      stepCompleted: update.stepCompleted,
+      uncoveredFact: update.uncoveredFact,
+      newSuggestion: update.newSuggestion?.slice(0, 120),
+    });
+    if (signature === lastNudgeSignatureRef.current) return;
+    lastNudgeSignatureRef.current = signature;
 
     let nudge: { message: string; type: "success" | "info" | "warning" } | null = null;
 
@@ -224,15 +227,16 @@ function HeyGenTestInner() {
     }
 
     if (nudge) {
-      setLiveNudge(nudge);
+      setLiveNudges((prev) => {
+        // Skip if the exact same message is already in the log
+        if (prev.some((n) => n.message === nudge!.message)) {
+          console.log("[simulation] skipping duplicate nudge:", nudge.message);
+          return prev;
+        }
+        return [...prev, { ...nudge!, id: ++nudgeIdRef.current }];
+      });
       setNudgePos({ x: 0, y: 16 });
-      if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
-      nudgeTimerRef.current = setTimeout(() => setLiveNudge(null), 6000);
     }
-
-    return () => {
-      if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
-    };
   }, [coaching.lastTurnResult, status]);
 
   const moveNudge = useCallback((clientX: number, clientY: number) => {
@@ -295,11 +299,11 @@ function HeyGenTestInner() {
     };
   }, [isDraggingNudge, onNudgeMouseMove, onNudgeMouseUp, onNudgeTouchMove, onNudgeTouchEnd]);
 
-  // Position the nudge on the left when it first appears
+  // Position the nudge log on the left when it first appears
   useEffect(() => {
-    if (!liveNudge || !nudgeContainerRef.current) return;
+    if (liveNudges.length === 0 || !nudgeContainerRef.current) return;
     setNudgePos({ x: 16, y: 16 });
-  }, [liveNudge]);
+  }, [liveNudges]);
   coachingAnalyzeRef.current = coaching.analyze;
 
   useEffect(() => {
@@ -614,6 +618,8 @@ function HeyGenTestInner() {
       }, 1000);
 
       setStatus("connected");
+      console.log(`%c[simulation] 🎚️ Buyer gender: ${buyerGender} | voiceId: ${selectedVoiceId ?? "none (agent default — Kelvin)"}`, "color:#a78bfa;font-weight:bold;font-size:13px");
+      addLog(`🎙️ Voice: ${buyerGender === "female" ? "Christine (female)" : "Kelvin (male — default)"}`);
       voiceCall.start(session.id, selectedVoiceId, selectedVoiceLanguage);
       addLog("🎙️ Voice call started");
     } catch (e) {
@@ -709,9 +715,14 @@ function HeyGenTestInner() {
           const nudgeType: "success" | "info" | "warning" =
             result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
           const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
-          setLiveNudge({ message: `${label}${result.nudge}`, type: nudgeType });
-          if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
-          nudgeTimerRef.current = setTimeout(() => setLiveNudge(null), 8000);
+          const nudgeMessage = `${label}${result.nudge}`;
+          setLiveNudges((prev) => {
+            if (prev.some((n) => n.message === nudgeMessage)) {
+              console.log("[simulation] skipping duplicate coach-turn nudge:", nudgeMessage);
+              return prev;
+            }
+            return [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
+          });
           if (result.checkpoint_hit) {
             setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
           }
@@ -1078,20 +1089,28 @@ function HeyGenTestInner() {
   // Sync voice call transcripts into the page transcript (shows in Conversation modal)
   // AI/buyer messages are delayed until the avatar finishes speaking so it feels natural.
   useEffect(() => {
+    console.log("[simulation] voice transcript sync effect:", { callMode, voiceTranscriptLength: voiceCall.transcript.length, voiceTranscript: voiceCall.transcript });
     if (callMode !== "voice" || voiceCall.transcript.length === 0) return;
-    // Sync any entries from the voice hook that are not yet in the page transcript.
-    // This avoids dropped messages when the hook receives user + buyer updates in quick succession.
-    const existingTexts = new Set(transcript.map((t) => t.text));
-    voiceCall.transcript.forEach((entry) => {
-      if (existingTexts.has(entry.text)) return;
-      const pageRole = entry.role === "buyer" ? "avatar" : "user";
-      addTranscript(pageRole, entry.text, entry.emotion, entry.intent);
-    });
+    const last = voiceCall.transcript[voiceCall.transcript.length - 1];
+    const pageRole = last.role === "buyer" ? "avatar" : "user";
+    console.log("[simulation] syncing voice transcript entry:", { last, pageRole, isSpeaking: voiceCall.isSpeaking, pageTranscriptLength: transcript.length });
+    const alreadyHas = transcript.length > 0 && transcript[transcript.length - 1].text === last.text;
+    if (alreadyHas) {
+      console.log("[simulation] skipping duplicate transcript entry");
+      return;
+    }
+    if (last.role === "buyer" && voiceCall.isSpeaking) {
+      console.log("[simulation] delaying buyer transcript until agent stops speaking");
+      return;
+    }
+    addTranscript(pageRole, last.text, last.emotion, last.intent);
+    console.log("[simulation] added transcript entry:", { pageRole, text: last.text });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiceCall.transcript, callMode]);
+  }, [voiceCall.transcript, voiceCall.isSpeaking, callMode]);
 
   // Analyze turns for coaching (both video and voice modes)
   useEffect(() => {
+    console.log("[simulation] coaching analysis effect:", { callMode, voiceTranscriptLength: voiceCall.transcript.length, pageTranscriptLength: transcript.length });
     if (callMode === "voice") {
       if (voiceCall.transcript.length === 0) return;
       const lastTwo = voiceCall.transcript.slice(-2);
@@ -1109,9 +1128,14 @@ function HeyGenTestInner() {
             const nudgeType: "success" | "info" | "warning" =
               result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
             const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
-            setLiveNudge({ message: `${label}${result.nudge}`, type: nudgeType });
-            if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
-            nudgeTimerRef.current = setTimeout(() => setLiveNudge(null), 8000);
+            const nudgeMessage = `${label}${result.nudge}`;
+            setLiveNudges((prev) => {
+              if (prev.some((n) => n.message === nudgeMessage)) {
+                console.log("[simulation] skipping duplicate coach-turn nudge:", nudgeMessage);
+                return prev;
+              }
+              return [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
+            });
             if (result.checkpoint_hit) {
               setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
             }
@@ -1146,9 +1170,14 @@ function HeyGenTestInner() {
             const nudgeType: "success" | "info" | "warning" =
               result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
             const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
-            setLiveNudge({ message: `${label}${result.nudge}`, type: nudgeType });
-            if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
-            nudgeTimerRef.current = setTimeout(() => setLiveNudge(null), 8000);
+            const nudgeMessage = `${label}${result.nudge}`;
+            setLiveNudges((prev) => {
+              if (prev.some((n) => n.message === nudgeMessage)) {
+                console.log("[simulation] skipping duplicate coach-turn nudge:", nudgeMessage);
+                return prev;
+              }
+              return [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
+            });
             if (result.checkpoint_hit) {
               setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
             }
@@ -1197,6 +1226,14 @@ function HeyGenTestInner() {
       textMessagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [transcript, textLoading, callMode]);
+
+  // Pre-warm microphone permission when voice mode is selected so there's no delay at connect time
+  useEffect(() => {
+    if (callMode !== "voice" || status !== "idle") return;
+    navigator.mediaDevices?.getUserMedia({ audio: true })
+      .then((stream) => stream.getTracks().forEach((t) => t.stop()))
+      .catch(() => {}); // silently ignore — user can deny at connect time
+  }, [callMode, status]);
 
   // Cleanup on unmount
   useEffect(() => () => { stop(); }, [stop]);
@@ -1292,51 +1329,35 @@ function HeyGenTestInner() {
                   </button>
                 </div>
               )}
-              {/* Voice Selector — shown in voice mode when idle */}
+              {/* Buyer Voice Gender — shown in voice mode when idle */}
               {status === "idle" && callMode === "voice" && (
-                <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 border border-white/10">
-                  <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
-                  <div className="relative">
-                    <select
-                      value={selectedVoiceId}
-                      onChange={(e) => setSelectedVoiceId(e.target.value)}
-                      className="appearance-none bg-transparent text-xs text-gray-300 focus:outline-none cursor-pointer pr-5 min-w-[180px]"
-                      style={{ colorScheme: "dark" }}
+                <div className="flex flex-col items-center gap-1">
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Buyer Voice</p>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setBuyerGender("male")}
+                      title="Male buyer voice (Kelvin)"
+                      className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
+                        buyerGender === "male"
+                          ? "bg-blue-600/20 border-blue-500 text-blue-300"
+                          : "bg-white/5 border-white/10 text-gray-500 hover:text-gray-300 hover:border-white/20"
+                      }`}
                     >
-                      {voiceOptions.map((v) => (
-                        <option key={v.id} value={v.id} className="bg-[#111827] text-gray-200">
-                          {v.label}
-                        </option>
-                      ))}
-                    </select>
-                    <svg className="w-3 h-3 text-gray-400 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              )}
-              {/* Language Selector — shown in voice mode when idle */}
-              {status === "idle" && callMode === "voice" && (
-                <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 border border-white/10">
-                  <Globe className="w-3.5 h-3.5 text-gray-400" />
-                  <div className="relative">
-                    <select
-                      value={selectedVoiceLanguage}
-                      onChange={(e) => setSelectedVoiceLanguage(e.target.value as VoiceLanguage)}
-                      className="appearance-none bg-transparent text-xs text-gray-300 focus:outline-none cursor-pointer pr-5 min-w-[140px]"
-                      style={{ colorScheme: "dark" }}
+                      <span className="text-lg leading-none">♂</span>
+                      <span className="text-[10px]">Kelvin</span>
+                    </button>
+                    <button
+                      onClick={() => setBuyerGender("female")}
+                      title="Female buyer voice (Christine)"
+                      className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
+                        buyerGender === "female"
+                          ? "bg-pink-600/20 border-pink-500 text-pink-300"
+                          : "bg-white/5 border-white/10 text-gray-500 hover:text-gray-300 hover:border-white/20"
+                      }`}
                     >
-                      {Object.entries(VOICE_LANGUAGE_MAP).map(([key, { label }]) => (
-                        <option key={key} value={key} className="bg-[#111827] text-gray-200">
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                    <svg className="w-3 h-3 text-gray-400 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+                      <span className="text-lg leading-none">♀</span>
+                      <span className="text-[10px]">Christine</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -1368,54 +1389,72 @@ function HeyGenTestInner() {
           </div>
         )}
 
-        {/* Live Nudge — compact floating pill, draggable */}
-        {liveNudge && status === "connected" && (
+        {/* Live Nudges — persistent chat-log style coaching feedback */}
+        {liveNudges.length > 0 && status === "connected" && (
           <div
             ref={nudgeContainerRef}
             onMouseDown={onNudgeMouseDown}
             onTouchStart={onNudgeTouchStart}
-            className={`absolute z-30 max-w-xs w-auto animate-in fade-in zoom-in-95 duration-200 ${
+            className={`absolute z-30 w-72 max-h-[60vh] animate-in fade-in zoom-in-95 duration-200 ${
               isDraggingNudge ? "cursor-grabbing" : "cursor-grab"
             }`}
             style={{ left: nudgePos.x, top: nudgePos.y }}
           >
-            <div
-              className={`rounded-full pl-2 pr-1 py-1.5 shadow-lg border flex items-center gap-2 backdrop-blur-md ${
-                liveNudge.type === "success"
-                  ? "bg-emerald-950/80 border-emerald-500/30 text-emerald-100"
-                  : liveNudge.type === "warning"
-                  ? "bg-amber-950/80 border-amber-500/30 text-amber-100"
-                  : "bg-[#0B1220]/90 border-blue-500/30 text-blue-100"
-              }`}
-            >
-              <div className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center">
-                {liveNudge.type === "success" ? (
-                  <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : liveNudge.type === "warning" ? (
-                  <svg className="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.054 0 1.666-1.151 1.048-1.973l-6.928-10.003c-.624-.898-1.944-.898-2.568 0L4.014 17.027c-.618.822-.006 1.973 1.048 1.973z" />
-                  </svg>
-                ) : (
-                  <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
+            <div className="bg-[#0B1220]/90 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Live Coaching</div>
+                <button
+                  onClick={() => setLiveNudges([])}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  className="text-[10px] text-white/50 hover:text-white transition-colors"
+                >
+                  Clear all
+                </button>
               </div>
-              <div className="flex-1 min-w-0 px-1">
-                <p className="text-xs font-medium leading-snug">{liveNudge.message}</p>
+              <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                {liveNudges.map((nudge) => (
+                  <div
+                    key={nudge.id}
+                    className={`rounded-xl px-2.5 py-2 shadow border flex items-start gap-2 backdrop-blur-md ${
+                      nudge.type === "success"
+                        ? "bg-emerald-950/80 border-emerald-500/30 text-emerald-100"
+                        : nudge.type === "warning"
+                        ? "bg-amber-950/80 border-amber-500/30 text-amber-100"
+                        : "bg-[#111827]/90 border-blue-500/30 text-blue-100"
+                    }`}
+                  >
+                    <div className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5">
+                      {nudge.type === "success" ? (
+                        <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : nudge.type === "warning" ? (
+                        <svg className="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.054 0 1.666-1.151 1.048-1.973l-6.928-10.003c-.624-.898-1.944-.898-2.568 0L4.014 17.027c-.618.822-.006 1.973 1.048 1.973z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium leading-snug">{nudge.message}</p>
+                    </div>
+                    <button
+                      onClick={() => setLiveNudges((prev) => prev.filter((n) => n.id !== nudge.id))}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors mt-0.5"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
               </div>
-              <button
-                onClick={() => setLiveNudge(null)}
-                onMouseDown={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
             </div>
           </div>
         )}
