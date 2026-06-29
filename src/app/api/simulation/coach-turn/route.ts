@@ -9,6 +9,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ fallback: true });
     }
 
+    // Skip coaching for very short utterances — not enough content to evaluate
+    if (sellerText.trim().split(/\s+/).length < 5) {
+      return NextResponse.json({ fallback: true });
+    }
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ fallback: true });

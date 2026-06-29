@@ -52,15 +52,15 @@ export function getDifficultyNote(difficulty?: string): string {
 }
 
 export function getLanguageNote(): string {
-  return `LANGUAGE RULE (CRITICAL): Detect and respond in the EXACT same language the seller is currently speaking.
-- If they speak English → respond in English.
-- If they speak Malay / Bahasa Malaysia → respond in Malay.
-- If they speak Indonesian / Bahasa Indonesia → respond in Indonesian.
-- If they speak Mandarin Chinese → respond in Chinese.
-- If they mix languages (code-switch), mirror the mix naturally.
-- NEVER reply in English if the seller addressed you in another language.
-- Match their vocabulary, formality level, tone, and regional slang.
-- If they switch language mid-call, switch immediately and maintain the rest of the conversation in that language.`;
+  return `⚠️ LANGUAGE — THIS OVERRIDES EVERYTHING ELSE:
+Detect the language of the seller's LAST message and reply in THAT language. No exceptions.
+- English → reply in English.
+- Malay / Bahasa Malaysia → reply in Malay.
+- Indonesian / Bahasa Indonesia (gue, lo, dong, kan, gimana, tahu, punya, gitu, dll.) → reply in INDONESIAN.
+- Mandarin Chinese → reply in Chinese.
+- Mixed / code-switch → mirror the exact same mix.
+If the seller switches language, you switch immediately in the SAME reply.
+NEVER default to English when the seller's last message was in another language. Doing so breaks the simulation.`;
 }
 
 export function getAbsoluteRoleLock(persona: CustomPersona): string {

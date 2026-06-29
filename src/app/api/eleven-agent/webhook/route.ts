@@ -136,6 +136,16 @@ export async function POST(req: NextRequest) {
       const fb = new ReadableStream({ start(c) { c.enqueue(enc.encode(sseDone(completionId))); c.close(); } });
       return new NextResponse(fb, { status: 200, headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
     }
+
+    // Filter filler/noise inputs — don't waste LLM tokens on "...", "Hmm", etc.
+    const FILLER_RE = /^(\.\.\.*|[,\s]*|hmm+\.?|uh+\.?|um+\.?|ah+\.?|oh\.?|okay\.?|ok\.?|right\.?|yeah\.?|yep\.?|nope\.?|mhm\.?|mm+\.?|er+\.?)$/i;
+    if (FILLER_RE.test(userText) || userText.replace(/[^a-zA-Z0-9]/g, "").length < 2) {
+      console.log("[eleven-agent] filler input ignored:", JSON.stringify(userText));
+      const enc = new TextEncoder();
+      const fb = new ReadableStream({ start(c) { c.enqueue(enc.encode(sseDone(completionId))); c.close(); } });
+      return new NextResponse(fb, { status: 200, headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
+    }
+
     console.log("[eleven-agent] userText:", userText);
 
     const supabase = serviceSupabase();
@@ -163,7 +173,7 @@ export async function POST(req: NextRequest) {
         .select("*")
         .eq("session_id", sessionId)
         .order("created_at", { ascending: true })
-        .limit(20),
+        .limit(10),
       supabase
         .from(session.scenario_table)
         .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product, difficulty, scenario_type, duration, product_type")
@@ -224,7 +234,7 @@ export async function POST(req: NextRequest) {
     if (profile?.organization_id) {
       try {
         const { buildCompanyRagContextWithClient } = await import("@/lib/vector-store");
-        companyRag = await buildCompanyRagContextWithClient(userText, profile.organization_id, supabase, { limit: 3 });
+        companyRag = await buildCompanyRagContextWithClient(userText, profile.organization_id, supabase, { limit: 2, maxTotalChars: 8_000 });
         console.log("[eleven-agent] companyRag (service client):", companyRag ? `${companyRag.slice(0, 300)}...` : "none — no matching docs");
       } catch (e) {
         console.warn("[eleven-agent] company RAG failed:", e);
