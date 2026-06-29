@@ -1079,14 +1079,16 @@ function HeyGenTestInner() {
   // AI/buyer messages are delayed until the avatar finishes speaking so it feels natural.
   useEffect(() => {
     if (callMode !== "voice" || voiceCall.transcript.length === 0) return;
-    const last = voiceCall.transcript[voiceCall.transcript.length - 1];
-    const pageRole = last.role === "buyer" ? "avatar" : "user";
-    const alreadyHas = transcript.length > 0 && transcript[transcript.length - 1].text === last.text;
-    if (alreadyHas) return;
-    if (last.role === "buyer" && voiceCall.isSpeaking) return;
-    addTranscript(pageRole, last.text, last.emotion, last.intent);
+    // Sync any entries from the voice hook that are not yet in the page transcript.
+    // This avoids dropped messages when the hook receives user + buyer updates in quick succession.
+    const existingTexts = new Set(transcript.map((t) => t.text));
+    voiceCall.transcript.forEach((entry) => {
+      if (existingTexts.has(entry.text)) return;
+      const pageRole = entry.role === "buyer" ? "avatar" : "user";
+      addTranscript(pageRole, entry.text, entry.emotion, entry.intent);
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiceCall.transcript, voiceCall.isSpeaking, callMode]);
+  }, [voiceCall.transcript, callMode]);
 
   // Analyze turns for coaching (both video and voice modes)
   useEffect(() => {

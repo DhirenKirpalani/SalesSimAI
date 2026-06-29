@@ -146,6 +146,6 @@ OUTPUT FORMAT — two sections separated by exactly "---":
 
 Section 1: Your spoken response (plain text, 1-3 sentences, NO JSON).
 ---
-Section 2: JSON only:
-{"emotion":"neutral|skeptical|interested|frustrated","intent":"answer|objection|question|redirect","state_updates":{"trust_delta":<-15 to 15>,"mood_delta":<-5 to 5>,"facts_revealed":[]},"follow_up_question":"<optional>"}`;
+Section 2: JSON only, including the buyer action:
+{"emotion":"neutral|skeptical|interested|frustrated","intent":"answer|objection|question|redirect","action":"reveal_pain|challenge|ask_question|push_back|engage|deflect|end_call|close","state_updates":{"trust_delta":<-15 to 15>,"mood_delta":<-5 to 5>,"facts_revealed":[]},"follow_up_question":"<optional>"}`;
 }
