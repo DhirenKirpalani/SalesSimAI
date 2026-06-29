@@ -8,8 +8,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { processTurnStream, applyStateUpdates } from "@/lib/buyer-brain";
-import { buildCompanyRagContext } from "@/lib/vector-store";
+import { processTurnStream, applyStateUpdates, getConditionalRagContext, shouldRetrieveRag, buildBuyerContext, renderBuyerContext, extractMemoryUpdates, defaultBuyerMemory, computeRagStateImpact, mergeRagImpactIntoStateUpdates } from "@/lib/buyer-brain";
+import type { BuyerMemory, RagStateImpact } from "@/lib/buyer-brain";
 import { CustomPersona } from "@/types";
 import { SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   }
 
   const [{ data: session }, { data: profile }] = await Promise.all([
-    supabase.from("simulation_sessions").select("*").eq("id", sessionId).eq("user_id", user.id).single(),
+    supabase.from("simulation_sessions").select("*, buyer_context, buyer_memory").eq("id", sessionId).eq("user_id", user.id).single(),
     supabase.from("profiles").select("full_name, position, company, organization_id").eq("id", user.id).single(),
   ]);
 
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   const { data: scenario } = await supabase
     .from(session.scenario_table)
-    .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product")
+    .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product, scenario_type, difficulty, duration")
     .eq("id", session.scenario_id)
     .single();
 
@@ -63,16 +63,47 @@ export async function POST(req: NextRequest) {
 
   const state = session.state as SimulationState;
   const sellerInfo = { name: profile?.full_name, position: profile?.position, company: profile?.company };
+  const buyerMemory = (session.buyer_memory as BuyerMemory | null) ?? defaultBuyerMemory;
 
-  // Company RAG — fetch relevant docs from the org's knowledge base
+  // Load or build the static buyer context (system prompt) once per session.
+  let buyerContextString: string | null = null;
+  const storedContext = session.buyer_context as { response_format?: { mode?: string } } | null;
+  if (storedContext?.response_format?.mode === "streaming") {
+    buyerContextString = renderBuyerContext(storedContext as any);
+  }
+  if (!buyerContextString) {
+    const freshContext = buildBuyerContext(
+      persona,
+      scenario?.scenario_type ?? "Discovery Call",
+      scenario?.difficulty ?? "Intermediate",
+      sellerInfo,
+      "streaming"
+    );
+    buyerContextString = renderBuyerContext(freshContext);
+    const { error: cacheError } = await supabase
+      .from("simulation_sessions")
+      .update({ buyer_context: freshContext as any })
+      .eq("id", sessionId);
+    if (cacheError) {
+      console.warn("[simulation/turn/stream] failed to cache buyer_context:", cacheError);
+    }
+  }
+
+  // Company RAG — only retrieve when the turn actually asks for company knowledge.
   let companyRag = "";
-  if (profile?.organization_id) {
+  let ragImpact: RagStateImpact | null = null;
+  const trimmedMessage = message.trim();
+  if (shouldRetrieveRag(trimmedMessage) && profile?.organization_id) {
     try {
-      companyRag = await buildCompanyRagContext(message.trim(), profile.organization_id, { limit: 3 });
+      companyRag = await getConditionalRagContext(trimmedMessage, profile.organization_id, { limit: 3 });
+      ragImpact = await computeRagStateImpact(trimmedMessage, companyRag, state);
     } catch (e) {
       console.warn("[simulation/turn/stream] company RAG failed:", e);
     }
   }
+
+  const sessionStart = new Date(session.created_at ?? Date.now());
+  const elapsedMin = Math.max(0, Math.round((Date.now() - sessionStart.getTime()) / 60000));
 
   const encoder = new TextEncoder();
 
@@ -90,7 +121,14 @@ export async function POST(req: NextRequest) {
         for await (const chunk of processTurnStream(
           persona, contextParts.join("\n"), scenario?.seller_description ?? "",
           state, recentMessages ?? [], message.trim(), sellerInfo,
-          undefined, undefined, companyRag
+          scenario?.difficulty ?? undefined,
+          scenario?.scenario_type ?? undefined,
+          companyRag,
+          scenario?.duration ?? undefined,
+          elapsedMin,
+          "gpt-4.1-mini",
+          buyerContextString,
+          buyerMemory
         )) {
           if (chunk.type === "sentence") {
             sentences.push(chunk.text);
@@ -106,13 +144,17 @@ export async function POST(req: NextRequest) {
           buyerResponseFinal = { message: fullMessage, emotion: "neutral", intent: "answer", state_updates: { trust_delta: 0, mood_delta: 0, facts_revealed: [] } };
         }
 
-        const newState = applyStateUpdates(state, buyerResponseFinal.state_updates, (recentMessages?.length ?? 0) + 1);
+        const mergedStateUpdates = ragImpact
+          ? mergeRagImpactIntoStateUpdates(buyerResponseFinal.state_updates, ragImpact)
+          : buyerResponseFinal.state_updates;
+        const newState = applyStateUpdates(state, mergedStateUpdates, (recentMessages?.length ?? 0) + 1);
+        const updatedMemory = await extractMemoryUpdates(buyerMemory, message.trim(), fullMessage, recentMessages ?? []);
 
         // Persist to DB (async, after stream starts)
         await Promise.all([
           supabase.from("simulation_messages").insert({ session_id: sessionId, role: "user", content: message.trim() }),
-          supabase.from("simulation_messages").insert({ session_id: sessionId, role: "buyer", content: fullMessage, emotion: buyerResponseFinal.emotion, intent: buyerResponseFinal.intent }),
-          supabase.from("simulation_sessions").update({ state: newState }).eq("id", sessionId),
+          supabase.from("simulation_messages").insert({ session_id: sessionId, role: "buyer", content: fullMessage, emotion: buyerResponseFinal.emotion, intent: buyerResponseFinal.intent, action: buyerResponseFinal.action as any }),
+          supabase.from("simulation_sessions").update({ state: newState, buyer_memory: updatedMemory as any }).eq("id", sessionId),
         ]);
 
         send({
@@ -121,6 +163,7 @@ export async function POST(req: NextRequest) {
           emotion: buyerResponseFinal.emotion,
           intent: buyerResponseFinal.intent,
           state: newState,
+          buyer_memory: updatedMemory,
         });
       } catch (err) {
         console.error("[turn/stream]", err);

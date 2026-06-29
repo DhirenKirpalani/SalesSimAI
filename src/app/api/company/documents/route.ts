@@ -320,13 +320,13 @@ export async function POST(req: NextRequest) {
       // Chunk the text
       const chunks = chunkText(textContent.trim(), CHUNK_SIZE, CHUNK_OVERLAP);
 
-      // Create the document metadata row first
+      // Create the document metadata row (full text is stored for rich AI context)
       const { data: docRecord, error: docErr } = await supabase
         .from("company_documents")
         .insert({
           organization_id: orgId,
           name: name.trim(),
-          content: "",
+          content: textContent.trim(),
           doc_type: productType,
           document_type: effectiveDocumentType,
           file_path: filePath,
