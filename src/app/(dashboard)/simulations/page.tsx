@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Clock, ArrowRight, BarChart3, Inbox, Loader2, Calendar } from "lucide-react";
+import { Clock, ArrowRight, BarChart3, Inbox, Loader2, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface SessionSummary {
   id: string;
@@ -36,10 +36,13 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+const PAGE_SIZE = 10;
+
 export default function SimulationsPage() {
   const router = useRouter();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,6 +80,11 @@ export default function SimulationsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const totalPages = Math.ceil(sessions.length / PAGE_SIZE);
+  const paginatedSessions = useMemo(() => {
+    return sessions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  }, [sessions, page]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -100,7 +108,7 @@ export default function SimulationsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {sessions.map((s, i) => {
+          {paginatedSessions.map((s, i) => {
             const score = s.analysis?.overall_score;
             return (
               <motion.div
@@ -162,6 +170,32 @@ export default function SimulationsPage() {
               </motion.div>
             );
           })}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Page {page} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, Suspense, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ScoreCard } from "@/components/cards/ScoreCard";
@@ -22,6 +22,7 @@ import {
   Clock,
   TrendingUp,
   ChevronLeft,
+  ChevronRight,
   MessageSquare,
   AlertCircle,
 } from "lucide-react";
@@ -60,6 +61,8 @@ interface SessionSummary {
   source?: "voice" | "text" | "video";
 }
 
+const PAGE_SIZE = 10;
+
 function AnalysisContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -71,6 +74,7 @@ function AnalysisContent() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
@@ -193,6 +197,11 @@ function AnalysisContent() {
     }
   }, [sessionId, loadAnalysis, loadSessions, searchParams]);
 
+  const totalPages = Math.ceil(sessions.length / PAGE_SIZE);
+  const paginatedSessions = useMemo(() => {
+    return sessions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  }, [sessions, page]);
+
   const radarData = analysis
     ? [
         { subject: "Metrics", A: analysis.breakdown.metrics, fullMark: 100 },
@@ -237,11 +246,14 @@ function AnalysisContent() {
           </div>
         ) : (
           <div className="grid gap-3">
-            {sessions.map((s) => {
+            {paginatedSessions.map((s, i) => {
               const score = s.analysis?.overall_score ?? null;
               return (
-                <div
+                <motion.div
                   key={s.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, delay: i * 0.04 }}
                   className="group flex items-center gap-4 rounded-2xl border bg-card px-5 py-4 hover:shadow-sm hover:border-primary/30 transition-all cursor-pointer"
                   onClick={() => router.push(`/analysis?session=${s.id}${s.source ? `&source=${s.source}` : ``}`)}
                 >
@@ -281,9 +293,35 @@ function AnalysisContent() {
                   <Button size="sm" variant="ghost" className="shrink-0 gap-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
                     View <ArrowRight className="w-3 h-3" />
                   </Button>
-                </div>
+                </motion.div>
               );
             })}
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 pt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
           </div>
         )}
       </div>

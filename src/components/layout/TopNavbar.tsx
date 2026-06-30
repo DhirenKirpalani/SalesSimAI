@@ -201,10 +201,22 @@ export function TopNavbar() {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  const markAsRead = (id: string) => {
+    setNotifications((prev) => {
+      const notif = prev.find((n) => n.id === id);
+      if (!notif || notif.read) return prev;
+      const updated = prev.map((n) => (n.id === id ? { ...n, read: true } : n));
+      const ids = new Set([...readIdsRef.current, id]);
+      readIdsRef.current = ids;
+      saveReadIds(ids);
+      return updated;
+    });
+  };
+
   const markAllRead = () => {
     setNotifications((prev) => {
       const updated = prev.map((n) => ({ ...n, read: true }));
-      const ids = new Set(updated.map((n) => n.id));
+      const ids = new Set([...readIdsRef.current, ...updated.map((n) => n.id)]);
       readIdsRef.current = ids;
       saveReadIds(ids);
       return updated;
@@ -453,6 +465,7 @@ export function TopNavbar() {
               {notifications.map((n) => (
                 <div
                   key={n.id}
+                  onClick={() => n.type !== "invite" && markAsRead(n.id)}
                   className={cn(
                     "flex items-start gap-3 px-4 py-3 transition-colors",
                     n.type !== "invite" && "hover:bg-accent/50 cursor-pointer",
