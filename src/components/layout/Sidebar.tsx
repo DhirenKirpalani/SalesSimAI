@@ -12,7 +12,6 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
   BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -22,7 +21,6 @@ import { useRole } from "@/hooks/useRole";
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Scenarios", href: "/scenarios", icon: Library },
-  { label: "AI Scenario Generator", href: "/company-onboarding", icon: Sparkles },
   { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
   { label: "Company Knowledge", href: "/company-knowledge", icon: BookOpen },
