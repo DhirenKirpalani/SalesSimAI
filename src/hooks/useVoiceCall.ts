@@ -82,15 +82,19 @@ export function useVoiceCall(): UseVoiceCallReturn {
     transcriptRef.current = transcript;
   }, [transcript]);
 
+  const stripXmlTags = (text: string): string => text.replace(/<\/?[^>]+>/g, "").trim();
+
   const addTranscript = useCallback((role: "user" | "buyer", text: string, emotion?: string, intent?: string, timeOverride?: string) => {
-    const entry: TranscriptEntry = { role, text, time: timeOverride ?? new Date().toLocaleTimeString(), emotion, intent };
-    console.log("[useVoiceCall] addTranscript:", { role, text, emotion, intent, entryCount: transcriptRef.current.length + 1 });
+    const normalized = role === "buyer" ? stripXmlTags(text) : text;
+    const entry: TranscriptEntry = { role, text: normalized, time: timeOverride ?? new Date().toLocaleTimeString(), emotion, intent };
+    console.log("[useVoiceCall] addTranscript:", { role, text: normalized, emotion, intent, entryCount: transcriptRef.current.length + 1 });
     transcriptRef.current = [...transcriptRef.current, entry];
     setTranscript((prev) => [...prev, entry]);
   }, []);
 
   const patchLatestBuyerTranscript = useCallback((text: string, emotion?: string, intent?: string) => {
-    console.log("[useVoiceCall] patchLatestBuyerTranscript:", { text, emotion, intent });
+    const normalized = stripXmlTags(text);
+    console.log("[useVoiceCall] patchLatestBuyerTranscript:", { text: normalized, emotion, intent });
     setTranscript((prev) => {
       const next = [...prev];
       // Find the last buyer entry, or create one if missing
@@ -283,15 +287,16 @@ export function useVoiceCall(): UseVoiceCallReturn {
               turnAddedRef.current = false;
             }
           } else if (isAgentResponse) {
-            console.log("[useVoiceCall] agent response:", { text, turnAdded: turnAddedRef.current });
-            if (text) {
-              lastBuyerTextRef.current = text;
-              setCurrentBuyerText(text);
+            const normalized = stripXmlTags(text);
+            console.log("[useVoiceCall] agent response:", { text: normalized, turnAdded: turnAddedRef.current });
+            if (normalized) {
+              lastBuyerTextRef.current = normalized;
+              setCurrentBuyerText(normalized);
               if (!turnAddedRef.current) {
                 turnAddedRef.current = true;
-                addTranscript("buyer", text);
+                addTranscript("buyer", normalized);
               } else {
-                patchLatestBuyerTranscript(text);
+                patchLatestBuyerTranscript(normalized);
               }
             }
           } else if (eventType) {
@@ -303,7 +308,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
         onAgentResponseCorrection: (correction: Parameters<NonNullable<StartSessionOptions["onAgentResponseCorrection"]>>[0]) => {
           const data = (correction as unknown) as { corrected_agent_response?: string };
           console.log("[useVoiceCall] onAgentResponseCorrection:", data);
-          const text = String(data.corrected_agent_response ?? "").trim();
+          const text = stripXmlTags(String(data.corrected_agent_response ?? "").trim());
           if (text) {
             lastBuyerTextRef.current = text;
             patchLatestBuyerTranscript(text);

@@ -205,6 +205,37 @@ function HeyGenTestInner() {
   const nudgeIdRef = useRef(0);
   const lastNudgeSignatureRef = useRef<string | null>(null);
 
+  // 7-step discovery call structure progress bar
+  const CALL_STEPS = [
+    { id: 1, label: "Current setup", hint: "Ask how they currently handle this" },
+    { id: 2, label: "Breakdown point", hint: "Ask where it breaks down most" },
+    { id: 3, label: "Cost to team", hint: "Ask what it's costing the team" },
+    { id: 4, label: "Past fixes", hint: "Ask what they've tried to fix it" },
+    { id: 5, label: "Ideal outcome", hint: "Ask what a perfect fix would do" },
+    { id: 6, label: "Others affected", hint: "Ask who else feels this problem" },
+    { id: 7, label: "Blockers", hint: "Ask what would stop them moving forward" },
+  ];
+  const [currentStep, setCurrentStep] = useState(0);
+  const lastStepAdvanceRef = useRef<number>(0);
+
+  const stepKeywords = [
+    ["current setup", "current process", "how do you currently", "setup", "process today", "today"],
+    ["break down", "breaks down", "breaking down", "biggest challenge", "most painful", "struggle", "struggling", "where it hurts", "hardest part", "worst part"],
+    ["costing", "cost", "costs", "impact", "losing", "wasting", "how much", "time spent", "hours", "money"],
+    ["tried", "attempted", "workaround", "solution", "fix", "so far", "before", "previously", "dealt with"],
+    ["perfectly solved", "ideal outcome", "what would it mean", "if this works", "dream scenario", "best case", "future state"],
+    ["who else", "stakeholders", "team", "other people", "department", "affected", "who else feels", "anyone else", "colleagues"],
+    ["stop you", "concerns", "risks", "blockers", "moving forward", "next steps", "what would stop", "hesitation", "worried about"],
+  ];
+
+  const detectStepFromText = useCallback((text: string): number => {
+    const lower = text.toLowerCase();
+    for (let i = 0; i < stepKeywords.length; i++) {
+      if (stepKeywords[i].some((kw) => lower.includes(kw))) return i;
+    }
+    return -1;
+  }, []);
+
   /** Fuzzy nudge deduplication — returns true if newMsg is semantically too similar to any existing nudge */
   const isSimilarNudge = useCallback((existing: { message: string }[], newMsg: string): boolean => {
     const keywords = (s: string) =>
@@ -375,6 +406,8 @@ function HeyGenTestInner() {
       setTranscript([]);
       setFeedback(null);
       transcriptRef.current = [];
+      setCurrentStep(0);
+      lastStepAdvanceRef.current = -1;
     }
     addLog(isResume ? "Resuming LiveAvatar session…" : "Starting LiveAvatar session…");
 
@@ -612,6 +645,8 @@ function HeyGenTestInner() {
     setFeedback(null);
     transcriptRef.current = [];
     syncedVoiceTranscriptRef.current = [];
+    setCurrentStep(0);
+    lastStepAdvanceRef.current = -1;
     addLog("Starting voice call session…");
     coaching.reset();
     setCheckpointStatus({});
@@ -679,6 +714,8 @@ function HeyGenTestInner() {
     setTranscript([]);
     setFeedback(null);
     transcriptRef.current = [];
+    setCurrentStep(0);
+    lastStepAdvanceRef.current = -1;
     addLog("Starting text chat session…");
     coaching.reset();
     setCheckpointStatus({});
@@ -1319,6 +1356,21 @@ function HeyGenTestInner() {
     }
   }, [voiceCall.transcript, transcript, callMode, isSimilarNudge]);
 
+  // Auto-advance the 7-step discovery call progress bar based on seller's transcript
+  useEffect(() => {
+    if (status !== "connected") return;
+    const sourceTranscript = callMode === "voice" ? voiceCall.transcript : transcript;
+    const sellerEntries = sourceTranscript.filter((t) => (callMode === "voice" ? t.role === "user" : t.role === "user"));
+    if (sellerEntries.length === 0) return;
+    const latestSeller = sellerEntries[sellerEntries.length - 1];
+    const detectedStep = detectStepFromText(latestSeller.text);
+    if (detectedStep >= 0 && detectedStep >= currentStep && detectedStep < CALL_STEPS.length && detectedStep !== lastStepAdvanceRef.current) {
+      console.log("[simulation] advancing call step:", { from: currentStep, to: detectedStep + 1, text: latestSeller.text });
+      setCurrentStep(detectedStep + 1);
+      lastStepAdvanceRef.current = detectedStep;
+    }
+  }, [voiceCall.transcript, transcript, callMode, currentStep, detectStepFromText, status]);
+
   // Sync page-level status with voiceCall.status (connecting → connected, pause/resume, error)
   useEffect(() => {
     if (callMode !== "voice") return;
@@ -1500,7 +1552,7 @@ function HeyGenTestInner() {
 
         {/* Voice Call Panel (when voice mode is active) */}
         {callMode === "voice" && status === "connected" && (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 pt-[110px]">
             <VoiceCallPanel
               status={voiceCall.status as VoiceStatus}
               transcript={transcript}
@@ -1521,71 +1573,65 @@ function HeyGenTestInner() {
           </div>
         )}
 
-        {/* Live Nudges — persistent chat-log style coaching feedback */}
-        {liveNudges.length > 0 && status === "connected" && (
-          <div
-            ref={nudgeContainerRef}
-            onMouseDown={onNudgeMouseDown}
-            onTouchStart={onNudgeTouchStart}
-            className={`absolute z-30 w-72 max-h-[60vh] animate-in fade-in zoom-in-95 duration-200 ${
-              isDraggingNudge ? "cursor-grabbing" : "cursor-grab"
-            }`}
-            style={{ left: nudgePos.x, top: nudgePos.y }}
-          >
-            <div className="bg-[#0B1220]/90 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Live Coaching</div>
-                <button
-                  onClick={() => setLiveNudges([])}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  className="text-[10px] text-white/50 hover:text-white transition-colors"
-                >
-                  Clear all
-                </button>
+        {/* 7-Step Discovery Call Progress Bar — full call structure preview */}
+        {status === "connected" && (
+          <div className="absolute top-0 left-0 right-0 z-30 px-4 py-3 bg-[#0B0E14]/95 border-b border-white/10 backdrop-blur-md">
+            <div className="max-w-5xl mx-auto">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Call Structure</div>
+                <div className="text-[10px] text-white/40">
+                  Step {Math.min(currentStep + 1, CALL_STEPS.length)} of {CALL_STEPS.length}
+                </div>
               </div>
-              <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
-                {liveNudges.map((nudge) => (
-                  <div
-                    key={nudge.id}
-                    className={`rounded-xl px-2.5 py-2 shadow border flex items-start gap-2 backdrop-blur-md ${
-                      nudge.type === "success"
-                        ? "bg-emerald-950/80 border-emerald-500/30 text-emerald-100"
-                        : nudge.type === "warning"
-                        ? "bg-amber-950/80 border-amber-500/30 text-amber-100"
-                        : "bg-[#111827]/90 border-blue-500/30 text-blue-100"
-                    }`}
-                  >
-                    <div className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5">
-                      {nudge.type === "success" ? (
-                        <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : nudge.type === "warning" ? (
-                        <svg className="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.054 0 1.666-1.151 1.048-1.973l-6.928-10.003c-.624-.898-1.944-.898-2.568 0L4.014 17.027c-.618.822-.006 1.973 1.048 1.973z" />
-                        </svg>
-                      ) : (
-                        <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+
+              {/* All steps preview — current highlighted, completed green, upcoming dim */}
+              <div className="flex items-start gap-1.5 overflow-x-auto no-scrollbar">
+                {CALL_STEPS.map((step, idx) => {
+                  const isCompleted = idx < currentStep;
+                  const isActive = idx === currentStep;
+                  return (
+                    <div
+                      key={step.id}
+                      className={`shrink-0 flex-1 min-w-[68px] rounded-xl border p-2 transition-all duration-300 ${
+                        isActive
+                          ? "bg-blue-500/15 border-blue-500/40"
+                          : isCompleted
+                          ? "bg-emerald-500/10 border-emerald-500/30"
+                          : "bg-white/5 border-white/10"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <div
+                          className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                            isCompleted
+                              ? "bg-emerald-500 text-white"
+                              : isActive
+                              ? "bg-blue-500 text-white"
+                              : "bg-white/10 text-white/40"
+                          }`}
+                        >
+                          {isCompleted ? (
+                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            step.id
+                          )}
+                        </div>
+                        <span
+                          className={`text-[9px] leading-tight ${
+                            isActive ? "text-white font-medium" : isCompleted ? "text-emerald-100" : "text-white/40"
+                          }`}
+                        >
+                          {step.label}
+                        </span>
+                      </div>
+                      {isActive && (
+                        <p className="text-[10px] text-blue-200/80 leading-tight">{step.hint}</p>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium leading-snug">{nudge.message}</p>
-                    </div>
-                    <button
-                      onClick={() => setLiveNudges((prev) => prev.filter((n) => n.id !== nudge.id))}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onTouchStart={(e) => e.stopPropagation()}
-                      className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors mt-0.5"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -1593,7 +1639,7 @@ function HeyGenTestInner() {
 
         {/* Text Chat Panel (when text mode is active) */}
         {callMode === "text" && status === "connected" && (
-          <div className="absolute inset-0 flex flex-col bg-[#0B0E14]">
+          <div className="absolute inset-0 flex flex-col bg-[#0B0E14] pt-[110px]">
             {/* WhatsApp-style Header */}
             <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-white/10 bg-[#111827]">
               <div className="flex items-center gap-3">
