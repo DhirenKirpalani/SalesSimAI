@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { Mic, MicOff, Pause, Play, Volume2, AlertCircle, PhoneOff } from "lucide-react";
+import { Mic, MicOff, Volume2, AlertCircle, PhoneOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VoiceStatus } from "@/hooks/useVoiceCall";
 
@@ -27,7 +27,6 @@ interface VoiceCallPanelProps {
   audioEnergyRef?: React.MutableRefObject<number>;
   micEnergyRef?: React.MutableRefObject<number>;
   onToggleMic: () => void;
-  onTogglePause: () => void;
   onSetVolume: (v: number) => void;
   onEndCall: () => void;
 }
@@ -66,7 +65,6 @@ export function VoiceCallPanel({
   audioEnergyRef,
   micEnergyRef,
   onToggleMic,
-  onTogglePause,
   onSetVolume,
   onEndCall,
 }: VoiceCallPanelProps) {
@@ -241,18 +239,10 @@ export function VoiceCallPanel({
                 "w-14 h-14 rounded-full flex items-center justify-center transition-all hover:scale-105",
                 !micMuted
                   ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
-                  : "bg-white/10 text-white hover:bg-white/20"
+                  : "bg-red-500 text-white shadow-lg shadow-red-500/20"
               )}
             >
               {!micMuted ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
-            </button>
-
-            {/* Pause */}
-            <button
-              onClick={onTogglePause}
-              className="w-14 h-14 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-all hover:scale-105"
-            >
-              {status === "paused" ? <Play className="w-6 h-6" /> : <Pause className="w-6 h-6" />}
             </button>
 
             {/* Volume */}

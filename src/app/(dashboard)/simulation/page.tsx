@@ -177,7 +177,9 @@ function HeyGenTestInner() {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
   const [voiceAvatarImageUrl, setVoiceAvatarImageUrl] = useState<string | null>(null);
+  const [elevenlabsVoiceId, setElevenlabsVoiceId] = useState<string | null>(null);
   const personaContextRef = useRef<PersonaContext | null>(null);
+  const syncedVoiceTranscriptRef = useRef<{ role: "user" | "buyer"; text: string; emotion?: string; intent?: string }[]>([]);
 
   // Call mode + coaching state
   const [callMode, setCallMode] = useState<"video" | "voice" | "text">("video");
@@ -609,6 +611,7 @@ function HeyGenTestInner() {
     setTranscript([]);
     setFeedback(null);
     transcriptRef.current = [];
+    syncedVoiceTranscriptRef.current = [];
     addLog("Starting voice call session…");
     coaching.reset();
     setCheckpointStatus({});
@@ -639,26 +642,27 @@ function HeyGenTestInner() {
       defaultDurationRef.current = sessionDurationSec;
       setTimeLeft(sessionDurationSec);
 
-      console.log(`%c[simulation] �️ Voice call starting — dashboard controlled voice`, "color:#a78bfa;font-weight:bold;font-size:13px");
-      addLog(`🎙️ Voice: ${elevenlabsVoiceIdParam ?? "dashboard default"}`);
-
+      console.log(`%c[simulation] �️ Voice call starting — scenario controlled voice`, "color:#a78bfa;font-weight:bold;font-size:13px");
+      const effectiveVoiceId = elevenlabsVoiceId ?? undefined;
+      addLog(`🎙️ Voice: ${effectiveVoiceId ?? "dashboard default"}`);
       const agentId = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
-      if (elevenlabsVoiceIdParam && agentId) {
-        addLog(`🎙️ Updating ElevenLabs agent voice to ${elevenlabsVoiceIdParam}…`);
+      if (effectiveVoiceId && agentId) {
+        addLog(`🎙️ Updating ElevenLabs agent voice to ${effectiveVoiceId}…`);
         const updateRes = await fetch("/api/elevenlabs/update-agent-voice", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ agentId, voiceId: elevenlabsVoiceIdParam }),
+          body: JSON.stringify({ agentId, voiceId: effectiveVoiceId }),
         });
         if (!updateRes.ok) {
           const updateData = await updateRes.json().catch(() => ({}));
           addLog(`⚠️ Failed to update agent voice: ${updateData.error ?? updateRes.status}`);
         } else {
-          addLog("🎙️ Agent voice updated");
+          const updateData = await updateRes.json().catch(() => ({}));
+          addLog(`🎙️ Agent voice update → requested: ${effectiveVoiceId}, confirmed: ${updateData.voiceId ?? "unknown"}, verified: ${updateData.verified ? "yes" : "no"}`);
         }
       }
 
-      voiceCall.start(sessionId, elevenlabsVoiceIdParam, selectedVoiceLanguage, personaContextRef.current ?? undefined);
+      voiceCall.start(sessionId, effectiveVoiceId, selectedVoiceLanguage, personaContextRef.current ?? undefined);
       addLog("🎙️ Voice call started");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -666,7 +670,7 @@ function HeyGenTestInner() {
       setStatus("error");
       addLog("❌ " + msg);
     }
-  }, [addLog, scenarioId, scenarioTable, resolvedScenarioName, voiceCall, coaching, selectedVoiceLanguage, elevenlabsVoiceIdParam]);
+  }, [addLog, scenarioId, scenarioTable, resolvedScenarioName, voiceCall, coaching, selectedVoiceLanguage, elevenlabsVoiceId]);
 
   // Text chat start — creates a simulation session for typed conversation
   const startText = useCallback(async () => {
@@ -872,7 +876,7 @@ function HeyGenTestInner() {
     setStatus("paused");
     setMicOn(false);
     // Voice pause
-    voiceCall.togglePause();
+    voiceCall.stop();
     addLog("⏸️ Session paused");
     const recorder = recorderRef.current;
     if (recorder && recorder.state !== "inactive") {
@@ -1129,7 +1133,7 @@ function HeyGenTestInner() {
         const supabase = createClient();
         const { data: scenario } = await supabase
           .from(scenarioTable)
-          .select("seller_company, seller_product, custom_persona, context_note, preset_persona_id, scenario_type, scoring_criteria")
+          .select("seller_company, seller_product, custom_persona, context_note, preset_persona_id, scenario_type, scoring_criteria, elevenlabs_voice_id, voice_avatar_image_url")
           .eq("id", scenarioId)
           .single();
         if (scenario) {
@@ -1169,6 +1173,8 @@ function HeyGenTestInner() {
             scenarioType: scenario.scenario_type ?? undefined,
           });
           setScoringCriteria((scenario as any).scoring_criteria ?? null);
+          setElevenlabsVoiceId(elevenlabsVoiceIdParam ?? (scenario as any).elevenlabs_voice_id ?? null);
+          setVoiceAvatarImageUrl((prev) => prev ?? (scenario as any).voice_avatar_image_url ?? null);
         }
       } catch { /* ignore */ }
     };
@@ -1176,26 +1182,52 @@ function HeyGenTestInner() {
   }, [scenarioId, scenarioTable, setScenarioContext]);
 
   // Sync voice call transcripts into the page transcript (shows in Conversation modal)
-  // AI/buyer messages are delayed until the avatar finishes speaking so it feels natural.
   useEffect(() => {
     console.log("[simulation] voice transcript sync effect:", { callMode, voiceTranscriptLength: voiceCall.transcript.length, voiceTranscript: voiceCall.transcript });
     if (callMode !== "voice" || voiceCall.transcript.length === 0) return;
-    const last = voiceCall.transcript[voiceCall.transcript.length - 1];
-    const pageRole = last.role === "buyer" ? "avatar" : "user";
-    console.log("[simulation] syncing voice transcript entry:", { last, pageRole, isSpeaking: voiceCall.isSpeaking, pageTranscriptLength: transcript.length });
-    const alreadyHas = transcript.length > 0 && transcript[transcript.length - 1].text === last.text;
-    if (alreadyHas) {
-      console.log("[simulation] skipping duplicate transcript entry");
-      return;
+
+    const voiceTranscript = voiceCall.transcript;
+    const synced = syncedVoiceTranscriptRef.current;
+    let pageChanged = false;
+
+    for (let i = 0; i < voiceTranscript.length; i++) {
+      const voiceEntry = voiceTranscript[i];
+      const syncedEntry = synced[i];
+      const pageRole = voiceEntry.role === "buyer" ? "avatar" : "user";
+
+      if (!syncedEntry) {
+        // New voice entry — add a new page transcript entry
+        addTranscript(pageRole, voiceEntry.text, voiceEntry.emotion, voiceEntry.intent);
+        console.log("[simulation] added transcript entry:", { pageRole, text: voiceEntry.text, idx: i });
+        pageChanged = true;
+      } else if (syncedEntry.text !== voiceEntry.text || syncedEntry.emotion !== voiceEntry.emotion || syncedEntry.intent !== voiceEntry.intent) {
+        // Existing voice entry was patched — update the corresponding page entry by role
+        const roleCount = voiceTranscript.slice(0, i + 1).filter((e) => e.role === voiceEntry.role).length;
+        setTranscript((prev) => {
+          let matched = 0;
+          let pageIdx = prev.length - 1;
+          while (pageIdx >= 0) {
+            if (prev[pageIdx].role === pageRole) {
+              matched++;
+              if (matched === roleCount) break;
+            }
+            pageIdx--;
+          }
+          if (pageIdx < 0) return prev;
+          const next = [...prev];
+          next[pageIdx] = { ...prev[pageIdx], text: voiceEntry.text, emotion: voiceEntry.emotion, intent: voiceEntry.intent };
+          console.log("[simulation] patched transcript entry:", { pageRole, text: voiceEntry.text, pageIdx, voiceIdx: i, roleCount });
+          return next;
+        });
+        pageChanged = true;
+      }
     }
-    if (last.role === "buyer" && voiceCall.isSpeaking) {
-      console.log("[simulation] delaying buyer transcript until agent stops speaking");
-      return;
+
+    if (pageChanged) {
+      syncedVoiceTranscriptRef.current = voiceTranscript.map((e) => ({ role: e.role, text: e.text, emotion: e.emotion, intent: e.intent }));
     }
-    addTranscript(pageRole, last.text, last.emotion, last.intent);
-    console.log("[simulation] added transcript entry:", { pageRole, text: last.text });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiceCall.transcript, voiceCall.isSpeaking, callMode]);
+  }, [voiceCall.transcript, callMode]);
 
   // Analyze turns for coaching (both video and voice modes)
   useEffect(() => {
@@ -1483,7 +1515,6 @@ function HeyGenTestInner() {
               audioEnergyRef={voiceCall.audioEnergyRef}
               micEnergyRef={voiceCall.micEnergyRef}
               onToggleMic={voiceCall.toggleMic}
-              onTogglePause={voiceCall.togglePause}
               onSetVolume={voiceCall.setVolume}
               onEndCall={handleEnd}
             />

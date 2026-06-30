@@ -36,7 +36,6 @@ interface UseVoiceCallReturn {
   start: (sessionId: string, voiceId?: string, language?: VoiceLanguage, persona?: PersonaContext) => void;
   stop: () => void;
   toggleMic: () => void;
-  togglePause: () => void;
   setVolume: (v: number) => void;
 }
 
@@ -68,7 +67,10 @@ export function useVoiceCall(): UseVoiceCallReturn {
   const abortRef = useRef(false);
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const turnAddedRef = useRef(false);
+  const userTurnAddedRef = useRef(false);
+  const agentSpeakingRef = useRef(false);
   const lastBuyerTextRef = useRef<string>("");
+  const lastUserTextRef = useRef<string>("");
   const realtimeChannelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
 
   // Audio energy refs for real-time visualization (0 = silent, 1 = max)
@@ -178,6 +180,10 @@ export function useVoiceCall(): UseVoiceCallReturn {
     setIsSpeaking(false);
     setMicMuted(false);
     lastBuyerTextRef.current = "";
+    lastUserTextRef.current = "";
+    turnAddedRef.current = false;
+    userTurnAddedRef.current = false;
+    agentSpeakingRef.current = false;
     sessionIdRef.current = sessionId;
     voiceIdRef.current = voiceId ?? null;
     languageRef.current = language ?? "en";
@@ -198,24 +204,22 @@ export function useVoiceCall(): UseVoiceCallReturn {
       const voiceConfig = buildVoiceConfig(sessionId, languageRef.current, voiceId ?? undefined, persona);
 
       // ── VOICE SELECTION LOG ──────────────────────────────────────────────
-      // Voice is controlled by the ElevenLabs agent dashboard (Christine is primary).
-      // We do NOT send a runtime tts override because the SDK/server rejects it and crashes.
-      console.log(`%c[useVoiceCall] 🎙️ SELECTED VOICE: ${voiceConfig.voiceId ?? "dashboard default"} (dashboard controlled)`, "color:#f472b6;font-weight:bold;font-size:13px");
+      // Voice and prompt are controlled by the scenario configuration via the update-agent-voice API.
+      // We also attempt a runtime tts override so the first response uses the correct voice immediately.
+      // If the SDK rejects the override, we fall back to starting without it.
+      console.log(`%c[useVoiceCall] 🎙️ SELECTED VOICE: ${voiceConfig.voiceId ?? "dashboard default"} (scenario controlled)`, "color:#f472b6;font-weight:bold;font-size:13px");
       console.log("[useVoiceCall] voiceConfig:", voiceConfig);
       // ─────────────────────────────────────────────────────────────────────
 
-      const overrides = {
+      const baseOverrides = {
         ...(voiceConfig.language ? { agent: { language: voiceConfig.language } } : {}),
-        // Voice is controlled by the ElevenLabs agent dashboard (Christine as primary).
-        // Runtime tts.voiceId overrides caused the SDK to crash when the server rejected the session.
       };
-      console.log("%c[useVoiceCall] 📤 overrides being sent to ElevenLabs:", "color:#fb923c;font-weight:bold;font-size:13px", JSON.stringify(overrides, null, 2));
-      console.log("[useVoiceCall] calling Conversation.startSession...");
-      const conversation = await Conversation.startSession({
-        agentId,
-        connectionType: "webrtc",
-        dynamicVariables: voiceConfig.dynamicVariables,
-        overrides: overrides as Parameters<typeof Conversation.startSession>[0]["overrides"],
+      const overridesWithVoice = voiceConfig.voiceId
+        ? { ...baseOverrides, tts: { voice_id: voiceConfig.voiceId } }
+        : baseOverrides;
+      console.log("%c[useVoiceCall] 📤 overrides being sent to ElevenLabs:", "color:#fb923c;font-weight:bold;font-size:13px", JSON.stringify(overridesWithVoice, null, 2));
+
+      const startSessionCallbacks = {
         onConnect: () => {
           console.log("[useVoiceCall] onConnect");
           setStatus("listening");
@@ -225,7 +229,8 @@ export function useVoiceCall(): UseVoiceCallReturn {
         onDisconnect: () => {
           console.log("[useVoiceCall] onDisconnect", { abort: abortRef.current });
           if (!abortRef.current) {
-            setStatus("idle");
+            setError("Call disconnected unexpectedly. Interruptions can sometimes drop the WebRTC connection. Try ending the call and starting again.");
+            setStatus("error");
           }
         },
         onError: (err: unknown) => {
@@ -237,39 +242,47 @@ export function useVoiceCall(): UseVoiceCallReturn {
           const msg = (message as unknown) as Record<string, unknown>;
           console.log("[useVoiceCall] onMessage raw:", msg);
 
-          // ElevenLabs SDK uses two shapes:
-          // 1. Speaking state events: { type: "agent_started_speaking" | ... }
-          // 2. Transcript/response events: { source: "user" | "ai", role: "user" | "agent", message: string }
           const eventType = typeof msg.type === "string" ? msg.type : undefined;
           const source = typeof msg.source === "string" ? msg.source : undefined;
           const role = typeof msg.role === "string" ? msg.role : undefined;
-          const text = String(msg.message ?? msg.text ?? "").trim();
+          const text = String(
+            msg.message ??
+            msg.text ??
+            msg.corrected_agent_response ??
+            msg.response ??
+            msg.content ??
+            (msg.agent_response as Record<string, unknown>)?.message ??
+            ""
+          ).trim();
+          const isUserTranscript = source === "user" || role === "user" || eventType === "user_transcript";
+          const isAgentResponse = source === "ai" || role === "agent" || eventType === "agent_response" || eventType === "agent_response_correction";
 
-          // Track speaking state
           if (eventType === "agent_started_speaking") {
-            console.log("[useVoiceCall] agent_started_speaking");
+            agentSpeakingRef.current = true;
             setIsSpeaking(true);
             setStatus("speaking");
           } else if (eventType === "agent_stopped_speaking") {
-            console.log("[useVoiceCall] agent_stopped_speaking");
+            agentSpeakingRef.current = false;
             setIsSpeaking(false);
             setStatus("listening");
             setTimeout(() => setCurrentBuyerText(""), 3000);
           } else if (eventType === "user_started_speaking") {
-            console.log("[useVoiceCall] user_started_speaking");
             setStatus("listening");
-            turnAddedRef.current = false;
+            if (!agentSpeakingRef.current) turnAddedRef.current = false;
+            userTurnAddedRef.current = false;
+            lastUserTextRef.current = "";
             setCurrentBuyerText("");
           } else if (eventType === "user_stopped_speaking") {
-            console.log("[useVoiceCall] user_stopped_speaking");
             setStatus("listening");
-          } else if (source === "user" || role === "user") {
-            console.log("[useVoiceCall] user transcript:", { text });
-            turnAddedRef.current = false; // reset so next agent response creates a new entry
-            if (text) {
+          } else if (isUserTranscript) {
+            console.log("[useVoiceCall] user transcript:", { text, alreadyAdded: userTurnAddedRef.current, lastUserText: lastUserTextRef.current });
+            if (text && (!userTurnAddedRef.current || text !== lastUserTextRef.current)) {
+              userTurnAddedRef.current = true;
+              lastUserTextRef.current = text;
               addTranscript("user", text);
+              turnAddedRef.current = false;
             }
-          } else if (source === "ai" || role === "agent") {
+          } else if (isAgentResponse) {
             console.log("[useVoiceCall] agent response:", { text, turnAdded: turnAddedRef.current });
             if (text) {
               lastBuyerTextRef.current = text;
@@ -298,7 +311,29 @@ export function useVoiceCall(): UseVoiceCallReturn {
             void fetchLatestBuyerMessage(text);
           }
         },
-      });
+      };
+
+      let conversation: Conversation;
+      try {
+        console.log("[useVoiceCall] calling Conversation.startSession with voice override...");
+        conversation = await Conversation.startSession({
+          agentId,
+          connectionType: "webrtc",
+          dynamicVariables: voiceConfig.dynamicVariables,
+          overrides: overridesWithVoice as Parameters<typeof Conversation.startSession>[0]["overrides"],
+          ...startSessionCallbacks,
+        });
+      } catch (voiceOverrideErr) {
+        console.warn("[useVoiceCall] voice override rejected, retrying without override:", voiceOverrideErr);
+        console.log("[useVoiceCall] calling Conversation.startSession without voice override...");
+        conversation = await Conversation.startSession({
+          agentId,
+          connectionType: "webrtc",
+          dynamicVariables: voiceConfig.dynamicVariables,
+          overrides: baseOverrides as Parameters<typeof Conversation.startSession>[0]["overrides"],
+          ...startSessionCallbacks,
+        });
+      }
 
       conversationRef.current = conversation;
       // ── VOICE VERIFICATION LOG ──────────────────────────────────────────
@@ -357,20 +392,13 @@ export function useVoiceCall(): UseVoiceCallReturn {
     if (micMuted) {
       conv.setMicMuted(false);
       setMicMuted(false);
-      setStatus("listening");
       console.log("[useVoiceCall] mic unmuted");
     } else {
       conv.setMicMuted(true);
       setMicMuted(true);
-      setStatus("paused");
       console.log("[useVoiceCall] mic muted");
     }
   }, [micMuted]);
-
-  const togglePause = useCallback(() => {
-    console.log("[useVoiceCall] togglePause called", { status, micMuted });
-    toggleMic();
-  }, [status, micMuted, toggleMic]);
 
   const setVolume = useCallback((v: number) => {
     console.log("[useVoiceCall] setVolume:", v);
@@ -404,7 +432,6 @@ export function useVoiceCall(): UseVoiceCallReturn {
     start,
     stop,
     toggleMic,
-    togglePause,
     setVolume,
   };
 }
