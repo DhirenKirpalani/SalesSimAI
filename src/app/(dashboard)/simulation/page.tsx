@@ -37,6 +37,25 @@ interface CoachingMoment {
   what_they_should_have_said: string;
 }
 
+interface ProductCorrection {
+  claim: string;
+  correction: string;
+  severity: "error" | "warning";
+  topic: string;
+}
+
+interface CoachTurnResult {
+  fallback?: boolean;
+  error?: string;
+  quality?: "good" | "warning" | "missed";
+  nudge?: string;
+  checkpoint_hit?: string | null;
+  checkpoint_name?: string | null;
+  suggested_next?: string;
+  already_covered?: string[];
+  product_corrections?: ProductCorrection[];
+}
+
 
 interface FeedbackResult {
   overall_score: number;
@@ -248,6 +267,56 @@ function HeyGenTestInner() {
       return overlap / Math.min(newKw.length, existingKw.length) >= 0.55;
     });
   }, []);
+
+  /** Append a coach-turn result (sales nudge + product fact corrections) to the live nudge log */
+  const appendCoachTurnNudges = useCallback((result: CoachTurnResult) => {
+    if (result.fallback || result.error || !result.quality || !result.nudge) return;
+    const nudgeType: "success" | "info" | "warning" =
+      result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
+    const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
+    const nudgeMessage = `${label}${result.nudge}`;
+    setLiveNudges((prev) => {
+      if (isSimilarNudge(prev, nudgeMessage)) {
+        console.log("[simulation] skipping similar coach-turn nudge:", nudgeMessage);
+        return prev;
+      }
+      const next = [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
+      return next.length > 6 ? next.slice(next.length - 6) : next;
+    });
+    if (result.checkpoint_hit && typeof result.checkpoint_hit === "string") {
+      const checkpointHit = result.checkpoint_hit;
+      const quality = result.quality;
+      setCheckpointStatus((prev) => ({ ...prev, [checkpointHit]: quality === "good" ? "hit" : "warning" }));
+    }
+    if (result.already_covered?.length) {
+      setCheckpointStatus((prev) => {
+        const updated = { ...prev };
+        for (const cp of result.already_covered!) {
+          if (!updated[cp]) updated[cp] = "hit";
+        }
+        return updated;
+      });
+    }
+    const corrections = result.product_corrections?.filter(
+      (c): c is ProductCorrection =>
+        !!c && c.claim.trim().length > 0 && c.correction.trim().length > 0
+    );
+    if (corrections?.length) {
+      setLiveNudges((prev) => {
+        const newNudges = corrections
+          .filter((c) => !isSimilarNudge(prev, `${c.claim} ${c.correction}`))
+          .map((c) => ({
+            id: ++nudgeIdRef.current,
+            message: `Fact check (${c.topic || "product"}): "${c.claim}" → ${c.correction}`,
+            type: "warning" as const,
+          }));
+        if (newNudges.length === 0) return prev;
+        const next = [...prev, ...newNudges];
+        return next.length > 6 ? next.slice(next.length - 6) : next;
+      });
+    }
+  }, [isSimilarNudge]);
+
   const [nudgePos, setNudgePos] = useState<{ x: number; y: number }>({ x: 16, y: 16 });
   const [isDraggingNudge, setIsDraggingNudge] = useState(false);
   const nudgeDragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -789,33 +858,7 @@ function HeyGenTestInner() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId, sellerText: message, buyerText: buyerMsg }),
-        }).then((r) => r.json()).then((result) => {
-          if (result.fallback || result.error || !result.quality || !result.nudge) return;
-          const nudgeType: "success" | "info" | "warning" =
-            result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
-          const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
-          const nudgeMessage = `${label}${result.nudge}`;
-          setLiveNudges((prev) => {
-            if (isSimilarNudge(prev, nudgeMessage)) {
-              console.log("[simulation] skipping similar coach-turn nudge:", nudgeMessage);
-              return prev;
-            }
-            const next = [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
-            return next.length > 6 ? next.slice(next.length - 6) : next;
-          });
-          if (result.checkpoint_hit) {
-            setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
-          }
-          if (result.already_covered?.length) {
-            setCheckpointStatus((prev) => {
-              const updated = { ...prev };
-              for (const cp of result.already_covered) {
-                if (!updated[cp]) updated[cp] = "hit";
-              }
-              return updated;
-            });
-          }
-        }).catch(() => {});
+        }).then((r) => r.json()).then(appendCoachTurnNudges).catch(() => {});
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -823,7 +866,7 @@ function HeyGenTestInner() {
     } finally {
       setTextLoading(false);
     }
-  }, [textInput, textSessionId, textLoading, addTranscript, addLog, coachingAnalyzeRef]);
+  }, [textInput, textSessionId, textLoading, addTranscript, addLog, coachingAnalyzeRef, appendCoachTurnNudges]);
 
   const toggleMic = useCallback(async () => {
     const room = roomRef.current;
@@ -1281,33 +1324,7 @@ function HeyGenTestInner() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ sessionId: voiceSessionId, sellerText: sellerEntry.text, buyerText: buyerEntry.text }),
-          }).then((r) => r.json()).then((result) => {
-            if (result.fallback || result.error || !result.quality || !result.nudge) return;
-            const nudgeType: "success" | "info" | "warning" =
-              result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
-            const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
-            const nudgeMessage = `${label}${result.nudge}`;
-            setLiveNudges((prev) => {
-              if (isSimilarNudge(prev, nudgeMessage)) {
-                console.log("[simulation] skipping similar coach-turn nudge:", nudgeMessage);
-                return prev;
-              }
-              const next = [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
-              return next.length > 6 ? next.slice(next.length - 6) : next;
-            });
-            if (result.checkpoint_hit) {
-              setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
-            }
-            if (result.already_covered?.length) {
-              setCheckpointStatus((prev) => {
-                const updated = { ...prev };
-                for (const cp of result.already_covered) {
-                  if (!updated[cp]) updated[cp] = "hit";
-                }
-                return updated;
-              });
-            }
-          }).catch(() => {});
+          }).then((r) => r.json()).then(appendCoachTurnNudges).catch(() => {});
         }
       }
     } else {
@@ -1324,37 +1341,11 @@ function HeyGenTestInner() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ sessionId: videoSessionId, sellerText: sellerEntry.text, buyerText: buyerEntry.text }),
-          }).then((r) => r.json()).then((result) => {
-            if (result.fallback || result.error || !result.quality || !result.nudge) return;
-            const nudgeType: "success" | "info" | "warning" =
-              result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
-            const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
-            const nudgeMessage = `${label}${result.nudge}`;
-            setLiveNudges((prev) => {
-              if (isSimilarNudge(prev, nudgeMessage)) {
-                console.log("[simulation] skipping similar coach-turn nudge:", nudgeMessage);
-                return prev;
-              }
-              const next = [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
-              return next.length > 6 ? next.slice(next.length - 6) : next;
-            });
-            if (result.checkpoint_hit) {
-              setCheckpointStatus((prev) => ({ ...prev, [result.checkpoint_hit]: result.quality === "good" ? "hit" : "warning" }));
-            }
-            if (result.already_covered?.length) {
-              setCheckpointStatus((prev) => {
-                const updated = { ...prev };
-                for (const cp of result.already_covered) {
-                  if (!updated[cp]) updated[cp] = "hit";
-                }
-                return updated;
-              });
-            }
-          }).catch(() => {});
+          }).then((r) => r.json()).then(appendCoachTurnNudges).catch(() => {});
         }
       }
     }
-  }, [voiceCall.transcript, transcript, callMode, isSimilarNudge]);
+  }, [voiceCall.transcript, transcript, callMode, appendCoachTurnNudges]);
 
   // Auto-advance the 7-step discovery call progress bar based on seller's transcript
   useEffect(() => {
@@ -1634,6 +1625,32 @@ function HeyGenTestInner() {
                 })}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Live coaching nudges — floating left panel */}
+        {status === "connected" && liveNudges.length > 0 && (
+          <div
+            ref={nudgeContainerRef}
+            className="absolute top-[140px] left-4 z-40 flex flex-col gap-2 max-w-xs w-80 select-none"
+            style={{ transform: `translate3d(${nudgePos.x}px, ${nudgePos.y}px, 0)` }}
+            onMouseDown={onNudgeMouseDown}
+            onTouchStart={onNudgeTouchStart}
+          >
+            {liveNudges.slice(-3).map((nudge) => (
+              <div
+                key={nudge.id}
+                className={`rounded-lg px-3 py-2 text-xs shadow-lg border backdrop-blur-md ${
+                  nudge.type === "success"
+                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-100"
+                    : nudge.type === "warning"
+                    ? "bg-amber-500/15 border-amber-500/30 text-amber-100"
+                    : "bg-blue-500/15 border-blue-500/30 text-blue-100"
+                }`}
+              >
+                {nudge.message}
+              </div>
+            ))}
           </div>
         )}
 
