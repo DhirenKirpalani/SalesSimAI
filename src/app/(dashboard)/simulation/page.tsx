@@ -9,7 +9,7 @@ import type { PersonaContext } from "@/lib/voice-config";
 import { useCoaching } from "@/hooks/useCoaching";
 import { VoiceCallPanel } from "@/components/VoiceCallPanel";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
-import { Video, Mic, MessageSquare, Send } from "lucide-react";
+import { Video, Mic, MessageSquare, Send, GripVertical, Lightbulb, ChevronDown, ChevronUp, X, AlertTriangle, Target, Sparkles, Info, CheckCircle2, Copy, Check } from "lucide-react";
 
 type Status = "idle" | "connecting" | "connected" | "paused" | "error";
 
@@ -80,6 +80,43 @@ function parseCheckpointIds(criteria: string): { id: string; name: string }[] {
 }
 
 type CheckpointStatus = "hit" | "warning" | "pending";
+
+type NudgeCategory = "correction" | "checkpoint" | "suggestion" | "insight" | "success";
+
+interface Nudge {
+  id: number;
+  message: string;
+  type: "success" | "info" | "warning";
+  category: NudgeCategory;
+  priority: number;
+  checkpointId?: string;
+  copyText?: string;
+}
+
+/** Classify a nudge message by urgency and extract copyable/actionable text. */
+function classifyNudge(
+  message: string,
+  type: "success" | "info" | "warning",
+  opts?: { checkpointId?: string; copyText?: string }
+): { category: NudgeCategory; priority: number; checkpointId?: string; copyText?: string } {
+  if (message.includes("Fact check")) {
+    return { category: "correction", priority: 1, copyText: opts?.copyText };
+  }
+  const cpMatch = message.match(/^([A-Z]\d+):\s*/);
+  if (cpMatch || opts?.checkpointId) {
+    return { category: "checkpoint", priority: 2, checkpointId: cpMatch?.[1] || opts?.checkpointId, copyText: opts?.copyText };
+  }
+  if (message.startsWith("Try:")) {
+    return { category: "suggestion", priority: 3, copyText: message.replace(/^Try:\s*/, "") };
+  }
+  if (message.startsWith("Insight uncovered:")) {
+    return { category: "insight", priority: 4, copyText: opts?.copyText };
+  }
+  if (type === "success") {
+    return { category: "success", priority: 5, copyText: opts?.copyText };
+  }
+  return { category: "insight", priority: 4, copyText: opts?.copyText };
+}
 
 // Draggable coaching overlay wrapper
 function DraggableCoaching({
@@ -220,7 +257,7 @@ function HeyGenTestInner() {
   const coachingAnalyzeRef = useRef(coaching.analyze);
 
   // Live nudge bubbles — persistent coaching feedback log that accumulates after each turn
-  const [liveNudges, setLiveNudges] = useState<{ id: number; message: string; type: "success" | "info" | "warning" }[]>([]);
+  const [liveNudges, setLiveNudges] = useState<Nudge[]>([]);
   const nudgeIdRef = useRef(0);
   const lastNudgeSignatureRef = useRef<string | null>(null);
 
@@ -256,7 +293,7 @@ function HeyGenTestInner() {
   }, []);
 
   /** Fuzzy nudge deduplication — returns true if newMsg is semantically too similar to any existing nudge */
-  const isSimilarNudge = useCallback((existing: { message: string }[], newMsg: string): boolean => {
+  const isSimilarNudge = useCallback((existing: Nudge[], newMsg: string): boolean => {
     const keywords = (s: string) =>
       s.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(w => w.length > 3);
     const newKw = keywords(newMsg);
@@ -275,12 +312,16 @@ function HeyGenTestInner() {
       result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
     const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
     const nudgeMessage = `${label}${result.nudge}`;
+    const classified = classifyNudge(nudgeMessage, nudgeType, {
+      checkpointId: result.checkpoint_hit || undefined,
+      copyText: result.suggested_next || undefined,
+    });
     setLiveNudges((prev) => {
       if (isSimilarNudge(prev, nudgeMessage)) {
         console.log("[simulation] skipping similar coach-turn nudge:", nudgeMessage);
         return prev;
       }
-      const next = [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType }];
+      const next = [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType, ...classified }];
       return next.length > 6 ? next.slice(next.length - 6) : next;
     });
     if (result.checkpoint_hit && typeof result.checkpoint_hit === "string") {
@@ -305,11 +346,10 @@ function HeyGenTestInner() {
       setLiveNudges((prev) => {
         const newNudges = corrections
           .filter((c) => !isSimilarNudge(prev, `${c.claim} ${c.correction}`))
-          .map((c) => ({
-            id: ++nudgeIdRef.current,
-            message: `Fact check (${c.topic || "product"}): "${c.claim}" → ${c.correction}`,
-            type: "warning" as const,
-          }));
+          .map((c) => {
+            const message = `Fact check (${c.topic || "product"}): "${c.claim}" → ${c.correction}`;
+            return { id: ++nudgeIdRef.current, message, type: "warning" as const, ...classifyNudge(message, "warning") };
+          });
         if (newNudges.length === 0) return prev;
         const next = [...prev, ...newNudges];
         return next.length > 6 ? next.slice(next.length - 6) : next;
@@ -317,10 +357,15 @@ function HeyGenTestInner() {
     }
   }, [isSimilarNudge]);
 
-  const [nudgePos, setNudgePos] = useState<{ x: number; y: number }>({ x: 16, y: 16 });
-  const [isDraggingNudge, setIsDraggingNudge] = useState(false);
-  const nudgeDragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [nudgePos, setNudgePos] = useState<{ right: number; top: number }>({ right: 16, top: 80 });
+  const [nudgeCollapsed, setNudgeCollapsed] = useState(false);
+  const [nudgeHistoryOpen, setNudgeHistoryOpen] = useState(false);
+  const [copiedNudgeId, setCopiedNudgeId] = useState<number | null>(null);
+  const nudgeDraggingRef = useRef(false);
+  const nudgeDragStartRef = useRef({ x: 0, y: 0, startRight: 0, startTop: 0 });
   const nudgeContainerRef = useRef<HTMLDivElement>(null);
+  const nudgePosRef = useRef(nudgePos);
+  useEffect(() => { nudgePosRef.current = nudgePos; }, [nudgePos]);
 
   useEffect(() => {
     if (!coaching.lastTurnResult || status !== "connected") return;
@@ -335,14 +380,17 @@ function HeyGenTestInner() {
     if (signature === lastNudgeSignatureRef.current) return;
     lastNudgeSignatureRef.current = signature;
 
-    let nudge: { message: string; type: "success" | "info" | "warning" } | null = null;
+    let nudge: { message: string; type: "success" | "info" | "warning"; category: NudgeCategory; priority: number; copyText?: string } | null = null;
 
     if (update.stepCompleted) {
-      nudge = { message: "Good job! You advanced the conversation.", type: "success" };
+      const message = "Good job! You advanced the conversation.";
+      nudge = { message, type: "success", ...classifyNudge(message, "success") };
     } else if (update.uncoveredFact) {
-      nudge = { message: `Insight uncovered: ${update.uncoveredFact}`, type: "info" };
+      const message = `Insight uncovered: ${update.uncoveredFact}`;
+      nudge = { message, type: "info", ...classifyNudge(message, "info") };
     } else if (update.newSuggestion) {
-      nudge = { message: `Try: ${update.newSuggestion.slice(0, 100)}${update.newSuggestion.length > 100 ? "…" : ""}`, type: "warning" };
+      const message = `Try: ${update.newSuggestion.slice(0, 100)}${update.newSuggestion.length > 100 ? "…" : ""}`;
+      nudge = { message, type: "warning", ...classifyNudge(message, "warning") };
     }
 
     if (nudge) {
@@ -354,75 +402,41 @@ function HeyGenTestInner() {
         }
         return [...prev, { ...nudge!, id: ++nudgeIdRef.current }];
       });
-      setNudgePos({ x: 0, y: 16 });
+      // A new tip arrived — expand the panel so the user notices it without jumping position
+      setNudgeCollapsed(false);
     }
   }, [coaching.lastTurnResult, status]);
 
-  const moveNudge = useCallback((clientX: number, clientY: number) => {
-    if (!nudgeContainerRef.current) return;
-    const parent = nudgeContainerRef.current.offsetParent as HTMLElement | null;
-    const parentRect = parent?.getBoundingClientRect() ?? { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-    let x = clientX - parentRect.left - nudgeDragStartRef.current.x;
-    let y = clientY - parentRect.top - nudgeDragStartRef.current.y;
-    const nudgeRect = nudgeContainerRef.current.getBoundingClientRect();
-    x = Math.max(0, Math.min(x, parentRect.width - nudgeRect.width));
-    y = Math.max(0, Math.min(y, parentRect.height - nudgeRect.height));
-    setNudgePos({ x, y });
-  }, []);
-
-  const onNudgeMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!nudgeContainerRef.current) return;
-    setIsDraggingNudge(true);
-    const rect = nudgeContainerRef.current.getBoundingClientRect();
-    nudgeDragStartRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  }, []);
-
-  const onNudgeMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDraggingNudge) return;
-    moveNudge(e.clientX, e.clientY);
-  }, [isDraggingNudge, moveNudge]);
-
-  const onNudgeMouseUp = useCallback(() => {
-    setIsDraggingNudge(false);
-  }, []);
-
-  const onNudgeTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!nudgeContainerRef.current) return;
-    setIsDraggingNudge(true);
-    const touch = e.touches[0];
-    const rect = nudgeContainerRef.current.getBoundingClientRect();
-    nudgeDragStartRef.current = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
-  }, []);
-
-  const onNudgeTouchMove = useCallback((e: TouchEvent) => {
-    if (!isDraggingNudge) return;
-    const touch = e.touches[0];
-    moveNudge(touch.clientX, touch.clientY);
-  }, [isDraggingNudge, moveNudge]);
-
-  const onNudgeTouchEnd = useCallback(() => {
-    setIsDraggingNudge(false);
-  }, []);
-
-  useEffect(() => {
-    if (!isDraggingNudge) return;
-    document.addEventListener("mousemove", onNudgeMouseMove);
-    document.addEventListener("mouseup", onNudgeMouseUp);
-    document.addEventListener("touchmove", onNudgeTouchMove);
-    document.addEventListener("touchend", onNudgeTouchEnd);
-    return () => {
-      document.removeEventListener("mousemove", onNudgeMouseMove);
-      document.removeEventListener("mouseup", onNudgeMouseUp);
-      document.removeEventListener("touchmove", onNudgeTouchMove);
-      document.removeEventListener("touchend", onNudgeTouchEnd);
+  // Smooth pointer-based drag: only the grip handle initiates dragging
+  const onNudgePointerDown = useCallback((e: React.PointerEvent) => {
+    const handle = (e.target as HTMLElement).closest("[data-nudge-handle]");
+    if (!handle) return;
+    nudgeDraggingRef.current = true;
+    nudgeDragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      startRight: nudgePosRef.current.right,
+      startTop: nudgePosRef.current.top,
     };
-  }, [isDraggingNudge, onNudgeMouseMove, onNudgeMouseUp, onNudgeTouchMove, onNudgeTouchEnd]);
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, []);
 
-  // Position the nudge log on the left when it first appears
-  useEffect(() => {
-    if (liveNudges.length === 0 || !nudgeContainerRef.current) return;
-    setNudgePos({ x: 16, y: 16 });
-  }, [liveNudges]);
+  const onNudgePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!nudgeDraggingRef.current) return;
+    const dx = e.clientX - nudgeDragStartRef.current.x;
+    const dy = e.clientY - nudgeDragStartRef.current.y;
+    const el = nudgeContainerRef.current;
+    const width = el?.offsetWidth ?? 288;
+    const height = el?.offsetHeight ?? 120;
+    const nextRight = Math.max(8, Math.min(window.innerWidth - width - 8, nudgeDragStartRef.current.startRight - dx));
+    const nextTop = Math.max(8, Math.min(window.innerHeight - height - 8, nudgeDragStartRef.current.startTop + dy));
+    setNudgePos({ right: nextRight, top: nextTop });
+  }, []);
+
+  const onNudgePointerUp = useCallback((e: React.PointerEvent) => {
+    nudgeDraggingRef.current = false;
+    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+  }, []);
   coachingAnalyzeRef.current = coaching.analyze;
 
   useEffect(() => {
@@ -1628,29 +1642,133 @@ function HeyGenTestInner() {
           </div>
         )}
 
-        {/* Live coaching nudges — floating left panel */}
+        {/* Live coaching nudges — focused, prioritized, draggable coach */}
         {status === "connected" && liveNudges.length > 0 && (
           <div
             ref={nudgeContainerRef}
-            className="absolute top-[140px] left-4 z-40 flex flex-col gap-2 max-w-xs w-80 select-none"
-            style={{ transform: `translate3d(${nudgePos.x}px, ${nudgePos.y}px, 0)` }}
-            onMouseDown={onNudgeMouseDown}
-            onTouchStart={onNudgeTouchStart}
+            className="fixed z-40 w-80 select-none"
+            style={{ right: nudgePos.right, top: nudgePos.top, willChange: "right, top" }}
+            onPointerDown={onNudgePointerDown}
+            onPointerMove={onNudgePointerMove}
+            onPointerUp={onNudgePointerUp}
           >
-            {liveNudges.slice(-3).map((nudge) => (
-              <div
-                key={nudge.id}
-                className={`rounded-lg px-3 py-2 text-xs shadow-lg border backdrop-blur-md ${
-                  nudge.type === "success"
-                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-100"
-                    : nudge.type === "warning"
-                    ? "bg-amber-500/15 border-amber-500/30 text-amber-100"
-                    : "bg-blue-500/15 border-blue-500/30 text-blue-100"
-                }`}
-              >
-                {nudge.message}
+            <div className="rounded-xl border border-white/10 bg-[#111827]/95 backdrop-blur-md shadow-2xl overflow-hidden">
+              {/* Header with drag handle */}
+              <div className="flex items-center justify-between px-3 py-2 bg-white/5 border-b border-white/10">
+                <div
+                  data-nudge-handle
+                  className="flex items-center gap-2 cursor-grab active:cursor-grabbing"
+                  title="Live Coach"
+                >
+                  <GripVertical className="w-3.5 h-3.5 text-white/40" />
+                  <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
+                  {nudgeCollapsed && liveNudges.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-medium">
+                      {liveNudges.length}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  {liveNudges.length > 1 && !nudgeCollapsed && (
+                    <button
+                      onClick={() => setNudgeHistoryOpen((o) => !o)}
+                      className="text-[10px] px-2 py-1 rounded-md text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+                      title="Toggle history"
+                    >
+                      {nudgeHistoryOpen ? "Hide" : `${liveNudges.length - 1} more`}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setNudgeCollapsed((c) => !c)}
+                    className="p-1 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                    title={nudgeCollapsed ? "Expand" : "Collapse"}
+                  >
+                    {nudgeCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+                  <button
+                    onClick={() => setLiveNudges([])}
+                    className="p-1 rounded-md text-white/50 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                    title="Clear tips"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
-            ))}
+
+              {/* Focused nudge card */}
+              {!nudgeCollapsed && (() => {
+                const sorted = [...liveNudges].sort((a, b) => a.priority - b.priority);
+                const top = sorted[0];
+                const rest = sorted.slice(1);
+                const config = {
+                  correction: { icon: AlertTriangle, title: "Product Correction", colors: "bg-red-500/10 border-red-500/20 text-red-100", titleColor: "text-red-400" },
+                  checkpoint: { icon: Target, title: "Checkpoint", colors: "bg-amber-500/10 border-amber-500/20 text-amber-100", titleColor: "text-amber-400" },
+                  suggestion: { icon: MessageSquare, title: "Suggested Next", colors: "bg-blue-500/10 border-blue-500/20 text-blue-100", titleColor: "text-blue-400" },
+                  insight: { icon: Sparkles, title: "Insight", colors: "bg-blue-500/10 border-blue-500/20 text-blue-100", titleColor: "text-blue-400" },
+                  success: { icon: CheckCircle2, title: "Good Job", colors: "bg-emerald-500/10 border-emerald-500/20 text-emerald-100", titleColor: "text-emerald-400" },
+                }[top.category];
+                const Icon = config.icon;
+                return (
+                  <>
+                    <div className={`p-4 border-b border-white/10 ${config.colors}`}>
+                      <div className="flex items-start gap-3">
+                        <div className={`shrink-0 mt-0.5 ${config.titleColor}`}>
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1 ${config.titleColor}`}>
+                            {config.title}
+                            {top.checkpointId && <span className="ml-1.5 opacity-80">{top.checkpointId}</span>}
+                          </p>
+                          <p className="text-sm leading-relaxed">{top.message}</p>
+                          {top.copyText && (
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(top.copyText || "");
+                                setCopiedNudgeId(top.id);
+                                setTimeout(() => setCopiedNudgeId(null), 1500);
+                              }}
+                              className="mt-3 flex items-center gap-1.5 text-[11px] font-medium text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-md px-2.5 py-1.5 transition-colors"
+                            >
+                              {copiedNudgeId === top.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                              {copiedNudgeId === top.id ? "Copied" : "Copy to use"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* History drawer */}
+                    {nudgeHistoryOpen && rest.length > 0 && (
+                      <div className="bg-black/20 p-3 space-y-2 max-h-[40vh] overflow-y-auto">
+                        {rest.slice(0, 4).map((nudge) => {
+                          const cfg = {
+                            correction: { icon: AlertTriangle, title: "Correction", titleColor: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
+                            checkpoint: { icon: Target, title: "Checkpoint", titleColor: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" },
+                            suggestion: { icon: MessageSquare, title: "Suggestion", titleColor: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
+                            insight: { icon: Sparkles, title: "Insight", titleColor: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
+                            success: { icon: CheckCircle2, title: "Success", titleColor: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
+                          }[nudge.category];
+                          const HIcon = cfg.icon;
+                          return (
+                            <div key={nudge.id} className={`rounded-lg px-3 py-2 border ${cfg.bg}`}>
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <HIcon className={`w-3 h-3 ${cfg.titleColor}`} />
+                                <p className={`text-[10px] font-semibold uppercase tracking-wider ${cfg.titleColor}`}>
+                                  {cfg.title}
+                                  {nudge.checkpointId && <span className="ml-1 opacity-80">{nudge.checkpointId}</span>}
+                                </p>
+                              </div>
+                              <p className="text-xs text-white/80 leading-relaxed">{nudge.message}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
           </div>
         )}
 
