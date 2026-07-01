@@ -114,6 +114,19 @@ export interface CustomPersona {
   budgetStatus?: string;
   timelinePressure?: string;
   sampleDialogues?: string;
+  age?: number | string;
+  gender?: string;
+  income?: string;
+  education?: string;
+  location?: string;
+  avatar?: string;
+  companySize?: string;
+  reportsTo?: string;
+  decisionRole?: string;
+  owns?: string;
+  motivations?: string;
+  concerns?: string;
+  howToEngage?: string;
 }
 
 export interface CustomScenario {

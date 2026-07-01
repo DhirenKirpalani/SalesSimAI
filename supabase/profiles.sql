@@ -22,6 +22,7 @@ create table if not exists public.profiles (
   role public.app_role not null default 'user',
   company text,
   position text,
+  profile_data jsonb default '{}',
   created_at timestamptz not null default now()
 );
 
@@ -29,6 +30,9 @@ create table if not exists public.profiles (
 -- 2. Enable Row Level Security
 -- --------------------------------------------------------
 alter table public.profiles enable row level security;
+
+-- Add profile_data column if table already existed
+alter table public.profiles add column if not exists profile_data jsonb default '{}';
 
 -- --------------------------------------------------------
 -- 3. RLS Policies

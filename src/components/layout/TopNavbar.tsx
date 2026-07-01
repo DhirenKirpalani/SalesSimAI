@@ -65,14 +65,27 @@ type Notification = {
   orgName?: string;
 };
 
-const READ_KEY = "notif_read_ids";
-
-function getReadIds(): Set<string> {
-  try { return new Set(JSON.parse(localStorage.getItem(READ_KEY) ?? "[]")); } catch { return new Set(); }
+async function fetchReadIds(): Promise<string[]> {
+  try {
+    const res = await fetch("/api/user/notifications-read");
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.readIds) ? data.readIds : [];
+  } catch {
+    return [];
+  }
 }
 
-function saveReadIds(ids: Set<string>) {
-  try { localStorage.setItem(READ_KEY, JSON.stringify([...ids])); } catch { /* ignore */ }
+async function persistReadIds(ids: Set<string>) {
+  try {
+    await fetch("/api/user/notifications-read", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ readIds: [...ids] }),
+    });
+  } catch {
+    /* ignore */
+  }
 }
 
 function timeAgo(iso: string): string {
@@ -208,7 +221,7 @@ export function TopNavbar() {
       const updated = prev.map((n) => (n.id === id ? { ...n, read: true } : n));
       const ids = new Set([...readIdsRef.current, id]);
       readIdsRef.current = ids;
-      saveReadIds(ids);
+      persistReadIds(ids);
       return updated;
     });
   };
@@ -218,7 +231,7 @@ export function TopNavbar() {
       const updated = prev.map((n) => ({ ...n, read: true }));
       const ids = new Set([...readIdsRef.current, ...updated.map((n) => n.id)]);
       readIdsRef.current = ids;
-      saveReadIds(ids);
+      persistReadIds(ids);
       return updated;
     });
   };
@@ -284,7 +297,7 @@ export function TopNavbar() {
       const name = user?.user_metadata?.full_name || user?.email || "U";
       const letters = name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
       setInitials(letters);
-      readIdsRef.current = getReadIds();
+      readIdsRef.current = new Set(await fetchReadIds());
 
       const { data: userProfile } = await supabase
         .from("profiles")

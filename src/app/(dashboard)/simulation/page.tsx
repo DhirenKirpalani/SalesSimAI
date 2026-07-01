@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { createClient } from "@/lib/supabase/client";
 import { useVoiceCall, VoiceStatus, VoiceLanguage } from "@/hooks/useVoiceCall";
@@ -9,9 +9,43 @@ import type { PersonaContext } from "@/lib/voice-config";
 import { useCoaching } from "@/hooks/useCoaching";
 import { VoiceCallPanel } from "@/components/VoiceCallPanel";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
-import { Video, Mic, MessageSquare, Send, GripVertical, Lightbulb, ChevronDown, ChevronUp, X, AlertTriangle, Target, Sparkles, Info, CheckCircle2, Copy, Check } from "lucide-react";
+import { VoiceCallSidebar } from "@/components/VoiceCallSidebar";
+import { VoiceCallRightSidebar } from "@/components/VoiceCallRightSidebar";
+import { Video, Mic, MessageSquare, Send, GripVertical, Lightbulb, ChevronDown, ChevronUp, X, AlertTriangle, Target, Sparkles, Info, CheckCircle2, Copy, Check, User, Building2, DollarSign, GraduationCap, MapPin, Briefcase, List, Smile, MessageCircle, ArrowLeft } from "lucide-react";
 
 type Status = "idle" | "connecting" | "connected" | "paused" | "error";
+
+interface StyleSections {
+  communicationStyle: string;
+  motivations: string;
+  concerns: string;
+  howToEngage: string;
+}
+
+function parseStyleSections(text: string | null): StyleSections {
+  const empty: StyleSections = { communicationStyle: "", motivations: "", concerns: "", howToEngage: "" };
+  if (!text) return empty;
+
+  const headers = ["Communication Style", "Motivations", "Concerns", "How to Engage"];
+  const positions = headers
+    .map((h) => ({ header: h, index: text.toLowerCase().indexOf(h.toLowerCase()) }))
+    .filter((p) => p.index !== -1)
+    .sort((a, b) => a.index - b.index);
+
+  if (positions.length === 0) return empty;
+
+  const result: Partial<StyleSections> = {};
+  for (let i = 0; i < positions.length; i++) {
+    const { header } = positions[i];
+    const start = positions[i].index + header.length;
+    const end = i < positions.length - 1 ? positions[i + 1].index : text.length;
+    const section = text.slice(start, end).replace(/^[\s:–—]+/, "").trim();
+    const key = header.toLowerCase().replace(/\s+/g, "") as keyof StyleSections;
+    result[key] = section;
+  }
+
+  return { ...empty, ...result };
+}
 
 interface SessionInfo {
   session_id: string;
@@ -186,6 +220,7 @@ function DraggableCoaching({
 }
 
 function HeyGenTestInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const scenarioId = searchParams.get("scenarioId") ?? undefined;
   const scenarioTable = searchParams.get("scenarioTable") ?? undefined;
@@ -223,8 +258,68 @@ function HeyGenTestInner() {
   const [logOpen, setLogOpen] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [resolvedScenarioName, setResolvedScenarioName] = useState<string | null>(null);
+  const [scenarioContextNote, setScenarioContextNote] = useState<string | null>(null);
+  const [sellerCompany, setSellerCompany] = useState<string | null>(null);
+  const [sellerProduct, setSellerProduct] = useState<string | null>(null);
+  const [sellerDescription, setSellerDescription] = useState<string | null>(null);
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null);
+  const [orgName, setOrgName] = useState<string | null>(null);
   const [resolvedPersonaName, setResolvedPersonaName] = useState<string | null>(null);
   const [resolvedPersonaRole, setResolvedPersonaRole] = useState<string | null>(null);
+  const [personaDetails, setPersonaDetails] = useState<{
+    name: string | null;
+    jobTitle: string | null;
+    company: string | null;
+    industry: string | null;
+    age: string | null;
+    gender: string | null;
+    income: string | null;
+    education: string | null;
+    location: string | null;
+    avatar: string | null;
+    companySize: string | null;
+    reportsTo: string | null;
+    decisionRole: string | null;
+    owns: string | null;
+    motivations: string | null;
+    concerns: string | null;
+    howToEngage: string | null;
+    communicationStyle: string | null;
+    communicationLanguage: string | null;
+    personality: string | null;
+    painPoints: string[];
+    goals: string[];
+    hiddenConcern: string | null;
+    companyGoal: string | null;
+    openingLine: string | null;
+  }>({
+    name: null,
+    jobTitle: null,
+    company: null,
+    industry: null,
+    age: null,
+    gender: null,
+    income: null,
+    education: null,
+    location: null,
+    avatar: null,
+    companySize: null,
+    reportsTo: null,
+    decisionRole: null,
+    owns: null,
+    motivations: null,
+    concerns: null,
+    howToEngage: null,
+    communicationStyle: null,
+    communicationLanguage: null,
+    personality: null,
+    painPoints: [],
+    goals: [],
+    hiddenConcern: null,
+    companyGoal: null,
+    openingLine: null,
+  });
+  const [activeTab, setActiveTab] = useState<"profile" | "background" | "style">("profile");
   const [sellerInitials, setSellerInitials] = useState("U");
   const [sellerAvatarUrl, setSellerAvatarUrl] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
@@ -1227,13 +1322,44 @@ function HeyGenTestInner() {
         const supabase = createClient();
         const { data: scenario } = await supabase
           .from(scenarioTable)
-          .select("seller_company, seller_product, custom_persona, context_note, preset_persona_id, scenario_type, scoring_criteria, elevenlabs_voice_id, voice_avatar_image_url")
+          .select("seller_company, seller_product, seller_description, custom_persona, context_note, preset_persona_id, scenario_type, scoring_criteria, elevenlabs_voice_id, voice_avatar_image_url")
           .eq("id", scenarioId)
           .single();
         if (scenario) {
           const persona = scenario.custom_persona as any;
           setResolvedPersonaName(persona?.name ?? null);
           setResolvedPersonaRole(persona?.jobTitle ?? null);
+          setScenarioContextNote(scenario.context_note ?? null);
+          setSellerCompany(scenario.seller_company ?? null);
+          setSellerProduct(scenario.seller_product ?? null);
+          setSellerDescription(scenario.seller_description ?? null);
+          setPersonaDetails({
+            name: persona?.name ?? null,
+            jobTitle: persona?.jobTitle ?? null,
+            company: persona?.company ?? null,
+            industry: persona?.industry ?? null,
+            age: persona?.age ? String(persona.age) : null,
+            gender: persona?.gender ?? null,
+            income: persona?.income ?? null,
+            education: persona?.education ?? null,
+            location: persona?.location ?? null,
+            avatar: (scenario as any).voice_avatar_image_url ?? persona?.avatar ?? null,
+            companySize: persona?.companySize ?? null,
+            reportsTo: persona?.reportsTo ?? null,
+            decisionRole: persona?.decisionRole ?? null,
+            owns: persona?.owns ?? null,
+            motivations: persona?.motivations ?? null,
+            concerns: persona?.concerns ?? null,
+            howToEngage: persona?.howToEngage ?? null,
+            communicationStyle: persona?.communicationStyle ?? null,
+            communicationLanguage: persona?.communicationLanguage ?? null,
+            personality: persona?.personality ?? null,
+            painPoints: Array.isArray(persona?.painPoints) ? persona.painPoints : [],
+            goals: Array.isArray(persona?.goals) ? persona.goals : [],
+            hiddenConcern: persona?.hiddenConcern ?? null,
+            companyGoal: persona?.companyGoal ?? null,
+            openingLine: persona?.openingLine ?? null,
+          });
 
           personaContextRef.current = {
             buyerName: persona?.name ?? undefined,
@@ -1274,6 +1400,21 @@ function HeyGenTestInner() {
     };
     load();
   }, [scenarioId, scenarioTable, setScenarioContext]);
+
+  // Fetch organization logo/name for the feedback modal
+  useEffect(() => {
+    const loadOrg = async () => {
+      try {
+        const res = await fetch("/api/company/org");
+        const data = await res.json();
+        if (data.organization) {
+          setOrgLogoUrl(data.organization.logo_url ?? null);
+          setOrgName(data.organization.name ?? null);
+        }
+      } catch { /* ignore */ }
+    };
+    loadOrg();
+  }, []);
 
   // Sync voice call transcripts into the page transcript (shows in Conversation modal)
   useEffect(() => {
@@ -1455,6 +1596,14 @@ function HeyGenTestInner() {
       {/* Top Bar */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 bg-[#0B0E14]/90 backdrop-blur-sm z-20 shrink-0">
         <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => router.back()}
+            className="group flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-orange-500 hover:text-orange-400 transition-colors"
+            title="Back to scenario"
+          >
+            <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+            Back
+          </button>
           <p className="text-sm font-semibold leading-none">
             {resolvedScenarioName ?? scenarioNameParam ?? "Simulation"}
           </p>
@@ -1485,47 +1634,318 @@ function HeyGenTestInner() {
           <video ref={videoRef} autoPlay playsInline hidden={!showAvatarVideo} className={`absolute inset-0 w-full h-full object-contain ${showAvatarVideo ? "" : "hidden"}`} />
         ) : null}
 
-        {/* Avatar image shown when video is hidden or not connected */}
-        {(callMode === "video" && status === "connected" && !showAvatarVideo) || status !== "connected" ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B0E14]">
-            <div className="text-center space-y-4">
-              <div className="w-20 h-20 rounded-full mx-auto ring-1 ring-white/10 overflow-hidden bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-                {status === "connecting" && callMode === "voice" ? (
-                  <svg className="w-8 h-8 text-blue-400 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                ) : ((callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? undefined) ? (
-                  <img
-                    src={(callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? undefined}
-                    alt={resolvedPersonaName ?? avatarNameParam ?? "Avatar"}
-                    className="w-full h-full object-cover object-top"
-                  />
-                ) : (
-                  <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                  </svg>
-                )}
-              </div>
-              <div>
-                <p className="text-gray-300 font-medium">
-                  {status === "connecting" && callMode === "voice" ? `Connecting to ${resolvedPersonaName ?? avatarNameParam ?? "voice agent"}…` :
-                   status === "connecting" ? `Connecting to ${resolvedPersonaName ?? avatarNameParam ?? "avatar"}…` :
-                   status === "error" ? "Connection failed" :
-                   status === "paused" ? "Session paused" :
-                   "Ready to practice"}
-                </p>
+        {/* Pre-call / idle screen — profile card + practice start */}
+        {status === "idle" ? (
+          <div className="absolute inset-0 flex flex-col bg-gradient-to-br from-slate-50 to-white text-slate-900 overflow-hidden">
+            {/* Scrollable tab content */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <div className="w-full max-w-2xl mx-auto py-6 sm:py-10">
                 {resolvedScenarioName && (
-                  <p className="text-xs text-gray-500 mt-1">{resolvedScenarioName}</p>
+                  <p className="text-center text-xs font-semibold uppercase tracking-wider text-orange-500 mb-3">
+                    {resolvedScenarioName}
+                  </p>
                 )}
+
+                {/* Avatar + tabbed content — avatar stays on the left across all tabs */}
+                <div className="flex flex-col sm:flex-row items-start gap-6 sm:gap-10">
+                  {/* Avatar */}
+                  <div className="shrink-0 mx-auto sm:mx-0">
+                    <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden border-4 border-white shadow-lg bg-slate-100 flex items-center justify-center">
+                      {(personaDetails.avatar ?? voiceAvatarImageUrl ?? avatarImageUrl) ? (
+                        <img
+                          src={(personaDetails.avatar ?? voiceAvatarImageUrl ?? avatarImageUrl) ?? undefined}
+                          alt={personaDetails.name ?? resolvedPersonaName ?? "Buyer"}
+                          className="w-full h-full object-cover object-top"
+                        />
+                      ) : (
+                        <User className="w-14 h-14 text-slate-300" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right side: tabs + content */}
+                  <div className="flex-1 w-full text-center sm:text-left">
+                    {/* Tabs */}
+                    <div className="flex items-center justify-center sm:justify-start gap-2 mb-6">
+                      {(["profile", "background", "style"] as const).map((tab) => (
+                        <button
+                          key={tab}
+                          onClick={() => setActiveTab(tab)}
+                          className={`px-4 sm:px-6 py-2 text-sm font-medium capitalize transition-colors border-b-2 ${
+                            activeTab === tab
+                              ? "text-orange-600 border-orange-500"
+                              : "text-slate-500 border-transparent hover:text-slate-700"
+                          }`}
+                        >
+                          {tab}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Profile Tab */}
+                    {activeTab === "profile" && (
+                      <div className="w-full">
+                        {/* Details */}
+                        <div className="w-full text-center sm:text-left">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-4">Client Profile</p>
+
+                      <div className="space-y-4 text-left">
+                        {personaDetails.name && (
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                              <User className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Name</p>
+                              <p className="text-sm font-medium text-slate-800">{personaDetails.name}</p>
+                            </div>
+                          </div>
+                        )}
+                        {personaDetails.jobTitle && (
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                              <Briefcase className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Title</p>
+                              <p className="text-sm font-medium text-slate-800">{personaDetails.jobTitle}</p>
+                            </div>
+                          </div>
+                        )}
+                        {personaDetails.company && (
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                              <Building2 className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Company</p>
+                              <p className="text-sm font-medium text-slate-800">{personaDetails.company}</p>
+                            </div>
+                          </div>
+                        )}
+                        {personaDetails.industry && (
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                              <Target className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Industry</p>
+                              <p className="text-sm font-medium text-slate-800">{personaDetails.industry}</p>
+                            </div>
+                          </div>
+                        )}
+                        {personaDetails.decisionRole && (
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                              <CheckCircle2 className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Decision Role</p>
+                              <p className="text-sm font-medium text-slate-800">{personaDetails.decisionRole}</p>
+                            </div>
+                          </div>
+                        )}
+                        {personaDetails.owns && (
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                              <List className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Owns</p>
+                              <p className="text-sm font-medium text-slate-800 whitespace-pre-line">{personaDetails.owns}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Background Tab */}
+                {activeTab === "background" && (
+                  <div className="text-center">
+                    {/* Key buyer details */}
+                    {(personaDetails.painPoints.length > 0 || personaDetails.goals.length > 0 || personaDetails.hiddenConcern || personaDetails.companyGoal || personaDetails.openingLine) && (
+                      <div className="max-w-lg mx-auto text-left space-y-5">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-orange-500">Client Background</p>
+                          {personaDetails.openingLine && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Likely Opening</p>
+                              <p className="text-sm text-slate-700 italic">&ldquo;{personaDetails.openingLine}&rdquo;</p>
+                            </div>
+                          )}
+                          {personaDetails.painPoints.length > 0 && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Pain Points</p>
+                              <ul className="mt-1 space-y-1">
+                                {personaDetails.painPoints.slice(0, 3).map((p, i) => (
+                                  <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                                    <span className="text-orange-500 mt-1">•</span>
+                                    {p}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {personaDetails.goals.length > 0 && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Goals</p>
+                              <ul className="mt-1 space-y-1">
+                                {personaDetails.goals.slice(0, 3).map((g, i) => (
+                                  <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                                    <span className="text-emerald-500 mt-1">•</span>
+                                    {g}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {personaDetails.hiddenConcern && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Hidden Concern</p>
+                              <p className="text-sm text-slate-700">{personaDetails.hiddenConcern}</p>
+                            </div>
+                          )}
+                          {personaDetails.companyGoal && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Company Goal</p>
+                              <p className="text-sm text-slate-700">{personaDetails.companyGoal}</p>
+                            </div>
+                          )}
+                      </div>
+                    )}
+
+                  </div>
+                )}
+
+                {/* Style Tab — parsed from the scenario context note */}
+                {activeTab === "style" && (() => {
+                  const style = parseStyleSections(scenarioContextNote);
+                  const hasStyle = style.communicationStyle || style.motivations || style.concerns || style.howToEngage;
+                  const hasPersonaStyle = personaDetails.personality || personaDetails.communicationLanguage;
+                  return (
+                    <div className="max-w-lg mx-auto text-left space-y-5">
+                      {personaDetails.personality && (
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                            <Smile className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Personality / Behaviour</p>
+                            <ul className="mt-1 space-y-1">
+                              {(personaDetails.personality.includes("\n")
+                                ? personaDetails.personality.split(/\n+/).filter(Boolean)
+                                : personaDetails.personality.split(/\.\s+/).filter(Boolean)
+                              ).map((item, i) => (
+                                <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                                  <span className="text-slate-400 mt-1">•</span>
+                                  {item.replace(/^[-•]\s*/, "").replace(/\.$/, "").trim()}
+                                  {!item.endsWith(".") ? "" : ""}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+                      {personaDetails.communicationLanguage && (
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                            <MessageCircle className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Communication Language</p>
+                            <ul className="mt-1 space-y-1">
+                              {(personaDetails.communicationLanguage.includes("\n")
+                                ? personaDetails.communicationLanguage.split(/\n+/).filter(Boolean)
+                                : personaDetails.communicationLanguage.split(/\.\s+/).filter(Boolean)
+                              ).map((item, i) => (
+                                <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                                  <span className="text-slate-400 mt-1">•</span>
+                                  {item.replace(/^[-•]\s*/, "").replace(/\.$/, "").trim()}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+                      {style.communicationStyle && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-2">Communication Style</p>
+                          <ul className="space-y-1">
+                            {style.communicationStyle.split(/\n+/).filter(Boolean).map((item, i) => (
+                              <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                                <span className="text-slate-400 mt-1">•</span>
+                                {item.replace(/^[-•]\s*/, "")}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {style.motivations && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-2">Motivations</p>
+                          <ul className="space-y-1">
+                            {style.motivations.split(/\n+/).filter(Boolean).map((item, i) => (
+                              <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                                <span className="text-emerald-500 mt-1">•</span>
+                                {item.replace(/^[-•]\s*/, "")}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {style.concerns && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-2">Concerns</p>
+                          <ul className="space-y-1">
+                            {style.concerns.split(/\n+/).filter(Boolean).map((item, i) => (
+                              <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                                <span className="text-orange-500 mt-1">•</span>
+                                {item.replace(/^[-•]\s*/, "")}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {style.howToEngage && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-2">How to Engage</p>
+                          <ul className="space-y-1">
+                            {style.howToEngage.split(/\n+/).filter(Boolean).map((item, i) => (
+                              <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                                <span className="text-blue-500 mt-1">•</span>
+                                {item.replace(/^[-•]\s*/, "")}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+                  </div>
+                </div>
+
               </div>
-              {/* Mode Toggle when idle */}
-              {status === "idle" && (
-                <div className="flex items-center justify-center gap-2 bg-white/5 rounded-full p-1 border border-white/10">
+            </div>
+
+            {/* Sticky bottom call bar — Ready to Practice + mode selector + start button in one section */}
+            <div className="shrink-0 border-t border-slate-200 bg-white/90 backdrop-blur-sm p-4 sm:p-5 z-10">
+              <div className="max-w-2xl mx-auto flex flex-col items-center justify-center gap-4">
+                <div className="text-center">
+                  <h3 className="text-xl font-semibold text-slate-900">Ready to Practice</h3>
+                  <p className="text-sm text-slate-600 mt-2 max-w-lg mx-auto leading-relaxed">
+                    {personaDetails.openingLine
+                      ? `You’ll be speaking with ${personaDetails.name ?? resolvedPersonaName ?? "the buyer"}${personaDetails.jobTitle ? `, ${personaDetails.jobTitle}` : ""}${personaDetails.company ? ` at ${personaDetails.company}` : ""}. They may open with: “${personaDetails.openingLine}”`
+                      : `You’ll be speaking with ${personaDetails.name ?? resolvedPersonaName ?? "the buyer"}${personaDetails.jobTitle ? `, ${personaDetails.jobTitle}` : ""}${personaDetails.company ? ` at ${personaDetails.company}` : ""}. Review their profile and start the call when you’re ready.`}
+                  </p>
+                </div>
+                {/* Mode Toggle */}
+                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 border border-slate-200 w-fit">
                   <button
                     onClick={() => setCallMode("video")}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors ${
-                      callMode === "video" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
+                      callMode === "video" ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
                     }`}
                   >
                     <Video className="w-3.5 h-3.5" />
@@ -1534,7 +1954,7 @@ function HeyGenTestInner() {
                   <button
                     onClick={() => setCallMode("voice")}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors ${
-                      callMode === "voice" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
+                      callMode === "voice" ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
                     }`}
                   >
                     <Mic className="w-3.5 h-3.5" />
@@ -1543,38 +1963,155 @@ function HeyGenTestInner() {
                   <button
                     onClick={() => setCallMode("text")}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors ${
-                      callMode === "text" ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
+                      callMode === "text" ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
                     }`}
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
                     Text Chat
                   </button>
                 </div>
+
+                {/* Start button */}
+                <button
+                  onClick={callMode === "voice" ? startVoice : callMode === "text" ? startText : start}
+                  className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold px-8 py-3 rounded-full shadow-lg shadow-orange-500/25 transition-all hover:scale-105 active:scale-95"
+                >
+                  {callMode === "voice" ? (
+                    <>
+                      <Mic className="w-5 h-5" />
+                      Start Voice Call
+                    </>
+                  ) : callMode === "text" ? (
+                    <>
+                      <MessageSquare className="w-5 h-5" />
+                      Start Text Chat
+                    </>
+                  ) : (
+                    <>
+                      <Video className="w-5 h-5" />
+                      Start Video Call
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (callMode === "video" && status === "connected" && !showAvatarVideo) || status !== "connected" ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B0E14]">
+            <div className="text-center space-y-6 max-w-sm px-6">
+              {/* Pulsing avatar */}
+              <div className="relative mx-auto w-24 h-24">
+                <span className="absolute inset-0 rounded-full bg-orange-500/30 animate-ping" />
+                <span className="absolute inset-1 rounded-full bg-orange-500/20 animate-pulse" />
+                <div className="relative w-24 h-24 rounded-full ring-2 ring-orange-500/40 overflow-hidden bg-gradient-to-br from-orange-500/20 to-orange-600/10 flex items-center justify-center">
+                  {status === "connecting" && callMode === "voice" ? (
+                    <svg className="w-10 h-10 text-orange-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : ((callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? undefined) ? (
+                    <img
+                      src={(callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? undefined}
+                      alt={resolvedPersonaName ?? avatarNameParam ?? "Avatar"}
+                      className="w-full h-full object-cover object-top"
+                    />
+                  ) : (
+                    <svg className="w-12 h-12 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" stroke-linejoin="round" strokeWidth={1} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-lg font-semibold text-white">
+                  {status === "connecting" && callMode === "voice" ? `Connecting to ${resolvedPersonaName ?? avatarNameParam ?? "voice agent"}` :
+                   status === "connecting" ? `Connecting to ${resolvedPersonaName ?? avatarNameParam ?? "avatar"}` :
+                   status === "error" ? "Connection failed" :
+                   status === "paused" ? "Session paused" :
+                   "Ready to practice"}
+                </p>
+                {resolvedScenarioName && (
+                  <p className="text-sm text-slate-400">{resolvedScenarioName}</p>
+                )}
+              </div>
+
+              {/* Animated dots */}
+              {status === "connecting" && (
+                <div className="flex items-center justify-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
               )}
             </div>
           </div>
         ) : null}
 
-        {/* Voice Call Panel (when voice mode is active) */}
+        {/* Voice Call Panel (when voice mode is active) — 3-column layout */}
         {callMode === "voice" && status === "connected" && (
-          <div className="absolute inset-0 pt-[110px]">
-            <VoiceCallPanel
-              status={voiceCall.status as VoiceStatus}
-              transcript={transcript}
-              error={voiceCall.error}
-              volume={voiceCall.volume}
-              isSpeaking={voiceCall.isSpeaking}
-              micMuted={voiceCall.micMuted}
-              avatarName={resolvedPersonaName ?? avatarNameParam ?? "Buyer"}
-              avatarImageUrl={voiceAvatarImageUrl ?? avatarImageUrl}
-              sellerAvatarUrl={sellerAvatarUrl}
-              sellerInitials={sellerInitials}
-              audioEnergyRef={voiceCall.audioEnergyRef}
-              micEnergyRef={voiceCall.micEnergyRef}
-              onToggleMic={voiceCall.toggleMic}
-              onSetVolume={voiceCall.setVolume}
-              onEndCall={handleEnd}
-            />
+          <div className="absolute inset-0 pt-[110px] flex">
+            {/* Left sidebar — seller cheat sheet */}
+            <div className="w-72 hidden lg:block shrink-0">
+              <VoiceCallSidebar
+                sellerCompany={sellerCompany}
+                sellerProduct={sellerProduct}
+                sellerDescription={sellerDescription}
+                contextNote={scenarioContextNote}
+                buyerName={resolvedPersonaName}
+                buyerRole={resolvedPersonaRole}
+                buyerPainPoints={personaDetails.painPoints}
+              />
+            </div>
+
+            {/* Center — call panel */}
+            <div className="flex-1 min-w-0 relative">
+              <VoiceCallPanel
+                status={voiceCall.status as VoiceStatus}
+                transcript={transcript}
+                error={voiceCall.error}
+                volume={voiceCall.volume}
+                isSpeaking={voiceCall.isSpeaking}
+                micMuted={voiceCall.micMuted}
+                avatarName={resolvedPersonaName ?? avatarNameParam ?? "Buyer"}
+                buyerRole={resolvedPersonaRole ?? undefined}
+                buyerCompany={personaDetails.company ?? undefined}
+                avatarImageUrl={voiceAvatarImageUrl ?? avatarImageUrl}
+                sellerAvatarUrl={sellerAvatarUrl}
+                sellerInitials={sellerInitials}
+                audioEnergyRef={voiceCall.audioEnergyRef}
+                micEnergyRef={voiceCall.micEnergyRef}
+                onToggleMic={voiceCall.toggleMic}
+                onSetVolume={voiceCall.setVolume}
+                onEndCall={handleEnd}
+              />
+            </div>
+
+            {/* Right sidebar — coaching + nudges */}
+            <div className="w-80 hidden lg:block shrink-0">
+              <VoiceCallRightSidebar
+                coaching={coaching}
+                coachingOpen={coachingOpen}
+                setCoachingOpen={setCoachingOpen}
+                checkpoints={
+                  scoringCriteria
+                    ? parseCheckpointIds(scoringCriteria).map(({ id, name }) => ({
+                        id,
+                        name,
+                        status: (checkpointStatus[id] ?? "pending") as CheckpointStatus,
+                      }))
+                    : undefined
+                }
+                liveNudges={liveNudges}
+                setLiveNudges={setLiveNudges}
+                nudgeCollapsed={nudgeCollapsed}
+                setNudgeCollapsed={setNudgeCollapsed}
+                nudgeHistoryOpen={nudgeHistoryOpen}
+                setNudgeHistoryOpen={setNudgeHistoryOpen}
+                copiedNudgeId={copiedNudgeId}
+                setCopiedNudgeId={setCopiedNudgeId}
+              />
+            </div>
           </div>
         )}
 
@@ -1642,8 +2179,8 @@ function HeyGenTestInner() {
           </div>
         )}
 
-        {/* Live coaching nudges — focused, prioritized, draggable coach */}
-        {status === "connected" && liveNudges.length > 0 && (
+        {/* Live coaching nudges — focused, prioritized, draggable coach (hidden in voice mode sidebar) */}
+        {status === "connected" && callMode !== "voice" && liveNudges.length > 0 && (
           <div
             ref={nudgeContainerRef}
             className="fixed z-40 w-80 select-none"
@@ -1987,8 +2524,8 @@ function HeyGenTestInner() {
           </button>
         )}
 
-        {/* Coaching Overlay — bottom sheet on mobile, draggable on desktop */}
-        {status === "connected" && (
+        {/* Coaching Overlay — bottom sheet on mobile, draggable on desktop (hidden in voice mode sidebar) */}
+        {status === "connected" && callMode !== "voice" && (
           <DraggableCoaching
             coaching={coaching}
             coachingOpen={coachingOpen}
@@ -2006,10 +2543,10 @@ function HeyGenTestInner() {
         )}
       </div>
 
-      {/* Floating Control Bar — hidden in voice/text mode when connected (they have their own controls) */}
-      {!(callMode === "voice" && status === "connected") && !(callMode === "text" && status === "connected") && (
+      {/* Floating Control Bar — hidden in voice/text mode when connected (they have their own controls) and hidden in idle (start button is in the profile card) */}
+      {status !== "idle" && !(callMode === "voice" && status === "connected") && !(callMode === "text" && status === "connected") && (
         <div className="flex items-center justify-center gap-2 pb-3 pt-1.5 px-4 shrink-0">
-          {status === "idle" || status === "error" ? (
+          {status === "error" ? (
             <button
               onClick={callMode === "voice" ? startVoice : callMode === "text" ? startText : start}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-8 py-3 rounded-full shadow-lg shadow-blue-900/30 transition-all hover:scale-105 active:scale-95"
@@ -2034,12 +2571,12 @@ function HeyGenTestInner() {
               )}
             </button>
           ) : status === "connecting" ? (
-            <div className="flex items-center gap-2 bg-gray-700/50 text-gray-400 px-8 py-3 rounded-full">
+            <div className="flex items-center gap-2 bg-orange-500/15 text-orange-400 border border-orange-500/30 px-8 py-3 rounded-full shadow-lg shadow-orange-500/10">
               <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Connecting…
+              <span className="text-sm font-medium">Connecting</span>
             </div>
           ) : status === "paused" ? (
             <div className="flex items-center gap-2">
@@ -2108,33 +2645,69 @@ function HeyGenTestInner() {
             className="w-full max-w-2xl max-h-[85vh] bg-[#111827] border border-white/5 rounded-2xl p-5 flex flex-col gap-4 shadow-2xl overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-base">MEDDIC Analysis</h2>
+            {/* Header with company logo, buyer info, and score */}
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                {/* Company logo */}
+                <div className="w-12 h-12 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
+                  {orgLogoUrl ? (
+                    <img src={orgLogoUrl} alt={orgName ?? "Company"} className="w-full h-full object-contain p-1" />
+                  ) : (
+                    <Building2 className="w-6 h-6 text-orange-500" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-orange-400 font-semibold">MEDDIC Analysis</p>
+                  <h2 className="font-semibold text-base text-white">{resolvedScenarioName ?? "Call Review"}</h2>
+                </div>
+              </div>
               <div className="flex items-center gap-3">
                 {feedback && (
-                  <span className={`text-xl font-bold ${
-                    feedback.overall_score >= 70 ? "text-green-400" : feedback.overall_score >= 40 ? "text-yellow-400" : "text-red-400"
-                  }`}>{feedback.overall_score}<span className="text-sm text-gray-500">/100</span></span>
+                  <span className="text-xl font-bold text-orange-500">
+                    {feedback.overall_score}<span className="text-sm text-slate-500">/100</span>
+                  </span>
                 )}
                 <button
                   onClick={() => { setFeedback(null); setFeedbackLoading(false); }}
-                  className="text-gray-500 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+                  className="text-slate-500 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
             </div>
-            {feedbackLoading && <p className="text-gray-400 text-sm animate-pulse">Analyzing your call with MEDDIC framework…</p>}
+
+            {/* Buyer info card */}
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-white/10 bg-white/5">
+              <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-orange-500/20 to-orange-600/10 ring-1 ring-orange-500/30 shrink-0">
+                {(voiceAvatarImageUrl ?? avatarImageUrl) ? (
+                  <img src={(voiceAvatarImageUrl ?? avatarImageUrl) ?? undefined} alt={resolvedPersonaName ?? "Buyer"} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-orange-400 text-sm font-semibold">
+                    {(resolvedPersonaName ?? "B").slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">{resolvedPersonaName ?? "Buyer"}</p>
+                <p className="text-xs text-slate-400">
+                  {resolvedPersonaRole}
+                  {resolvedPersonaRole && personaDetails.company && " at "}
+                  {personaDetails.company}
+                </p>
+              </div>
+            </div>
+
+            {feedbackLoading && <p className="text-slate-400 text-sm animate-pulse">Analyzing your call with MEDDIC framework…</p>}
             {feedback && (
               <>
                 {feedback.overall_score === 0 && !feedback.strengths?.length && !feedback.weaknesses?.length ? (
                   <div className="text-center py-6">
-                    <p className="text-gray-400 text-sm">Analysis could not be completed.</p>
-                    <p className="text-gray-500 text-xs mt-1">Make sure the conversation has at least 2 turns before ending the call.</p>
+                    <p className="text-slate-400 text-sm">Analysis could not be completed.</p>
+                    <p className="text-slate-500 text-xs mt-1">Make sure the conversation has at least 2 turns before ending the call.</p>
                   </div>
                 ) : null}
                 {feedback.breakdown && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {([
                       { key: "metrics", label: "Metrics" },
                       { key: "economic_buyer", label: "Econ Buyer" },
@@ -2145,13 +2718,13 @@ function HeyGenTestInner() {
                     ] as { key: keyof FeedbackResult["breakdown"]; label: string }[]).map(({ key, label }) => {
                       const val = feedback.breakdown[key];
                       return (
-                        <div key={key} className="bg-gray-800/40 rounded-lg p-2 flex flex-col gap-1">
+                        <div key={key} className="bg-white/5 rounded-lg p-2.5 flex flex-col gap-1.5 border border-white/5">
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] text-gray-400 font-medium">{label}</span>
-                            <span className={`text-xs font-bold ${val >= 70 ? "text-green-400" : val >= 40 ? "text-yellow-400" : "text-red-400"}`}>{val}</span>
+                            <span className="text-[10px] text-slate-400 font-medium">{label}</span>
+                            <span className="text-xs font-bold text-orange-500">{val}</span>
                           </div>
-                          <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${val >= 70 ? "bg-green-500" : val >= 40 ? "bg-yellow-500" : "bg-red-500"}`} style={{ width: `${val}%` }} />
+                          <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full bg-orange-500" style={{ width: `${val}%` }} />
                           </div>
                         </div>
                       );
@@ -2160,43 +2733,63 @@ function HeyGenTestInner() {
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {feedback.strengths?.length > 0 && (
-                    <div>
-                      <p className="text-[10px] text-green-400 font-semibold uppercase tracking-wide mb-1">Strengths</p>
-                      {feedback.strengths.map((s, i) => <p key={i} className="text-xs text-gray-300 ml-1">• {s}</p>)}
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-orange-400 font-semibold uppercase tracking-wide">Strengths</p>
+                      {feedback.strengths.map((s, i) => (
+                        <p key={i} className="text-xs text-slate-300 ml-1 flex items-start gap-1.5">
+                          <span className="text-orange-500 mt-0.5">•</span>
+                          <span>{s}</span>
+                        </p>
+                      ))}
                     </div>
                   )}
                   {feedback.weaknesses?.length > 0 && (
-                    <div>
-                      <p className="text-[10px] text-yellow-400 font-semibold uppercase tracking-wide mb-1">Weaknesses</p>
-                      {feedback.weaknesses.map((w, i) => <p key={i} className="text-xs text-gray-300 ml-1">• {w}</p>)}
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-orange-300 font-semibold uppercase tracking-wide">Weaknesses</p>
+                      {feedback.weaknesses.map((w, i) => (
+                        <p key={i} className="text-xs text-slate-300 ml-1 flex items-start gap-1.5">
+                          <span className="text-orange-300 mt-0.5">•</span>
+                          <span>{w}</span>
+                        </p>
+                      ))}
                     </div>
                   )}
                 </div>
                 {feedback.missed_opportunities?.length > 0 && (
-                  <div>
-                    <p className="text-[10px] text-orange-400 font-semibold uppercase tracking-wide mb-1">Missed Opportunities</p>
-                    {feedback.missed_opportunities.map((m, i) => <p key={i} className="text-xs text-gray-300 ml-1">• {m}</p>)}
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">Missed Opportunities</p>
+                    {feedback.missed_opportunities.map((m, i) => (
+                      <p key={i} className="text-xs text-slate-300 ml-1 flex items-start gap-1.5">
+                        <span className="text-orange-500 mt-0.5">•</span>
+                        <span>{m}</span>
+                      </p>
+                    ))}
                   </div>
                 )}
                 {feedback.coaching_recommendations?.length > 0 && (
-                  <div className="bg-blue-950/30 border border-blue-700/30 rounded-lg px-3 py-2">
-                    <p className="text-[10px] text-blue-400 font-semibold uppercase tracking-wide mb-1">Coaching</p>
-                    {feedback.coaching_recommendations.map((r, i) => <p key={i} className="text-xs text-gray-200 ml-1">• {r}</p>)}
+                  <div className="bg-orange-950/20 border border-orange-500/20 rounded-lg px-3 py-2">
+                    <p className="text-[10px] text-orange-400 font-semibold uppercase tracking-wide mb-1">Coaching</p>
+                    {feedback.coaching_recommendations.map((r, i) => (
+                      <p key={i} className="text-xs text-slate-200 ml-1 flex items-start gap-1.5">
+                        <span className="text-orange-400 mt-0.5">•</span>
+                        <span>{r}</span>
+                      </p>
+                    ))}
                   </div>
                 )}
                 {feedback.coaching_moments && feedback.coaching_moments.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-[10px] text-violet-400 font-semibold uppercase tracking-wide">Key Moments</p>
+                    <p className="text-[10px] text-orange-400 font-semibold uppercase tracking-wide">Key Moments</p>
                     {feedback.coaching_moments!.map((m, i) => (
-                      <div key={i} className="bg-gray-800/30 border border-gray-700/30 rounded-lg p-2 space-y-1.5">
+                      <div key={i} className="bg-white/5 border border-white/10 rounded-lg p-2.5 space-y-1.5">
                         <div className="space-y-0.5">
-                          <p className="text-[10px] text-gray-500">Buyer said:</p>
-                          <p className="text-xs italic text-gray-300">&ldquo;{m.buyer_quote}&rdquo;</p>
+                          <p className="text-[10px] text-slate-500">Buyer said:</p>
+                          <p className="text-xs italic text-slate-300">&ldquo;{m.buyer_quote}&rdquo;</p>
                         </div>
-                        <p className="text-[10px] text-amber-400">Signal: {m.signal}</p>
+                        <p className="text-[10px] text-orange-400">Signal: {m.signal}</p>
                         <div className="space-y-0.5">
-                          <p className="text-[10px] text-emerald-400">You should have said:</p>
-                          <p className="text-xs bg-emerald-900/20 border border-emerald-700/20 rounded-md px-2 py-1 text-gray-200">{m.what_they_should_have_said}</p>
+                          <p className="text-[10px] text-orange-400">You should have said:</p>
+                          <p className="text-xs bg-orange-500/10 border border-orange-500/20 rounded-md px-2 py-1 text-slate-200">{m.what_they_should_have_said}</p>
                         </div>
                       </div>
                     ))}

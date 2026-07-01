@@ -19,6 +19,7 @@ interface CoachingOverlayProps {
   isOpen: boolean;
   onToggle: () => void;
   checkpoints?: Checkpoint[];
+  hideToggle?: boolean;
 }
 
 export function CoachingOverlay({
@@ -29,6 +30,7 @@ export function CoachingOverlay({
   isOpen,
   onToggle,
   checkpoints,
+  hideToggle,
 }: CoachingOverlayProps) {
   const [showCheckpoints, setShowCheckpoints] = useState(false);
   const steps = getCoachingSteps(state.scenarioType);
@@ -47,29 +49,31 @@ export function CoachingOverlay({
     : undefined;
 
   return (
-    <div className="flex flex-col gap-2 w-60">
+    <div className={cn("flex flex-col gap-2", hideToggle ? "w-full" : "w-60")}>
       {/* Collapsed pill — always visible, minimal */}
-      <button
-        data-coach-toggle
-        onClick={onToggle}
-        className={cn(
-          "group flex items-center gap-2 w-full rounded-full px-3 py-2 text-xs font-medium transition-all shadow-lg cursor-move",
-          isOpen
-            ? "bg-[#111827] border border-white/10 text-white hover:bg-[#1a2234]"
-            : "bg-[#111827]/90 border border-white/10 text-white/90 hover:bg-[#1a2234] hover:text-white"
-        )}
-      >
-        <span className="relative flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400">
-          <Lightbulb className="w-3 h-3" />
-          {warningCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500" />
+      {!hideToggle && (
+        <button
+          data-coach-toggle
+          onClick={onToggle}
+          className={cn(
+            "group flex items-center gap-2 w-full rounded-full px-3 py-2 text-xs font-medium transition-all shadow-lg cursor-move",
+            isOpen
+              ? "bg-[#111827] border border-white/10 text-white hover:bg-[#1a2234]"
+              : "bg-[#111827]/90 border border-white/10 text-white/90 hover:bg-[#1a2234] hover:text-white"
           )}
-        </span>
-        <span className="truncate flex-1 text-left">
-          {isOpen ? "Live Coaching" : (currentStageName ?? currentStepName)}
-        </span>
-        {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-white/60" /> : <ChevronUp className="w-3.5 h-3.5 text-white/60" />}
-      </button>
+        >
+          <span className="relative flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400">
+            <Lightbulb className="w-3 h-3" />
+            {warningCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500" />
+            )}
+          </span>
+          <span className="truncate flex-1 text-left">
+            {isOpen ? "Live Coaching" : (currentStageName ?? currentStepName)}
+          </span>
+          {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-white/60" /> : <ChevronUp className="w-3.5 h-3.5 text-white/60" />}
+        </button>
+      )}
 
       {isOpen && (
         <div className="bg-[#111827]/95 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl p-3 space-y-3 animate-in fade-in zoom-in-95 duration-200 max-h-[70vh] overflow-y-auto">
