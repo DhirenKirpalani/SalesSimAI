@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Menu, X, User, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { Logo } from "@/components/layout/Logo";
 
 const navLinks = [
   { label: "Platform", href: "/#platform" },
@@ -37,7 +38,7 @@ function handleNavClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
   }
 }
 
-function Logo() {
+function LogoWithScroll() {
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (typeof window !== "undefined" && window.location.pathname === "/") {
       e.preventDefault();
@@ -45,11 +46,7 @@ function Logo() {
     }
   };
 
-  return (
-    <Link href="/" onClick={handleClick} className="font-serif text-[1.2rem] font-bold text-[var(--foreground)] no-underline hover:opacity-80 transition-opacity">
-      SalesSim<span className="text-[var(--primary)]">.</span>
-    </Link>
-  );
+  return <Logo onClick={handleClick} />;
 }
 
 export function LandingNavbar() {
@@ -102,7 +99,7 @@ export function LandingNavbar() {
   return (
     <nav className="sticky top-0 z-50 bg-[var(--background)] border-b border-[var(--border)]">
       <div className="w-full px-6 lg:px-16 py-5 flex md:grid md:grid-cols-[1fr_auto_1fr] items-center justify-between md:justify-normal">
-        <Logo />
+        <LogoWithScroll />
 
         <ul className="hidden md:flex md:justify-center gap-8 list-none">
           {navLinks.map((link) => {

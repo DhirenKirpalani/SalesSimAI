@@ -9,7 +9,6 @@ import {
   BarChart3,
   User,
   ShieldCheck,
-  Zap,
   ChevronLeft,
   ChevronRight,
   BookOpen,
@@ -17,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useRole } from "@/hooks/useRole";
+import { Logo } from "@/components/layout/Logo";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -42,14 +42,9 @@ export function Sidebar() {
         collapsed ? "w-16" : "w-60"
       )}
     >
-      <Link href="/" className="flex items-center gap-2 px-4 h-16 border-b shrink-0 hover:opacity-80 transition-opacity">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary text-primary-foreground">
-          <Zap className="w-4 h-4" />
-        </div>
-        {!collapsed && (
-          <span className="font-semibold text-sm tracking-tight">SalesSim AI</span>
-        )}
-      </Link>
+      <div className="flex items-center px-4 h-16 border-b shrink-0">
+        {!collapsed && <Logo />}
+      </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
         {visibleNavItems.map((item) => {

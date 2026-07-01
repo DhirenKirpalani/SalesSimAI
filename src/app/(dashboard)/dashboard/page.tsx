@@ -82,6 +82,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [firstName, setFirstName] = useState("");
   const [organization, setOrganization] = useState<string | null>(null);
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
@@ -120,10 +121,11 @@ export default function DashboardPage() {
       if (profile?.organization_id) {
         const { data: org } = await supabase
           .from("organizations")
-          .select("name")
+          .select("name, logo_url")
           .eq("id", profile.organization_id)
           .single();
         if (org?.name) setOrganization(org.name);
+        if (org?.logo_url) setOrgLogoUrl(org.logo_url);
       }
 
       const heygenSessions: UnifiedSession[] = (heygenData ?? []).map((s) => ({
@@ -180,26 +182,19 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          {orgLogoUrl && (
+            <img
+              src={orgLogoUrl}
+              alt={organization ?? "Company"}
+              className="h-8 max-w-[160px] object-contain mb-3"
+            />
+          )}
           <h1 className="text-2xl font-bold tracking-tight">
             {firstName ? `${getGreeting()}, ${firstName}` : getGreeting()}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Track your readiness and performance across sales simulations.
           </p>
-          {(organization || role) && (
-            <div className="flex items-center gap-2 mt-2">
-              {organization && (
-                <Badge variant="outline" className="text-xs font-normal">
-                  {organization}
-                </Badge>
-              )}
-              {role && (
-                <Badge variant="secondary" className="text-xs font-normal capitalize">
-                  {role}
-                </Badge>
-              )}
-            </div>
-          )}
         </div>
         <Link href="/scenarios">
           <Button className="rounded-xl gap-2">

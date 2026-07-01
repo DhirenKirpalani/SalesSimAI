@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import { Users, Building2, BookOpen, Activity, Database, Mic2, Trophy, Clock, TrendingUp } from "lucide-react";
 import { StatCard } from "@/components/cards/StatCard";
+import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
 
 const activityData = [
   { day: "Mon", sessions: 12 },
@@ -180,6 +181,7 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <div>
+        <PageHeaderLogo />
         <h1 className="text-2xl font-bold tracking-tight">
           {firstName ? `${getGreeting()}, ${firstName}` : getGreeting()}
         </h1>

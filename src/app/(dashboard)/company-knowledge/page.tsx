@@ -659,10 +659,18 @@ export default function CompanyKnowledgePage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="documents">Knowledge Base</TabsTrigger>
-          <TabsTrigger value="members">Members</TabsTrigger>
-          {isOrgAdmin && <TabsTrigger value="settings">Settings</TabsTrigger>}
+        <TabsList className="w-full flex flex-wrap sm:flex-nowrap h-auto p-1 gap-1">
+          <TabsTrigger value="documents" className="flex-1 min-w-[110px] text-xs sm:text-sm">
+            Knowledge Base
+          </TabsTrigger>
+          <TabsTrigger value="members" className="flex-1 min-w-[80px] text-xs sm:text-sm">
+            Members
+          </TabsTrigger>
+          {isOrgAdmin && (
+            <TabsTrigger value="settings" className="flex-1 min-w-[80px] text-xs sm:text-sm">
+              Settings
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* ── Knowledge Base Tab ─────────────────────────────────────── */}
@@ -696,9 +704,9 @@ export default function CompanyKnowledgePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-3 items-end">
+              <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
                 <div className="flex-1">
-                  <Label className="text-xs mb-1 block">Product Type</Label>
+                  <Label className="text-xs mb-1.5 block">Product Type</Label>
                   <Select value={selectedProductType} onValueChange={(v) => setSelectedProductType(v ?? "payment")}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select type">
@@ -713,7 +721,7 @@ export default function CompanyKnowledgePage() {
                   </Select>
                 </div>
                 <div className="flex-1">
-                  <Label className="text-xs mb-1 block">Document Type</Label>
+                  <Label className="text-xs mb-1.5 block">Document Type</Label>
                   <Select value={selectedDocumentType} onValueChange={(v) => setSelectedDocumentType(v ?? "icp")}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select type">
@@ -731,7 +739,7 @@ export default function CompanyKnowledgePage() {
                   </Select>
                 </div>
                 <div className="flex-1">
-                  <Label className="text-xs mb-1 block">File</Label>
+                  <Label className="text-xs mb-1.5 block">File</Label>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -767,11 +775,11 @@ export default function CompanyKnowledgePage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                 <Button
                   onClick={handleUpload}
                   disabled={selectedFiles.length === 0 || uploading}
-                  className="min-w-[100px]"
+                  className="w-full sm:w-auto sm:min-w-[100px]"
                 >
                   {uploading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -979,14 +987,14 @@ export default function CompanyKnowledgePage() {
                   {docs.map((doc) => (
                     <div
                       key={doc.id}
-                      className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors gap-3"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors gap-3"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                         <p className="text-sm font-medium truncate">{doc.name}</p>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <div className="flex flex-col gap-1 items-end">
+                      <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                        <div className="flex items-center gap-2 sm:flex-col sm:gap-1 sm:items-end">
                           <Badge
                             className={`text-xs ${
                               PRODUCT_TYPE_COLORS[doc.doc_type] || "bg-gray-100 text-gray-800"

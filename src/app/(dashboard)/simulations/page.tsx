@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Clock, ArrowRight, BarChart3, Inbox, Loader2, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
 
 interface SessionSummary {
   id: string;
@@ -34,6 +35,10 @@ function formatDuration(s: number | null): string {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDateMobile(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
 const PAGE_SIZE = 10;
@@ -88,6 +93,7 @@ export default function SimulationsPage() {
   return (
     <div className="space-y-6">
       <div>
+        <PageHeaderLogo />
         <h1 className="text-2xl font-bold tracking-tight">Simulations</h1>
         <p className="text-sm text-muted-foreground mt-1">
           All your completed practice sessions. Click any session to review the analysis.
@@ -117,55 +123,63 @@ export default function SimulationsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: i * 0.04 }}
                 onClick={() => router.push(`/analysis?session=${s.id}&source=${s.source}`)}
-                className="group flex items-center gap-4 rounded-2xl border bg-card px-5 py-4 hover:shadow-sm hover:border-primary/30 cursor-pointer transition-all"
+                className="group flex flex-col sm:flex-row sm:items-center gap-4 rounded-2xl border bg-card px-4 py-4 sm:px-5 hover:shadow-sm hover:border-primary/30 cursor-pointer transition-all"
               >
-                {/* Score badge */}
-                <div className="flex-shrink-0 w-14 text-center">
-                  {score !== undefined ? (
-                    <span className={`text-sm font-bold px-2 py-1 rounded-lg ${scoreColor(score)}`}>
-                      {score}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">—</span>
-                  )}
-                </div>
+                {/* Top row: score, name, status, arrow */}
+                <div className="flex items-start gap-3 sm:gap-4">
+                  {/* Score badge */}
+                  <div className="flex-shrink-0 w-12 sm:w-14 text-center pt-0.5">
+                    {score !== undefined ? (
+                      <span className={`text-sm font-bold px-2 py-1 rounded-lg ${scoreColor(score)}`}>
+                        {score}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </div>
 
-                {/* Scenario name */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {s.scenario_name ?? "Unnamed simulation"}
-                  </p>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Calendar className="w-3 h-3" />
-                      {formatDate(s.started_at)}
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="w-3 h-3" />
-                      {formatDuration(s.duration_s)}
-                    </span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                      s.source === "video"
-                        ? "bg-violet-500/10 text-violet-600 border-violet-500/20"
-                        : s.source === "text"
-                        ? "bg-sky-500/10 text-sky-600 border-sky-500/20"
-                        : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                    }`}>
-                      {s.source === "video" ? "Video Call" : s.source === "text" ? "Text Chat" : "Voice Call"}
-                    </span>
+                  {/* Scenario name */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {s.scenario_name ?? "Unnamed simulation"}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1">
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="w-3 h-3" />
+                        <span className="sm:hidden">{formatDateMobile(s.started_at)}</span>
+                        <span className="hidden sm:inline">{formatDate(s.started_at)}</span>
+                      </span>
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="w-3 h-3" />
+                        {formatDuration(s.duration_s)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                    {score !== undefined ? (
+                      <Badge variant="outline" className="text-[10px] gap-1">
+                        <BarChart3 className="w-3 h-3" /> <span className="hidden sm:inline">Analysed</span>
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-[10px]">No analysis</Badge>
+                    )}
+                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                   </div>
                 </div>
 
-                {/* Status */}
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  {score !== undefined ? (
-                    <Badge variant="outline" className="text-[10px] gap-1">
-                      <BarChart3 className="w-3 h-3" /> Analysed
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="text-[10px]">No analysis</Badge>
-                  )}
-                  <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                {/* Source badge — full width on mobile */}
+                <div className="sm:hidden">
+                  <span className={`text-[10px] px-2 py-1 rounded border inline-flex items-center ${
+                    s.source === "video"
+                      ? "bg-violet-500/10 text-violet-600 border-violet-500/20"
+                      : s.source === "text"
+                      ? "bg-sky-500/10 text-sky-600 border-sky-500/20"
+                      : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                  }`}>
+                    {s.source === "video" ? "Video Call" : s.source === "text" ? "Text Chat" : "Voice Call"}
+                  </span>
                 </div>
               </motion.div>
             );
