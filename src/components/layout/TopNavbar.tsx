@@ -8,13 +8,13 @@ import {
   Bell,
   Menu,
   X,
-  Zap,
   LayoutDashboard,
   Library,
   Mic2,
   BarChart3,
   User,
   ShieldCheck,
+  BookOpen,
   Moon,
   Sun,
   Trophy,
@@ -44,13 +44,14 @@ import { usePathname } from "next/navigation";
 import { useThemeStore } from "@/stores/useThemeStore";
 import { createClient } from "@/lib/supabase/client";
 import { useRole } from "@/hooks/useRole";
+import { Logo } from "@/components/layout/Logo";
 
 const baseMobileNavItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Scenarios", href: "/scenarios", icon: Library },
-  { label: "AI Scenario Generator", href: "/company-onboarding", icon: Sparkles },
   { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
+  { label: "Company Knowledge", href: "/company-knowledge", icon: BookOpen },
   { label: "Profile", href: "/profile", icon: User },
 ];
 
@@ -386,12 +387,9 @@ export function TopNavbar() {
             <Menu className="h-5 w-5" />
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0">
-            <Link href="/" className="flex items-center gap-2 px-4 h-16 border-b hover:opacity-80 transition-opacity">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary text-primary-foreground">
-                <Zap className="w-4 h-4" />
-              </div>
-              <span className="font-semibold text-sm tracking-tight">SalesSim AI</span>
-            </Link>
+            <div className="flex items-center px-4 h-16 border-b">
+              <Logo />
+            </div>
             <nav className="flex flex-col gap-1 p-3">
               {mobileNavItems.map((item) => {
                 const active = pathname.startsWith(item.href);

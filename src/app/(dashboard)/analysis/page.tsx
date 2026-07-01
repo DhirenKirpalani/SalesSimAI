@@ -27,6 +27,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
 
 interface CoachingMoment {
   buyer_quote: string;
@@ -227,6 +228,7 @@ function AnalysisContent() {
     return (
       <div className="space-y-6 max-w-4xl mx-auto">
         <div>
+          <PageHeaderLogo />
           <h1 className="text-2xl font-bold tracking-tight">Analysis</h1>
           <p className="text-sm text-muted-foreground mt-1">Select a completed session to view your AI-generated MEDDIC analysis.</p>
         </div>

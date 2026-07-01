@@ -9,6 +9,7 @@ import { CustomScenario } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 import { Search, Plus } from "lucide-react";
 import { motion } from "framer-motion";
+import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
 
 const PRODUCT_TYPES = [
   { value: "All", label: "All Products" },
@@ -96,6 +97,7 @@ export default function ScenariosPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="max-w-2xl">
+          <PageHeaderLogo />
           <p className="text-xs font-medium text-orange-600 uppercase tracking-wider mb-1">Practice Scenarios</p>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Scenario Library</h1>
           <p className="text-sm text-slate-500 mt-2">

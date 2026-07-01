@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { Mail, User, Loader2, Check, AlertCircle, Briefcase } from "lucide-react";
+import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
 
 interface Profile {
   full_name: string | null;
@@ -118,6 +119,7 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <div>
+        <PageHeaderLogo />
         <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Manage your account settings and preferences.
