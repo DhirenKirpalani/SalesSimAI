@@ -633,7 +633,7 @@ export default function CompanyKnowledgePage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-4 space-y-6">
+    <div className="max-w-4xl mx-auto py-8 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -659,7 +659,7 @@ export default function CompanyKnowledgePage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full flex flex-wrap sm:flex-nowrap h-auto p-1 gap-1">
+        <TabsList className="w-full sm:max-w-md sm:mx-0 flex flex-wrap sm:flex-nowrap h-auto p-1 gap-1">
           <TabsTrigger value="documents" className="flex-1 min-w-[110px] text-xs sm:text-sm">
             Knowledge Base
           </TabsTrigger>

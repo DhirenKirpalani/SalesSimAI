@@ -91,7 +91,7 @@ export default function SimulationsPage() {
   }, [sessions, page]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl mx-auto">
       <div>
         <PageHeaderLogo />
         <h1 className="text-2xl font-bold tracking-tight">Simulations</h1>
