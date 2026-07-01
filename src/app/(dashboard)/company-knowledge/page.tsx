@@ -175,7 +175,6 @@ export default function CompanyKnowledgePage() {
   // Settings
   const [logoUrl, setLogoUrl] = useState("");
   const logoInputRef = useRef<HTMLInputElement>(null);
-  const [emailDomain, setEmailDomain] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsStatus, setSettingsStatus] = useState<"idle" | "success" | "error">("idle");
   const [settingsMessage, setSettingsMessage] = useState("");
@@ -215,7 +214,6 @@ export default function CompanyKnowledgePage() {
         setIsOrgAdmin(data.isAdmin ?? false);
         if (data.organization) {
           setLogoUrl(data.organization.logo_url ?? "");
-          setEmailDomain(data.organization.email_domain ?? "");
           if (data.organization.source_urls?.length > 0) {
             setOnboardingUrls(data.organization.source_urls);
           }
@@ -479,7 +477,6 @@ export default function CompanyKnowledgePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           logo_url: logoUrl || null,
-          email_domain: emailDomain || null,
         }),
       });
       const data = await res.json();
@@ -1258,20 +1255,6 @@ export default function CompanyKnowledgePage() {
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       Upload a PNG/JPG logo. It will be shown on the company page.
-                    </p>
-                  </div>
-
-                  {/* Email Domain Restriction */}
-                  <div>
-                    <Label className="text-xs mb-1 block">Invite Email Domain</Label>
-                    <Input
-                      value={emailDomain}
-                      onChange={(e) => setEmailDomain(e.target.value)}
-                      placeholder="aspireapp.com"
-                      className="font-mono text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Only emails from this domain can be invited. Leave blank to allow any domain.
                     </p>
                   </div>
 

@@ -21,6 +21,8 @@ interface VoiceCallPanelProps {
   isSpeaking: boolean;
   micMuted: boolean;
   avatarName?: string;
+  buyerRole?: string | null;
+  buyerCompany?: string | null;
   avatarImageUrl?: string | null;
   sellerAvatarUrl?: string | null;
   sellerInitials?: string;
@@ -59,6 +61,8 @@ export function VoiceCallPanel({
   isSpeaking,
   micMuted,
   avatarName = "Buyer",
+  buyerRole,
+  buyerCompany,
   avatarImageUrl,
   sellerAvatarUrl,
   sellerInitials = "U",
@@ -129,31 +133,38 @@ export function VoiceCallPanel({
       {/* Center content — transcript + avatar header */}
       <div className="flex-1 flex flex-col items-center min-h-0 px-6 pt-6">
         {/* Avatar header */}
-        <div className="flex items-center gap-3 mb-4 shrink-0">
+        <div className="flex flex-col items-center gap-3 mb-4 shrink-0">
           <div className="relative">
             <div
               ref={avatarRingRef}
               className={cn(
-                "w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold text-white overflow-hidden transition-all duration-100",
-                isActive ? "ring-2 ring-white/10" : "ring-2 ring-white/5"
+                "w-20 h-20 rounded-full flex items-center justify-center text-lg font-bold text-white overflow-hidden transition-all duration-100",
+                isActive ? "ring-2 ring-orange-500/40" : "ring-2 ring-white/10"
               )}
-              style={{ boxShadow: "0 0 0 2px rgba(255,255,255,0.1)" }}
+              style={{ boxShadow: isActive ? "0 0 0 4px rgba(249, 115, 22, 0.2)" : "0 0 0 2px rgba(255,255,255,0.1)" }}
             >
               {avatarImageUrl ? (
                 <img src={avatarImageUrl} alt={avatarName} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                <div className="w-full h-full bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center">
                   {initials}
                 </div>
               )}
             </div>
             {isSpeaking && (
-              <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-[#0B0E14] animate-pulse" />
+              <span className="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-[#0B0E14] animate-pulse" />
             )}
           </div>
-          <div className="text-left">
-            <h2 className="text-base font-semibold text-white">{avatarName}</h2>
-            <div className="flex items-end justify-center gap-[3px] h-4">
+          <div className="text-center">
+            <h2 className="text-lg font-semibold text-white">{avatarName}</h2>
+            {(buyerRole || buyerCompany) && (
+              <p className="text-xs text-slate-400 mt-0.5">
+                {buyerRole}
+                {buyerRole && buyerCompany && " at "}
+                {buyerCompany}
+              </p>
+            )}
+            <div className="flex items-center justify-center gap-[3px] h-4 mt-1">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
