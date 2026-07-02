@@ -144,7 +144,7 @@ export function TopNavbar() {
     });
     // Video sessions (HeyGen)
     sessions.forEach((s) => {
-      const score = s.analysis?.overall_score as number | undefined;
+      const score = s.overall_score as number | undefined;
       const name = s.scenario_name ?? "a simulation";
       const id = `session-${s.id}`;
       notifs.push({
@@ -160,7 +160,7 @@ export function TopNavbar() {
     });
     // Voice + text sessions (simulation_sessions)
     voiceTextSessions.forEach((s) => {
-      const score = s.analysis?.overall_score as number | undefined;
+      const score = s.overall_score as number | undefined;
       const name = s.scenario_name ?? "a simulation";
       const id = `sim-session-${s.id}`;
       notifs.push({
@@ -269,14 +269,14 @@ export function TopNavbar() {
       const [{ data: sessions }, { data: voiceTextSessions }, { data: scenarios }, inviteRes] = await Promise.all([
         supabase
           .from("heygen_sessions")
-          .select("id, scenario_name, analysis, started_at, ended_at")
+          .select("id, scenario_name, overall_score:analysis->overall_score, started_at, ended_at")
           .eq("user_id", userId)
           .not("ended_at", "is", null)
           .order("ended_at", { ascending: false })
           .limit(10),
         supabase
           .from("simulation_sessions")
-          .select("id, scenario_name, analysis, created_at, ended_at")
+          .select("id, scenario_name, overall_score:analysis->overall_score, created_at, ended_at")
           .eq("user_id", userId)
           .not("ended_at", "is", null)
           .order("ended_at", { ascending: false })
