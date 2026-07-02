@@ -117,6 +117,7 @@ interface FormState {
   customPersonaPriorVendor: string;
   customPersonaDecisionCriteria: string;
   customPersonaHiddenConcern: string;
+  customPersonaMeetingSource: string;
   customPersonaBudget: string;
   customPersonaTimeline: string;
   customPersonaSampleDialogues: string;
@@ -160,6 +161,7 @@ const INITIAL: FormState = {
   customPersonaPriorVendor: "",
   customPersonaDecisionCriteria: "",
   customPersonaHiddenConcern: "",
+  customPersonaMeetingSource: "",
   customPersonaBudget: "",
   customPersonaTimeline: "",
   customPersonaSampleDialogues: "",
@@ -247,6 +249,7 @@ function CreateScenarioPage() {
           customPersonaPriorVendor: cp?.priorVendorExperience ? String(cp.priorVendorExperience) : "",
           customPersonaDecisionCriteria: cp?.decisionCriteria ? String(cp.decisionCriteria) : "",
           customPersonaHiddenConcern: cp?.hiddenConcern ? String(cp.hiddenConcern) : "",
+          customPersonaMeetingSource: cp?.meetingSource ? String(cp.meetingSource) : "",
           customPersonaBudget: cp?.budgetStatus ? String(cp.budgetStatus) : "",
           customPersonaTimeline: cp?.timelinePressure ? String(cp.timelinePressure) : "",
           customPersonaSampleDialogues: cp?.sampleDialogues ? String(cp.sampleDialogues) : "",
@@ -353,6 +356,7 @@ function CreateScenarioPage() {
         priorVendorExperience: form.customPersonaPriorVendor || undefined,
         decisionCriteria: form.customPersonaDecisionCriteria || undefined,
         hiddenConcern: form.customPersonaHiddenConcern || undefined,
+        meetingSource: form.customPersonaMeetingSource || undefined,
         budgetStatus: form.customPersonaBudget || undefined,
         timelinePressure: form.customPersonaTimeline || undefined,
         sampleDialogues: form.customPersonaSampleDialogues || undefined,
@@ -585,6 +589,15 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
                         <Label className="text-xs font-medium">Industry</Label>
                         <Input className="rounded-xl" placeholder="E-commerce, Fintech..." value={form.customPersonaIndustry} onChange={(e) => set("customPersonaIndustry", e.target.value)} />
                       </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Meeting Source</Label>
+                      <Input
+                        className="rounded-xl text-sm"
+                        placeholder="Inbound demo request, LinkedIn outreach, warm referral..."
+                        value={form.customPersonaMeetingSource}
+                        onChange={(e) => set("customPersonaMeetingSource", e.target.value)}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-medium">Personality / Behaviour <span className="font-normal text-muted-foreground">(one per line)</span></Label>

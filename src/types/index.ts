@@ -111,6 +111,7 @@ export interface CustomPersona {
   priorVendorExperience?: string;
   decisionCriteria?: string;
   hiddenConcern?: string;
+  meetingSource?: string;
   budgetStatus?: string;
   timelinePressure?: string;
   sampleDialogues?: string;

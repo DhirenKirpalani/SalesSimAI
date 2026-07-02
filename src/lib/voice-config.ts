@@ -18,6 +18,7 @@ export interface PersonaContext {
   buyerCompanyGoal?: string;
   buyerOpeningLine?: string;
   buyerHiddenConcern?: string;
+  buyerMeetingSource?: string;
   buyerBudgetStatus?: string;
   buyerCommunicationStyle?: string;
   buyerCommunicationLanguage?: string;
@@ -68,6 +69,7 @@ Goals: {{buyer_goals}}
 Company goal: {{buyer_company_goal}}
 Budget status: {{buyer_budget_status}}
 Hidden concern: {{buyer_hidden_concern}}
+Meeting source: {{buyer_meeting_source}}
 Opening line: {{buyer_opening_line}}
 Context: {{context_note}}
 
@@ -103,6 +105,7 @@ export function buildVoiceConfig(
     if (persona.buyerCompanyGoal) dynamicVariables.buyer_company_goal = persona.buyerCompanyGoal;
     if (persona.buyerOpeningLine) dynamicVariables.buyer_opening_line = persona.buyerOpeningLine;
     if (persona.buyerHiddenConcern) dynamicVariables.buyer_hidden_concern = persona.buyerHiddenConcern;
+    if (persona.buyerMeetingSource) dynamicVariables.buyer_meeting_source = persona.buyerMeetingSource;
     if (persona.buyerBudgetStatus) dynamicVariables.buyer_budget_status = persona.buyerBudgetStatus;
     if (persona.buyerCommunicationStyle) dynamicVariables.buyer_communication_style = persona.buyerCommunicationStyle;
     if (persona.buyerCommunicationLanguage) dynamicVariables.buyer_communication_language = persona.buyerCommunicationLanguage;
