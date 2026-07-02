@@ -9,7 +9,7 @@ import type { PersonaContext } from "@/lib/voice-config";
 export type VoiceStatus = "idle" | "connecting" | "listening" | "processing" | "speaking" | "paused" | "error";
 
 export interface TranscriptEntry {
-  role: "user" | "buyer";
+  role: "user" | "buyer" | "avatar" | "coach";
   text: string;
   time: string;
   emotion?: string;
@@ -232,10 +232,14 @@ export function useVoiceCall(): UseVoiceCallReturn {
         },
         onDisconnect: () => {
           console.log("[useVoiceCall] onDisconnect", { abort: abortRef.current });
-          if (!abortRef.current) {
-            setError("Call disconnected unexpectedly. Interruptions can sometimes drop the WebRTC connection. Try ending the call and starting again.");
-            setStatus("error");
-          }
+          // Treat any disconnect as a clean end-of-call (same as clicking hang up).
+          setStatus("idle");
+          setIsSpeaking(false);
+          setCurrentBuyerText("");
+          audioEnergyRef.current = 0;
+          micEnergyRef.current = 0;
+          unsubscribeFromRealtime();
+          conversationRef.current = null;
         },
         onError: (err: unknown) => {
           console.error("[useVoiceCall] onError:", err);
@@ -356,7 +360,7 @@ export function useVoiceCall(): UseVoiceCallReturn {
       setError(err instanceof Error ? err.message : "Failed to start voice call");
       setStatus("error");
     }
-  }, [addTranscript, patchLatestBuyerTranscript, fetchLatestBuyerMessage]);
+  }, [addTranscript, patchLatestBuyerTranscript, fetchLatestBuyerMessage, unsubscribeFromRealtime]);
 
   const stop = useCallback(async () => {
     console.log("[useVoiceCall] stop called");

@@ -1,6 +1,13 @@
 "use client";
 
-import { Building2, Target, DollarSign, Trophy, AlertCircle, Lightbulb } from "lucide-react";
+import { useState } from "react";
+import { Building2, Target, DollarSign, Trophy, AlertCircle, Lightbulb, ChevronDown, Route } from "lucide-react";
+
+interface CallStep {
+  id: number;
+  label: string;
+  hint: string;
+}
 
 interface VoiceCallSidebarProps {
   sellerCompany?: string | null;
@@ -10,6 +17,8 @@ interface VoiceCallSidebarProps {
   buyerName?: string | null;
   buyerRole?: string | null;
   buyerPainPoints?: string[];
+  callSteps?: CallStep[];
+  currentStep?: number;
 }
 
 function parseBulletPoints(text: string | null | undefined): string[] {
@@ -18,6 +27,16 @@ function parseBulletPoints(text: string | null | undefined): string[] {
     .split(/\n|•|\-|\*/)
     .map((s) => s.trim())
     .filter((s) => s.length > 0 && s.length < 300);
+}
+
+function parseSentences(text: string | null | undefined): string[] {
+  if (!text) return [];
+  return text
+    .replace(/([.!?])\s+/g, "$1\n")
+    .split(/\n/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .filter((s) => s.length > 40 && s.split(/\s+/).length >= 5);
 }
 
 function extractSection(text: string | null | undefined, headers: string[]): string | null {
@@ -42,10 +61,15 @@ export function VoiceCallSidebar({
   buyerName,
   buyerRole,
   buyerPainPoints,
+  callSteps,
+  currentStep = 0,
 }: VoiceCallSidebarProps) {
+  const [showAll, setShowAll] = useState(false);
+  const [showCallStructure, setShowCallStructure] = useState(false);
+  const sellingPoints = parseSentences(sellerDescription);
+  const visiblePoints = showAll ? sellingPoints : sellingPoints.slice(0, 5);
   const keyFeatures = parseBulletPoints(
-    extractSection(contextNote, ["Key Features", "Key features", "What you are selling", "Product features"]) ??
-      sellerDescription
+    extractSection(contextNote, ["Key Features", "Key features", "What you are selling", "Product features"])
   ).slice(0, 6);
 
   const pricing =
@@ -74,9 +98,30 @@ export function VoiceCallSidebar({
             <Building2 className="w-3.5 h-3.5" />
             What you are selling
           </div>
-          <p className="text-xs text-slate-300 leading-relaxed">
-            {sellerDescription ?? "No product description available."}
-          </p>
+          {sellingPoints.length === 0 ? (
+            <p className="text-xs text-slate-300 leading-relaxed">
+              {sellerDescription ?? "No product description available."}
+            </p>
+          ) : (
+            <>
+              <ul className="space-y-1.5">
+                {visiblePoints.map((point, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                    <span className="w-1 h-1 rounded-full bg-orange-500 mt-1.5 shrink-0" />
+                    <span className="leading-relaxed">{point}</span>
+                  </li>
+                ))}
+              </ul>
+              {sellingPoints.length > 5 && (
+                <button
+                  onClick={() => setShowAll((v) => !v)}
+                  className="text-[11px] text-orange-400 hover:text-orange-300 font-medium"
+                >
+                  {showAll ? "Show less" : `Show ${sellingPoints.length - 5} more`}
+                </button>
+              )}
+            </>
+          )}
         </div>
 
         {/* Key features */}
@@ -153,6 +198,58 @@ export function VoiceCallSidebar({
               {buyerName && buyerRole && ", "}
               {buyerRole}
             </p>
+          </div>
+        )}
+
+        {/* Call Structure — collapsed reference */}
+        {callSteps && callSteps.length > 0 && (
+          <div className="space-y-2">
+            <button
+              onClick={() => setShowCallStructure((v) => !v)}
+              className="w-full flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-400 font-semibold"
+            >
+              <div className="flex items-center gap-1.5">
+                <Route className="w-3.5 h-3.5" />
+                Call Structure
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showCallStructure ? "rotate-180" : ""}`} />
+            </button>
+            {showCallStructure && (
+              <div className="space-y-1.5">
+                {callSteps.map((step, idx) => {
+                  const isCompleted = idx < currentStep;
+                  const isActive = idx === currentStep;
+                  return (
+                    <div
+                      key={step.id}
+                      className={`rounded-lg border p-2 text-xs ${
+                        isActive
+                          ? "bg-blue-500/10 border-blue-500/30 text-blue-100"
+                          : isCompleted
+                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-100"
+                          : "bg-white/5 border-white/10 text-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                            isCompleted
+                              ? "bg-emerald-500 text-white"
+                              : isActive
+                              ? "bg-blue-500 text-white"
+                              : "bg-white/10 text-white/50"
+                          }`}
+                        >
+                          {step.id}
+                        </span>
+                        <span className={isActive ? "font-medium" : ""}>{step.label}</span>
+                      </div>
+                      {isActive && <p className="text-[10px] text-blue-200/80 mt-1 leading-tight">{step.hint}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
