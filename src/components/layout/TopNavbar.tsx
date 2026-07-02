@@ -309,7 +309,7 @@ export function TopNavbar() {
 
       load();
 
-      pollInterval = setInterval(load, 30_000);
+      pollInterval = setInterval(load, 120_000);
 
       channel = supabase.channel(`notif_${user.id}_${Date.now()}`);
       channel.on(
