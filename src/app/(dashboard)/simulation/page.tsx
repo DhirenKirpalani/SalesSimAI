@@ -22,6 +22,18 @@ interface StyleSections {
   howToEngage: string;
 }
 
+function generateProductKnowledgeFirstMessage(candidateName: string, interviewerName: string, company: string): string {
+  const templates = [
+    `Hi ${candidateName}, I'm ${interviewerName} from ${company}. Thanks for joining the call. How are you?`,
+    `Hello ${candidateName}, this is ${interviewerName} with ${company}. Appreciate you making time today. How are things?`,
+    `Hey ${candidateName}, ${interviewerName} here from ${company}. Thanks for hopping on. How's your day going?`,
+    `Good to meet you, ${candidateName}. I'm ${interviewerName} from ${company}. Thanks for joining. How are you doing?`,
+    `Hi ${candidateName}, thanks for joining. I'm ${interviewerName} from ${company}. How are you today?`,
+    `Hi ${candidateName}, I'm ${interviewerName}, calling from ${company}. Thanks for taking the time. How have you been?`,
+  ];
+  return templates[Math.floor(Math.random() * templates.length)];
+}
+
 function parseStyleSections(text: string | null): StyleSections {
   const empty: StyleSections = { communicationStyle: "", motivations: "", concerns: "", howToEngage: "" };
   if (!text) return empty;
@@ -875,6 +887,9 @@ function HeyGenTestInner() {
         }
       }
 
+      // Brief pause to let ElevenLabs propagate the agent voice update
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
       voiceCall.start(sessionId, effectiveVoiceId, selectedVoiceLanguage, personaContextRef.current ?? undefined);
       addLog("🎙️ Voice call started");
     } catch (e) {
@@ -1341,6 +1356,13 @@ function HeyGenTestInner() {
           .single();
         if (scenario) {
           const persona = scenario.custom_persona as any;
+
+          let candidateName: string | undefined;
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            candidateName = user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? undefined;
+          } catch { /* ignore */ }
+
           setResolvedPersonaName(persona?.name ?? null);
           setResolvedPersonaRole(persona?.jobTitle ?? null);
           setScenarioContextNote(scenario.context_note ?? null);
@@ -1396,6 +1418,11 @@ function HeyGenTestInner() {
             sellerProduct: scenario.seller_product ?? undefined,
             contextNote: scenario.context_note ?? undefined,
             scenarioType: scenario.scenario_type ?? undefined,
+            candidateName,
+            firstMessage:
+              scenario.scenario_type === "Product Knowledge Interview"
+                ? generateProductKnowledgeFirstMessage(candidateName ?? "there", persona?.name ?? "Priya", scenario.seller_company ?? "Aspire")
+                : "",
           };
 
           setScenarioContext({
