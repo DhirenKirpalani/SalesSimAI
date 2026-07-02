@@ -50,6 +50,7 @@ export function buildPersonaSection(persona: CustomPersona): string {
   if (persona.priorVendorExperience) lines.push(`\nPRIOR VENDOR EXPERIENCE: ${persona.priorVendorExperience}`);
   if (persona.decisionCriteria) lines.push(`DECISION CRITERIA: ${persona.decisionCriteria}`);
   if (persona.hiddenConcern) lines.push(`HIDDEN CONCERN: ${persona.hiddenConcern}`);
+  if (persona.meetingSource) lines.push(`MEETING SOURCE: ${persona.meetingSource}`);
   if (persona.budgetStatus) lines.push(`BUDGET: ${persona.budgetStatus}`);
   if (persona.timelinePressure) lines.push(`TIMELINE: ${persona.timelinePressure}`);
   if (persona.sampleDialogues) lines.push(`\nSAMPLE DIALOGUES:\n${persona.sampleDialogues}`);

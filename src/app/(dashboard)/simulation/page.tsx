@@ -266,6 +266,7 @@ function HeyGenTestInner() {
   const [orgName, setOrgName] = useState<string | null>(null);
   const [resolvedPersonaName, setResolvedPersonaName] = useState<string | null>(null);
   const [resolvedPersonaRole, setResolvedPersonaRole] = useState<string | null>(null);
+  const [scenarioType, setScenarioType] = useState<string | null>(null);
   const [personaDetails, setPersonaDetails] = useState<{
     name: string | null;
     jobTitle: string | null;
@@ -292,6 +293,7 @@ function HeyGenTestInner() {
     hiddenConcern: string | null;
     companyGoal: string | null;
     openingLine: string | null;
+    meetingSource: string | null;
   }>({
     name: null,
     jobTitle: null,
@@ -318,8 +320,16 @@ function HeyGenTestInner() {
     hiddenConcern: null,
     companyGoal: null,
     openingLine: null,
+    meetingSource: null,
   });
   const [activeTab, setActiveTab] = useState<"profile" | "background" | "style">("profile");
+
+  // First Discovery Call has no style tab
+  useEffect(() => {
+    if (scenarioType === "First Discovery Call" && activeTab === "style") {
+      setActiveTab("background");
+    }
+  }, [scenarioType, activeTab]);
   const [sellerInitials, setSellerInitials] = useState("U");
   const [sellerAvatarUrl, setSellerAvatarUrl] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
@@ -1333,6 +1343,7 @@ function HeyGenTestInner() {
           setSellerCompany(scenario.seller_company ?? null);
           setSellerProduct(scenario.seller_product ?? null);
           setSellerDescription(scenario.seller_description ?? null);
+          setScenarioType(scenario.scenario_type ?? null);
           setPersonaDetails({
             name: persona?.name ?? null,
             jobTitle: persona?.jobTitle ?? null,
@@ -1359,6 +1370,7 @@ function HeyGenTestInner() {
             hiddenConcern: persona?.hiddenConcern ?? null,
             companyGoal: persona?.companyGoal ?? null,
             openingLine: persona?.openingLine ?? null,
+            meetingSource: persona?.meetingSource ?? null,
           });
 
           personaContextRef.current = {
@@ -1372,6 +1384,7 @@ function HeyGenTestInner() {
             buyerCompanyGoal: persona?.companyGoal ?? undefined,
             buyerOpeningLine: persona?.openingLine ?? undefined,
             buyerHiddenConcern: persona?.hiddenConcern ?? undefined,
+            buyerMeetingSource: persona?.meetingSource ?? undefined,
             buyerBudgetStatus: persona?.budgetStatus ?? undefined,
             buyerCommunicationStyle: persona?.communicationStyle ?? undefined,
             buyerCommunicationLanguage: persona?.communicationLanguage ?? undefined,
@@ -1667,7 +1680,11 @@ function HeyGenTestInner() {
                   <div className="flex-1 w-full text-center sm:text-left">
                     {/* Tabs */}
                     <div className="flex items-center justify-center sm:justify-start gap-2 mb-6">
-                      {(["profile", "background", "style"] as const).map((tab) => (
+                      {(
+                        scenarioType === "First Discovery Call"
+                          ? (["profile", "background"] as const)
+                          : (["profile", "background", "style"] as const)
+                      ).map((tab) => (
                         <button
                           key={tab}
                           onClick={() => setActiveTab(tab)}
@@ -1764,10 +1781,28 @@ function HeyGenTestInner() {
                 {/* Background Tab */}
                 {activeTab === "background" && (
                   <div className="text-center">
-                    {/* Key buyer details */}
-                    {(personaDetails.painPoints.length > 0 || personaDetails.goals.length > 0 || personaDetails.hiddenConcern || personaDetails.companyGoal || personaDetails.openingLine) && (
-                      <div className="max-w-lg mx-auto text-left space-y-5">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-orange-500">Client Background</p>
+                    {/* First Discovery Call: only meeting source */}
+                    {scenarioType === "First Discovery Call" ? (
+                      personaDetails.meetingSource && (
+                        <div className="max-w-lg mx-auto text-left space-y-5">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-orange-500">Client Background</p>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Meeting Source</p>
+                            <p className="text-sm text-slate-700">{personaDetails.meetingSource}</p>
+                          </div>
+                        </div>
+                      )
+                    ) : (
+                      /* Other calls: full client background */
+                      (personaDetails.painPoints.length > 0 || personaDetails.goals.length > 0 || personaDetails.hiddenConcern || personaDetails.companyGoal || personaDetails.openingLine || personaDetails.meetingSource) && (
+                        <div className="max-w-lg mx-auto text-left space-y-5">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-orange-500">Client Background</p>
+                          {personaDetails.meetingSource && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Meeting Source</p>
+                              <p className="text-sm text-slate-700">{personaDetails.meetingSource}</p>
+                            </div>
+                          )}
                           {personaDetails.openingLine && (
                             <div>
                               <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Likely Opening</p>
@@ -1812,9 +1847,9 @@ function HeyGenTestInner() {
                               <p className="text-sm text-slate-700">{personaDetails.companyGoal}</p>
                             </div>
                           )}
-                      </div>
+                        </div>
+                      )
                     )}
-
                   </div>
                 )}
 
