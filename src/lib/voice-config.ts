@@ -26,6 +26,10 @@ export interface PersonaContext {
   sellerProduct?: string;
   contextNote?: string;
   scenarioType?: string;
+  /** First message dynamic variable for ElevenLabs dashboard. */
+  firstMessage?: string;
+  /** Candidate name for product knowledge greetings. */
+  candidateName?: string;
 }
 
 export interface VoiceConfig {
@@ -113,6 +117,8 @@ export function buildVoiceConfig(
     if (persona.sellerProduct) dynamicVariables.seller_product = persona.sellerProduct;
     if (persona.contextNote) dynamicVariables.context_note = persona.contextNote;
     if (persona.scenarioType) dynamicVariables.scenario_type = persona.scenarioType;
+    if (persona.firstMessage !== undefined) dynamicVariables.first_message = persona.firstMessage;
+    if (persona.candidateName) dynamicVariables.candidate_name = persona.candidateName;
   }
 
   return {
