@@ -11,7 +11,7 @@ import { VoiceCallPanel } from "@/components/VoiceCallPanel";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
 import { VoiceCallSidebar } from "@/components/VoiceCallSidebar";
 import { VoiceCallRightSidebar } from "@/components/VoiceCallRightSidebar";
-import { Video, Mic, MessageSquare, Send, GripVertical, Lightbulb, ChevronDown, ChevronUp, X, AlertTriangle, Target, Sparkles, Info, CheckCircle2, Copy, Check, User, Building2, DollarSign, GraduationCap, MapPin, Briefcase, List, Smile, MessageCircle, ArrowLeft } from "lucide-react";
+import { Video, Mic, MessageSquare, Send, User, Building2, Briefcase, List, Smile, MessageCircle, ArrowLeft, Target, CheckCircle2 } from "lucide-react";
 
 type Status = "idle" | "connecting" | "connected" | "paused" | "error";
 
@@ -58,7 +58,7 @@ interface SessionInfo {
 }
 
 interface TranscriptEntry {
-  role: "avatar" | "user";
+  role: "avatar" | "user" | "coach";
   text: string;
   time: string;
   emotion?: string;
@@ -340,7 +340,9 @@ function HeyGenTestInner() {
   const [voiceAvatarImageUrl, setVoiceAvatarImageUrl] = useState<string | null>(null);
   const [elevenlabsVoiceId, setElevenlabsVoiceId] = useState<string | null>(null);
   const personaContextRef = useRef<PersonaContext | null>(null);
-  const syncedVoiceTranscriptRef = useRef<{ role: "user" | "buyer"; text: string; emotion?: string; intent?: string }[]>([]);
+  const syncedVoiceTranscriptRef = useRef<{ role: "user" | "buyer" | "avatar" | "coach"; text: string; emotion?: string; intent?: string }[]>([]);
+  const lastAnalyzedPairRef = useRef<string | null>(null);
+  const coachDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Call mode + coaching state
   const [callMode, setCallMode] = useState<"video" | "voice" | "text">("video");
@@ -366,7 +368,7 @@ function HeyGenTestInner() {
   const nudgeIdRef = useRef(0);
   const lastNudgeSignatureRef = useRef<string | null>(null);
 
-  // 7-step discovery call structure progress bar
+  // 7-step discovery call structure for sidebar reference
   const CALL_STEPS = [
     { id: 1, label: "Current setup", hint: "Ask how they currently handle this" },
     { id: 2, label: "Breakdown point", hint: "Ask where it breaks down most" },
@@ -377,7 +379,7 @@ function HeyGenTestInner() {
     { id: 7, label: "Blockers", hint: "Ask what would stop them moving forward" },
   ];
   const [currentStep, setCurrentStep] = useState(0);
-  const lastStepAdvanceRef = useRef<number>(0);
+  const lastStepAdvanceRef = useRef<number>(-1);
 
   const stepKeywords = [
     ["current setup", "current process", "how do you currently", "setup", "process today", "today"],
@@ -410,7 +412,29 @@ function HeyGenTestInner() {
     });
   }, []);
 
-  /** Append a coach-turn result (sales nudge + product fact corrections) to the live nudge log */
+  const nudgesInTranscriptRef = useRef<Set<string>>(new Set());
+  const currentCoachTextRef = useRef<string | null>(null);
+  function addCoachNudge(text: string, type: "success" | "info" | "warning" = "info") {
+    const prefix = type === "success" ? "✅ " : type === "warning" ? "⚠️ " : "💡 ";
+    const fullText = `${prefix}${text}`;
+    if (nudgesInTranscriptRef.current.has(fullText)) return;
+    // Remove the previous coach nudge so only the latest one is visible
+    const previous = currentCoachTextRef.current;
+    if (previous) {
+      nudgesInTranscriptRef.current.delete(previous);
+    }
+    nudgesInTranscriptRef.current.add(fullText);
+    currentCoachTextRef.current = fullText;
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    setTranscript((prev) => {
+      const withoutCoach = prev.filter((entry) => entry.role !== "coach");
+      return [...withoutCoach, { role: "coach", text: fullText, time }];
+    });
+    transcriptRef.current = transcriptRef.current.filter((entry) => entry.role !== "coach");
+    transcriptRef.current.push({ role: "coach", text: fullText, time });
+  }
+
+  /** Append a coach-turn result (sales nudge + product fact corrections) to the live nudge log and transcript */
   const appendCoachTurnNudges = useCallback((result: CoachTurnResult) => {
     if (result.fallback || result.error || !result.quality || !result.nudge) return;
     const nudgeType: "success" | "info" | "warning" =
@@ -429,6 +453,7 @@ function HeyGenTestInner() {
       const next = [...prev, { id: ++nudgeIdRef.current, message: nudgeMessage, type: nudgeType, ...classified }];
       return next.length > 6 ? next.slice(next.length - 6) : next;
     });
+    addCoachNudge(nudgeMessage, nudgeType);
     if (result.checkpoint_hit && typeof result.checkpoint_hit === "string") {
       const checkpointHit = result.checkpoint_hit;
       const quality = result.quality;
@@ -461,16 +486,6 @@ function HeyGenTestInner() {
       });
     }
   }, [isSimilarNudge]);
-
-  const [nudgePos, setNudgePos] = useState<{ right: number; top: number }>({ right: 16, top: 80 });
-  const [nudgeCollapsed, setNudgeCollapsed] = useState(false);
-  const [nudgeHistoryOpen, setNudgeHistoryOpen] = useState(false);
-  const [copiedNudgeId, setCopiedNudgeId] = useState<number | null>(null);
-  const nudgeDraggingRef = useRef(false);
-  const nudgeDragStartRef = useRef({ x: 0, y: 0, startRight: 0, startTop: 0 });
-  const nudgeContainerRef = useRef<HTMLDivElement>(null);
-  const nudgePosRef = useRef(nudgePos);
-  useEffect(() => { nudgePosRef.current = nudgePos; }, [nudgePos]);
 
   useEffect(() => {
     if (!coaching.lastTurnResult || status !== "connected") return;
@@ -507,41 +522,10 @@ function HeyGenTestInner() {
         }
         return [...prev, { ...nudge!, id: ++nudgeIdRef.current }];
       });
-      // A new tip arrived — expand the panel so the user notices it without jumping position
-      setNudgeCollapsed(false);
+      addCoachNudge(nudge.message, nudge.type);
     }
   }, [coaching.lastTurnResult, status]);
 
-  // Smooth pointer-based drag: only the grip handle initiates dragging
-  const onNudgePointerDown = useCallback((e: React.PointerEvent) => {
-    const handle = (e.target as HTMLElement).closest("[data-nudge-handle]");
-    if (!handle) return;
-    nudgeDraggingRef.current = true;
-    nudgeDragStartRef.current = {
-      x: e.clientX,
-      y: e.clientY,
-      startRight: nudgePosRef.current.right,
-      startTop: nudgePosRef.current.top,
-    };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }, []);
-
-  const onNudgePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!nudgeDraggingRef.current) return;
-    const dx = e.clientX - nudgeDragStartRef.current.x;
-    const dy = e.clientY - nudgeDragStartRef.current.y;
-    const el = nudgeContainerRef.current;
-    const width = el?.offsetWidth ?? 288;
-    const height = el?.offsetHeight ?? 120;
-    const nextRight = Math.max(8, Math.min(window.innerWidth - width - 8, nudgeDragStartRef.current.startRight - dx));
-    const nextTop = Math.max(8, Math.min(window.innerHeight - height - 8, nudgeDragStartRef.current.startTop + dy));
-    setNudgePos({ right: nextRight, top: nextTop });
-  }, []);
-
-  const onNudgePointerUp = useCallback((e: React.PointerEvent) => {
-    nudgeDraggingRef.current = false;
-    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
-  }, []);
   coachingAnalyzeRef.current = coaching.analyze;
 
   useEffect(() => {
@@ -560,7 +544,7 @@ function HeyGenTestInner() {
     setLog((prev) => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 99)]);
   }, []);
 
-  const addTranscript = useCallback((role: "avatar" | "user", text: string, emotion?: string, intent?: string) => {
+  const addTranscript = useCallback((role: "avatar" | "user" | "coach", text: string, emotion?: string, intent?: string) => {
     const entry: TranscriptEntry = { role, text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }), emotion, intent };
     transcriptRef.current = [...transcriptRef.current, entry];
     setTranscript((prev) => [...prev, entry]);
@@ -594,6 +578,9 @@ function HeyGenTestInner() {
       setTranscript([]);
       setFeedback(null);
       transcriptRef.current = [];
+      nudgesInTranscriptRef.current.clear();
+      currentCoachTextRef.current = null;
+      lastAnalyzedPairRef.current = null;
       setCurrentStep(0);
       lastStepAdvanceRef.current = -1;
     }
@@ -833,6 +820,9 @@ function HeyGenTestInner() {
     setFeedback(null);
     transcriptRef.current = [];
     syncedVoiceTranscriptRef.current = [];
+    nudgesInTranscriptRef.current.clear();
+    currentCoachTextRef.current = null;
+    lastAnalyzedPairRef.current = null;
     setCurrentStep(0);
     lastStepAdvanceRef.current = -1;
     addLog("Starting voice call session…");
@@ -902,6 +892,9 @@ function HeyGenTestInner() {
     setTranscript([]);
     setFeedback(null);
     transcriptRef.current = [];
+    nudgesInTranscriptRef.current.clear();
+    currentCoachTextRef.current = null;
+    lastAnalyzedPairRef.current = null;
     setCurrentStep(0);
     lastStepAdvanceRef.current = -1;
     addLog("Starting text chat session…");
@@ -973,6 +966,7 @@ function HeyGenTestInner() {
       }
       coachingAnalyzeRef.current(message, buyerMsg);
       if (sessionId && buyerMsg) {
+        lastAnalyzedPairRef.current = `${message}|${buyerMsg}`;
         fetch("/api/simulation/coach-turn", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1022,6 +1016,7 @@ function HeyGenTestInner() {
     }
     if (videoRef.current) videoRef.current.srcObject = null;
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (coachDebounceRef.current) { clearTimeout(coachDebounceRef.current); coachDebounceRef.current = null; }
     setTimeLeft(null);
     setStatus("idle");
     setMicOn(false);
@@ -1319,6 +1314,15 @@ function HeyGenTestInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeft]);
 
+  // End call and trigger analysis when the voice session ends naturally (e.g., after goodbyes)
+  useEffect(() => {
+    if (callMode !== "voice") return;
+    if ((status === "connected" || status === "paused") && voiceCall.status === "idle") {
+      handleEnd();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceCall.status, callMode, status]);
+
   // Keep timeLeftRef in sync so pause can read current value
   useEffect(() => {
     timeLeftRef.current = timeLeft;
@@ -1480,46 +1484,57 @@ function HeyGenTestInner() {
   // Analyze turns for coaching (both video and voice modes)
   useEffect(() => {
     console.log("[simulation] coaching analysis effect:", { callMode, voiceTranscriptLength: voiceCall.transcript.length, pageTranscriptLength: transcript.length });
+    let sellerText: string | null = null;
+    let buyerText: string | null = null;
+    let sessionId: string | null = null;
+
     if (callMode === "voice") {
       if (voiceCall.transcript.length === 0) return;
       const lastTwo = voiceCall.transcript.slice(-2);
       const sellerEntry = lastTwo.find((t) => t.role === "user");
       const buyerEntry = lastTwo.find((t) => t.role === "buyer");
       if (sellerEntry && buyerEntry) {
-        coachingAnalyzeRef.current(sellerEntry.text, buyerEntry.text);
-        if (voiceSessionId) {
-          fetch("/api/simulation/coach-turn", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sessionId: voiceSessionId, sellerText: sellerEntry.text, buyerText: buyerEntry.text }),
-          }).then((r) => r.json()).then(appendCoachTurnNudges).catch(() => {});
-        }
+        sellerText = sellerEntry.text;
+        buyerText = buyerEntry.text;
+        sessionId = voiceSessionId;
       }
     } else {
       // Video mode: use main transcript (role is "avatar" for buyer)
       if (transcript.length === 0) return;
-      const lastTwo = transcript.slice(-2);
+      const lastTwo = transcript.slice(-2).filter((t) => t.role === "user" || t.role === "avatar");
       const sellerEntry = lastTwo.find((t) => t.role === "user");
       const buyerEntry = lastTwo.find((t) => t.role === "avatar");
       if (sellerEntry && buyerEntry) {
-        coachingAnalyzeRef.current(sellerEntry.text, buyerEntry.text);
-        const videoSessionId = simSessionDbIdRef.current;
-        if (videoSessionId) {
-          fetch("/api/simulation/coach-turn", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sessionId: videoSessionId, sellerText: sellerEntry.text, buyerText: buyerEntry.text }),
-          }).then((r) => r.json()).then(appendCoachTurnNudges).catch(() => {});
-        }
+        sellerText = sellerEntry.text;
+        buyerText = buyerEntry.text;
+        sessionId = simSessionDbIdRef.current;
       }
     }
-  }, [voiceCall.transcript, transcript, callMode, appendCoachTurnNudges]);
 
-  // Auto-advance the 7-step discovery call progress bar based on seller's transcript
+    if (!sellerText || !buyerText || !sessionId) return;
+
+    const pairKey = `${sellerText}|${buyerText}`;
+    if (lastAnalyzedPairRef.current === pairKey) return;
+    lastAnalyzedPairRef.current = pairKey;
+
+    // Debounce: wait for the buyer text to stabilize before calling the coach API
+    if (coachDebounceRef.current) clearTimeout(coachDebounceRef.current);
+    coachDebounceRef.current = setTimeout(() => {
+      coachDebounceRef.current = null;
+      coachingAnalyzeRef.current(sellerText!, buyerText!);
+      fetch("/api/simulation/coach-turn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, sellerText, buyerText }),
+      }).then((r) => r.json()).then(appendCoachTurnNudges).catch(() => {});
+    }, 1500);
+  }, [voiceCall.transcript, transcript, callMode, appendCoachTurnNudges, voiceSessionId]);
+
+  // Auto-advance the 7-step discovery call progress based on seller's transcript
   useEffect(() => {
     if (status !== "connected") return;
     const sourceTranscript = callMode === "voice" ? voiceCall.transcript : transcript;
-    const sellerEntries = sourceTranscript.filter((t) => (callMode === "voice" ? t.role === "user" : t.role === "user"));
+    const sellerEntries = sourceTranscript.filter((t) => t.role === "user");
     if (sellerEntries.length === 0) return;
     const latestSeller = sellerEntries[sellerEntries.length - 1];
     const detectedStep = detectStepFromText(latestSeller.text);
@@ -2085,7 +2100,7 @@ function HeyGenTestInner() {
 
         {/* Voice Call Panel (when voice mode is active) — 3-column layout */}
         {callMode === "voice" && status === "connected" && (
-          <div className="absolute inset-0 pt-[110px] flex">
+          <div className="absolute inset-0 flex">
             {/* Left sidebar — seller cheat sheet */}
             <div className="w-72 hidden lg:block shrink-0">
               <VoiceCallSidebar
@@ -2096,6 +2111,8 @@ function HeyGenTestInner() {
                 buyerName={resolvedPersonaName}
                 buyerRole={resolvedPersonaRole}
                 buyerPainPoints={personaDetails.painPoints}
+                callSteps={CALL_STEPS}
+                currentStep={currentStep}
               />
             </div>
 
@@ -2137,216 +2154,14 @@ function HeyGenTestInner() {
                       }))
                     : undefined
                 }
-                liveNudges={liveNudges}
-                setLiveNudges={setLiveNudges}
-                nudgeCollapsed={nudgeCollapsed}
-                setNudgeCollapsed={setNudgeCollapsed}
-                nudgeHistoryOpen={nudgeHistoryOpen}
-                setNudgeHistoryOpen={setNudgeHistoryOpen}
-                copiedNudgeId={copiedNudgeId}
-                setCopiedNudgeId={setCopiedNudgeId}
               />
-            </div>
-          </div>
-        )}
-
-        {/* 7-Step Discovery Call Progress Bar — full call structure preview */}
-        {status === "connected" && (
-          <div className="absolute top-0 left-0 right-0 z-30 px-4 py-3 bg-[#0B0E14]/95 border-b border-white/10 backdrop-blur-md">
-            <div className="max-w-5xl mx-auto">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Call Structure</div>
-                <div className="text-[10px] text-white/40">
-                  Step {Math.min(currentStep + 1, CALL_STEPS.length)} of {CALL_STEPS.length}
-                </div>
-              </div>
-
-              {/* All steps preview — current highlighted, completed green, upcoming dim */}
-              <div className="flex items-start gap-1.5 overflow-x-auto no-scrollbar">
-                {CALL_STEPS.map((step, idx) => {
-                  const isCompleted = idx < currentStep;
-                  const isActive = idx === currentStep;
-                  return (
-                    <div
-                      key={step.id}
-                      className={`shrink-0 flex-1 min-w-[68px] rounded-xl border p-2 transition-all duration-300 ${
-                        isActive
-                          ? "bg-blue-500/15 border-blue-500/40"
-                          : isCompleted
-                          ? "bg-emerald-500/10 border-emerald-500/30"
-                          : "bg-white/5 border-white/10"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <div
-                          className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                            isCompleted
-                              ? "bg-emerald-500 text-white"
-                              : isActive
-                              ? "bg-blue-500 text-white"
-                              : "bg-white/10 text-white/40"
-                          }`}
-                        >
-                          {isCompleted ? (
-                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          ) : (
-                            step.id
-                          )}
-                        </div>
-                        <span
-                          className={`text-[9px] leading-tight ${
-                            isActive ? "text-white font-medium" : isCompleted ? "text-emerald-100" : "text-white/40"
-                          }`}
-                        >
-                          {step.label}
-                        </span>
-                      </div>
-                      {isActive && (
-                        <p className="text-[10px] text-blue-200/80 leading-tight">{step.hint}</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Live coaching nudges — focused, prioritized, draggable coach (hidden in voice mode sidebar) */}
-        {status === "connected" && callMode !== "voice" && liveNudges.length > 0 && (
-          <div
-            ref={nudgeContainerRef}
-            className="fixed z-40 w-80 select-none"
-            style={{ right: nudgePos.right, top: nudgePos.top, willChange: "right, top" }}
-            onPointerDown={onNudgePointerDown}
-            onPointerMove={onNudgePointerMove}
-            onPointerUp={onNudgePointerUp}
-          >
-            <div className="rounded-xl border border-white/10 bg-[#111827]/95 backdrop-blur-md shadow-2xl overflow-hidden">
-              {/* Header with drag handle */}
-              <div className="flex items-center justify-between px-3 py-2 bg-white/5 border-b border-white/10">
-                <div
-                  data-nudge-handle
-                  className="flex items-center gap-2 cursor-grab active:cursor-grabbing"
-                  title="Live Coach"
-                >
-                  <GripVertical className="w-3.5 h-3.5 text-white/40" />
-                  <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-                  {nudgeCollapsed && liveNudges.length > 0 && (
-                    <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-medium">
-                      {liveNudges.length}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  {liveNudges.length > 1 && !nudgeCollapsed && (
-                    <button
-                      onClick={() => setNudgeHistoryOpen((o) => !o)}
-                      className="text-[10px] px-2 py-1 rounded-md text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-                      title="Toggle history"
-                    >
-                      {nudgeHistoryOpen ? "Hide" : `${liveNudges.length - 1} more`}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setNudgeCollapsed((c) => !c)}
-                    className="p-1 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors"
-                    title={nudgeCollapsed ? "Expand" : "Collapse"}
-                  >
-                    {nudgeCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  </button>
-                  <button
-                    onClick={() => setLiveNudges([])}
-                    className="p-1 rounded-md text-white/50 hover:text-red-300 hover:bg-red-500/10 transition-colors"
-                    title="Clear tips"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Focused nudge card */}
-              {!nudgeCollapsed && (() => {
-                const sorted = [...liveNudges].sort((a, b) => a.priority - b.priority);
-                const top = sorted[0];
-                const rest = sorted.slice(1);
-                const config = {
-                  correction: { icon: AlertTriangle, title: "Product Correction", colors: "bg-red-500/10 border-red-500/20 text-red-100", titleColor: "text-red-400" },
-                  checkpoint: { icon: Target, title: "Checkpoint", colors: "bg-amber-500/10 border-amber-500/20 text-amber-100", titleColor: "text-amber-400" },
-                  suggestion: { icon: MessageSquare, title: "Suggested Next", colors: "bg-blue-500/10 border-blue-500/20 text-blue-100", titleColor: "text-blue-400" },
-                  insight: { icon: Sparkles, title: "Insight", colors: "bg-blue-500/10 border-blue-500/20 text-blue-100", titleColor: "text-blue-400" },
-                  success: { icon: CheckCircle2, title: "Good Job", colors: "bg-emerald-500/10 border-emerald-500/20 text-emerald-100", titleColor: "text-emerald-400" },
-                }[top.category];
-                const Icon = config.icon;
-                return (
-                  <>
-                    <div className={`p-4 border-b border-white/10 ${config.colors}`}>
-                      <div className="flex items-start gap-3">
-                        <div className={`shrink-0 mt-0.5 ${config.titleColor}`}>
-                          <Icon className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1 ${config.titleColor}`}>
-                            {config.title}
-                            {top.checkpointId && <span className="ml-1.5 opacity-80">{top.checkpointId}</span>}
-                          </p>
-                          <p className="text-sm leading-relaxed">{top.message}</p>
-                          {top.copyText && (
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(top.copyText || "");
-                                setCopiedNudgeId(top.id);
-                                setTimeout(() => setCopiedNudgeId(null), 1500);
-                              }}
-                              className="mt-3 flex items-center gap-1.5 text-[11px] font-medium text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-md px-2.5 py-1.5 transition-colors"
-                            >
-                              {copiedNudgeId === top.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                              {copiedNudgeId === top.id ? "Copied" : "Copy to use"}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* History drawer */}
-                    {nudgeHistoryOpen && rest.length > 0 && (
-                      <div className="bg-black/20 p-3 space-y-2 max-h-[40vh] overflow-y-auto">
-                        {rest.slice(0, 4).map((nudge) => {
-                          const cfg = {
-                            correction: { icon: AlertTriangle, title: "Correction", titleColor: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
-                            checkpoint: { icon: Target, title: "Checkpoint", titleColor: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" },
-                            suggestion: { icon: MessageSquare, title: "Suggestion", titleColor: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
-                            insight: { icon: Sparkles, title: "Insight", titleColor: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
-                            success: { icon: CheckCircle2, title: "Success", titleColor: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
-                          }[nudge.category];
-                          const HIcon = cfg.icon;
-                          return (
-                            <div key={nudge.id} className={`rounded-lg px-3 py-2 border ${cfg.bg}`}>
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <HIcon className={`w-3 h-3 ${cfg.titleColor}`} />
-                                <p className={`text-[10px] font-semibold uppercase tracking-wider ${cfg.titleColor}`}>
-                                  {cfg.title}
-                                  {nudge.checkpointId && <span className="ml-1 opacity-80">{nudge.checkpointId}</span>}
-                                </p>
-                              </div>
-                              <p className="text-xs text-white/80 leading-relaxed">{nudge.message}</p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
             </div>
           </div>
         )}
 
         {/* Text Chat Panel (when text mode is active) */}
         {callMode === "text" && status === "connected" && (
-          <div className="absolute inset-0 flex flex-col bg-[#0B0E14] pt-[110px]">
+          <div className="absolute inset-0 flex flex-col bg-[#0B0E14]">
             {/* WhatsApp-style Header */}
             <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-white/10 bg-[#111827]">
               <div className="flex items-center gap-3">
@@ -2403,7 +2218,7 @@ function HeyGenTestInner() {
                 </div>
               )}
               {transcript.map((entry, i) => (
-                <div key={i} className={`flex items-end gap-2 ${entry.role === "user" ? "justify-end" : "justify-start"} mb-3`}>
+                <div key={i} className={`flex items-end gap-2 ${entry.role === "user" ? "justify-end" : entry.role === "coach" ? "justify-center" : "justify-start"} mb-3`}>
                   {/* Buyer avatar — left side */}
                   {entry.role === "avatar" && (
                     <div className="shrink-0 w-7 h-7 rounded-full overflow-hidden bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center border border-white/10">
@@ -2414,21 +2229,28 @@ function HeyGenTestInner() {
                       )}
                     </div>
                   )}
-                  <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-sm ${
-                    entry.role === "user"
-                      ? "bg-blue-600 text-white rounded-br-md"
-                      : "bg-[#1E293B] text-gray-100 rounded-bl-md"
-                  }`}>
-                    <p>{entry.text}</p>
-                    <div className={`flex items-center gap-1 mt-1 ${entry.role === "user" ? "justify-end" : "justify-start"}`}>
-                      <p className={`text-[10px] ${entry.role === "user" ? "text-blue-200" : "text-gray-500"}`}>
-                        {entry.time}
-                      </p>
-                      {entry.role === "user" && (
-                        <span className="text-blue-200 text-[10px]">✓✓</span>
-                      )}
+                  {entry.role === "coach" ? (
+                    <div className="max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed bg-amber-500/10 border border-amber-500/20 text-amber-100 shadow-sm">
+                      <p>{entry.text}</p>
+                      <p className="text-[10px] text-amber-200/60 mt-1">{entry.time}</p>
                     </div>
-                  </div>
+                  ) : (
+                    <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-sm ${
+                      entry.role === "user"
+                        ? "bg-blue-600 text-white rounded-br-md"
+                        : "bg-[#1E293B] text-gray-100 rounded-bl-md"
+                    }`}>
+                      <p>{entry.text}</p>
+                      <div className={`flex items-center gap-1 mt-1 ${entry.role === "user" ? "justify-end" : "justify-start"}`}>
+                        <p className={`text-[10px] ${entry.role === "user" ? "text-blue-200" : "text-gray-500"}`}>
+                          {entry.time}
+                        </p>
+                        {entry.role === "user" && (
+                          <span className="text-blue-200 text-[10px]">✓✓</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {/* Seller avatar — right side */}
                   {entry.role === "user" && (
                     <div className="shrink-0 w-7 h-7 rounded-full overflow-hidden bg-blue-700 flex items-center justify-center border border-white/10">

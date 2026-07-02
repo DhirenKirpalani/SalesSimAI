@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { VoiceStatus } from "@/hooks/useVoiceCall";
 
 interface TranscriptEntry {
-  role: "avatar" | "user";
+  role: "avatar" | "user" | "coach";
   text: string;
   time: string;
   emotion?: string;
@@ -185,7 +185,7 @@ export function VoiceCallPanel({
             </div>
           )}
           {transcript.map((entry, i) => (
-            <div key={i} className={`flex items-end gap-2 ${entry.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div key={i} className={`flex items-end gap-2 ${entry.role === "user" ? "justify-end" : entry.role === "coach" ? "justify-center" : "justify-start"}`}>
               {entry.role === "avatar" && (
                 <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center border border-white/10">
                   {avatarImageUrl ? (
@@ -195,21 +195,28 @@ export function VoiceCallPanel({
                   )}
                 </div>
               )}
-              <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-sm ${
-                entry.role === "user"
-                  ? "bg-blue-600 text-white rounded-br-md"
-                  : "bg-[#334155] text-white rounded-bl-md border border-white/10"
-              }`}>
-                <p>{entry.text}</p>
-                <div className={`flex items-center gap-1 mt-1 ${entry.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <p className={`text-[11px] ${entry.role === "user" ? "text-blue-200" : "text-gray-400"}`}>
-                    {entry.time}
-                  </p>
-                  {entry.role === "user" && (
-                    <span className="text-blue-200 text-[10px]">✓✓</span>
-                  )}
+              {entry.role === "coach" ? (
+                <div className="max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed bg-amber-500/10 border border-amber-500/20 text-amber-100 shadow-sm">
+                  <p>{entry.text}</p>
+                  <p className="text-[10px] text-amber-200/60 mt-1">{entry.time}</p>
                 </div>
-              </div>
+              ) : (
+                <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-sm ${
+                  entry.role === "user"
+                    ? "bg-blue-600 text-white rounded-br-md"
+                    : "bg-[#334155] text-white rounded-bl-md border border-white/10"
+                }`}>
+                  <p>{entry.text}</p>
+                  <div className={`flex items-center gap-1 mt-1 ${entry.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <p className={`text-[11px] ${entry.role === "user" ? "text-blue-200" : "text-gray-400"}`}>
+                      {entry.time}
+                    </p>
+                    {entry.role === "user" && (
+                      <span className="text-blue-200 text-[10px]">✓✓</span>
+                    )}
+                  </div>
+                </div>
+              )}
               {entry.role === "user" && (
                 <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden bg-blue-700 flex items-center justify-center border border-white/10">
                   {sellerAvatarUrl ? (

@@ -98,7 +98,6 @@ export default function ScenariosPage() {
       <div className="flex items-start justify-between gap-4">
         <div className="max-w-2xl">
           <PageHeaderLogo />
-          <p className="text-xs font-medium text-orange-600 uppercase tracking-wider mb-1">Practice Scenarios</p>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Scenario Library</h1>
           <p className="text-sm text-slate-500 mt-2">
             Practice with AI buyers modeled on real fintech stakeholders — CFOs, risk officers, compliance leads, and more.
