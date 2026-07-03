@@ -1691,7 +1691,7 @@ function HeyGenTestInner() {
 
         {/* Pre-call / idle screen — profile card + practice start */}
         {status === "idle" ? (
-          <div className="absolute inset-0 flex flex-col bg-gradient-to-br from-slate-50 to-white text-slate-900 overflow-hidden">
+          <div className="absolute inset-0 flex flex-col bg-background text-foreground overflow-hidden">
             {/* Scrollable tab content */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               <div className="w-full max-w-2xl mx-auto py-6 sm:py-10">
@@ -1705,7 +1705,7 @@ function HeyGenTestInner() {
                 <div className="flex flex-col sm:flex-row items-start gap-6 sm:gap-10">
                   {/* Avatar */}
                   <div className="shrink-0 mx-auto sm:mx-0">
-                    <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden border-4 border-white shadow-lg bg-slate-100 flex items-center justify-center">
+                    <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden border-4 border-border shadow-lg bg-muted flex items-center justify-center">
                       {(personaDetails.avatar ?? voiceAvatarImageUrl ?? avatarImageUrl) ? (
                         <img
                           src={(personaDetails.avatar ?? voiceAvatarImageUrl ?? avatarImageUrl) ?? undefined}
@@ -1713,7 +1713,7 @@ function HeyGenTestInner() {
                           className="w-full h-full object-cover object-top"
                         />
                       ) : (
-                        <User className="w-14 h-14 text-slate-300" />
+                        <User className="w-14 h-14 text-muted-foreground" />
                       )}
                     </div>
                   </div>
@@ -1733,7 +1733,7 @@ function HeyGenTestInner() {
                           className={`px-4 sm:px-6 py-2 text-sm font-medium capitalize transition-colors border-b-2 ${
                             activeTab === tab
                               ? "text-orange-600 border-orange-500"
-                              : "text-slate-500 border-transparent hover:text-slate-700"
+                              : "text-muted-foreground border-transparent hover:text-foreground"
                           }`}
                         >
                           {tab}
@@ -1751,67 +1751,67 @@ function HeyGenTestInner() {
                       <div className="space-y-4 text-left">
                         {personaDetails.name && (
                           <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
                               <User className="w-4 h-4" />
                             </div>
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Name</p>
-                              <p className="text-sm font-medium text-slate-800">{personaDetails.name}</p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Name</p>
+                              <p className="text-sm font-medium text-foreground">{personaDetails.name}</p>
                             </div>
                           </div>
                         )}
                         {personaDetails.jobTitle && (
                           <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
                               <Briefcase className="w-4 h-4" />
                             </div>
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Title</p>
-                              <p className="text-sm font-medium text-slate-800">{personaDetails.jobTitle}</p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Title</p>
+                              <p className="text-sm font-medium text-foreground">{personaDetails.jobTitle}</p>
                             </div>
                           </div>
                         )}
                         {personaDetails.company && (
                           <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
                               <Building2 className="w-4 h-4" />
                             </div>
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Company</p>
-                              <p className="text-sm font-medium text-slate-800">{personaDetails.company}</p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Company</p>
+                              <p className="text-sm font-medium text-foreground">{personaDetails.company}</p>
                             </div>
                           </div>
                         )}
                         {personaDetails.industry && (
                           <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
                               <Target className="w-4 h-4" />
                             </div>
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Industry</p>
-                              <p className="text-sm font-medium text-slate-800">{personaDetails.industry}</p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Industry</p>
+                              <p className="text-sm font-medium text-foreground">{personaDetails.industry}</p>
                             </div>
                           </div>
                         )}
                         {personaDetails.decisionRole && (
                           <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
                               <CheckCircle2 className="w-4 h-4" />
                             </div>
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Decision Role</p>
-                              <p className="text-sm font-medium text-slate-800">{personaDetails.decisionRole}</p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Decision Role</p>
+                              <p className="text-sm font-medium text-foreground">{personaDetails.decisionRole}</p>
                             </div>
                           </div>
                         )}
                         {personaDetails.owns && (
                           <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
                               <List className="w-4 h-4" />
                             </div>
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Owns</p>
-                              <p className="text-sm font-medium text-slate-800 whitespace-pre-line">{personaDetails.owns}</p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Owns</p>
+                              <p className="text-sm font-medium text-foreground whitespace-pre-line">{personaDetails.owns}</p>
                             </div>
                           </div>
                         )}
@@ -1829,8 +1829,8 @@ function HeyGenTestInner() {
                         <div className="max-w-lg mx-auto text-left space-y-5">
                           <p className="text-xs font-semibold uppercase tracking-wider text-orange-500">Client Background</p>
                           <div>
-                            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Meeting Source</p>
-                            <p className="text-sm text-slate-700">{personaDetails.meetingSource}</p>
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Meeting Source</p>
+                            <p className="text-sm text-foreground">{personaDetails.meetingSource}</p>
                           </div>
                         </div>
                       )
@@ -1841,22 +1841,22 @@ function HeyGenTestInner() {
                           <p className="text-xs font-semibold uppercase tracking-wider text-orange-500">Client Background</p>
                           {personaDetails.meetingSource && (
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Meeting Source</p>
-                              <p className="text-sm text-slate-700">{personaDetails.meetingSource}</p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Meeting Source</p>
+                              <p className="text-sm text-foreground">{personaDetails.meetingSource}</p>
                             </div>
                           )}
                           {personaDetails.openingLine && (
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Likely Opening</p>
-                              <p className="text-sm text-slate-700 italic">&ldquo;{personaDetails.openingLine}&rdquo;</p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Likely Opening</p>
+                              <p className="text-sm text-foreground italic">&ldquo;{personaDetails.openingLine}&rdquo;</p>
                             </div>
                           )}
                           {personaDetails.painPoints.length > 0 && (
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Pain Points</p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Pain Points</p>
                               <ul className="mt-1 space-y-1">
                                 {personaDetails.painPoints.slice(0, 3).map((p, i) => (
-                                  <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                                  <li key={i} className="text-sm text-foreground flex items-start gap-2">
                                     <span className="text-orange-500 mt-1">•</span>
                                     {p}
                                   </li>
@@ -1866,10 +1866,10 @@ function HeyGenTestInner() {
                           )}
                           {personaDetails.goals.length > 0 && (
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Goals</p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Goals</p>
                               <ul className="mt-1 space-y-1">
                                 {personaDetails.goals.slice(0, 3).map((g, i) => (
-                                  <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                                  <li key={i} className="text-sm text-foreground flex items-start gap-2">
                                     <span className="text-emerald-500 mt-1">•</span>
                                     {g}
                                   </li>
@@ -1879,14 +1879,14 @@ function HeyGenTestInner() {
                           )}
                           {personaDetails.hiddenConcern && (
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Hidden Concern</p>
-                              <p className="text-sm text-slate-700">{personaDetails.hiddenConcern}</p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Hidden Concern</p>
+                              <p className="text-sm text-foreground">{personaDetails.hiddenConcern}</p>
                             </div>
                           )}
                           {personaDetails.companyGoal && (
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Company Goal</p>
-                              <p className="text-sm text-slate-700">{personaDetails.companyGoal}</p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Company Goal</p>
+                              <p className="text-sm text-foreground">{personaDetails.companyGoal}</p>
                             </div>
                           )}
                         </div>
@@ -1904,18 +1904,18 @@ function HeyGenTestInner() {
                     <div className="max-w-lg mx-auto text-left space-y-5">
                       {personaDetails.personality && (
                         <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                          <div className="p-2 rounded-lg bg-primary/10 text-primary">
                             <Smile className="w-4 h-4" />
                           </div>
                           <div>
-                            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Personality / Behaviour</p>
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Personality / Behaviour</p>
                             <ul className="mt-1 space-y-1">
                               {(personaDetails.personality.includes("\n")
                                 ? personaDetails.personality.split(/\n+/).filter(Boolean)
                                 : personaDetails.personality.split(/\.\s+/).filter(Boolean)
                               ).map((item, i) => (
-                                <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
-                                  <span className="text-slate-400 mt-1">•</span>
+                                <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                                  <span className="text-muted-foreground mt-1">•</span>
                                   {item.replace(/^[-•]\s*/, "").replace(/\.$/, "").trim()}
                                   {!item.endsWith(".") ? "" : ""}
                                 </li>
@@ -1926,18 +1926,18 @@ function HeyGenTestInner() {
                       )}
                       {personaDetails.communicationLanguage && (
                         <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-lg bg-orange-50 text-orange-500">
+                          <div className="p-2 rounded-lg bg-primary/10 text-primary">
                             <MessageCircle className="w-4 h-4" />
                           </div>
                           <div>
-                            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Communication Language</p>
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Communication Language</p>
                             <ul className="mt-1 space-y-1">
                               {(personaDetails.communicationLanguage.includes("\n")
                                 ? personaDetails.communicationLanguage.split(/\n+/).filter(Boolean)
                                 : personaDetails.communicationLanguage.split(/\.\s+/).filter(Boolean)
                               ).map((item, i) => (
-                                <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
-                                  <span className="text-slate-400 mt-1">•</span>
+                                <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                                  <span className="text-muted-foreground mt-1">•</span>
                                   {item.replace(/^[-•]\s*/, "").replace(/\.$/, "").trim()}
                                 </li>
                               ))}
@@ -1950,8 +1950,8 @@ function HeyGenTestInner() {
                           <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-2">Communication Style</p>
                           <ul className="space-y-1">
                             {style.communicationStyle.split(/\n+/).filter(Boolean).map((item, i) => (
-                              <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
-                                <span className="text-slate-400 mt-1">•</span>
+                              <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                                <span className="text-muted-foreground mt-1">•</span>
                                 {item.replace(/^[-•]\s*/, "")}
                               </li>
                             ))}
@@ -1963,7 +1963,7 @@ function HeyGenTestInner() {
                           <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-2">Motivations</p>
                           <ul className="space-y-1">
                             {style.motivations.split(/\n+/).filter(Boolean).map((item, i) => (
-                              <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                              <li key={i} className="text-sm text-foreground flex items-start gap-2">
                                 <span className="text-emerald-500 mt-1">•</span>
                                 {item.replace(/^[-•]\s*/, "")}
                               </li>
@@ -1976,7 +1976,7 @@ function HeyGenTestInner() {
                           <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-2">Concerns</p>
                           <ul className="space-y-1">
                             {style.concerns.split(/\n+/).filter(Boolean).map((item, i) => (
-                              <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                              <li key={i} className="text-sm text-foreground flex items-start gap-2">
                                 <span className="text-orange-500 mt-1">•</span>
                                 {item.replace(/^[-•]\s*/, "")}
                               </li>
@@ -1989,7 +1989,7 @@ function HeyGenTestInner() {
                           <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-2">How to Engage</p>
                           <ul className="space-y-1">
                             {style.howToEngage.split(/\n+/).filter(Boolean).map((item, i) => (
-                              <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                              <li key={i} className="text-sm text-foreground flex items-start gap-2">
                                 <span className="text-blue-500 mt-1">•</span>
                                 {item.replace(/^[-•]\s*/, "")}
                               </li>
@@ -2007,22 +2007,22 @@ function HeyGenTestInner() {
             </div>
 
             {/* Sticky bottom call bar — Ready to Practice + mode selector + start button in one section */}
-            <div className="shrink-0 border-t border-slate-200 bg-white/90 backdrop-blur-sm p-4 sm:p-5 z-10">
+            <div className="shrink-0 border-t border-border bg-card/90 backdrop-blur-sm p-4 sm:p-5 z-10">
               <div className="max-w-2xl mx-auto flex flex-col items-center justify-center gap-4">
                 <div className="text-center">
-                  <h3 className="text-xl font-semibold text-slate-900">Ready to Practice</h3>
-                  <p className="text-sm text-slate-600 mt-2 max-w-lg mx-auto leading-relaxed">
+                  <h3 className="text-xl font-semibold text-foreground">Ready to Practice</h3>
+                  <p className="text-sm text-muted-foreground mt-2 max-w-lg mx-auto leading-relaxed">
                     {personaDetails.openingLine
                       ? `You’ll be speaking with ${personaDetails.name ?? resolvedPersonaName ?? "the buyer"}${personaDetails.jobTitle ? `, ${personaDetails.jobTitle}` : ""}${personaDetails.company ? ` at ${personaDetails.company}` : ""}. They may open with: “${personaDetails.openingLine}”`
                       : `You’ll be speaking with ${personaDetails.name ?? resolvedPersonaName ?? "the buyer"}${personaDetails.jobTitle ? `, ${personaDetails.jobTitle}` : ""}${personaDetails.company ? ` at ${personaDetails.company}` : ""}. Review their profile and start the call when you’re ready.`}
                   </p>
                 </div>
                 {/* Mode Toggle */}
-                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 border border-slate-200 w-fit">
+                <div className="flex items-center gap-1 bg-muted rounded-full p-1 border border-border w-fit">
                   <button
                     onClick={() => setCallMode("video")}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors ${
-                      callMode === "video" ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                      callMode === "video" ? "bg-card text-orange-600 shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <Video className="w-3.5 h-3.5" />
@@ -2031,7 +2031,7 @@ function HeyGenTestInner() {
                   <button
                     onClick={() => setCallMode("voice")}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors ${
-                      callMode === "voice" ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                      callMode === "voice" ? "bg-card text-orange-600 shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <Mic className="w-3.5 h-3.5" />
@@ -2040,7 +2040,7 @@ function HeyGenTestInner() {
                   <button
                     onClick={() => setCallMode("text")}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors ${
-                      callMode === "text" ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                      callMode === "text" ? "bg-card text-orange-600 shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
@@ -2109,7 +2109,7 @@ function HeyGenTestInner() {
                    "Ready to practice"}
                 </p>
                 {resolvedScenarioName && (
-                  <p className="text-sm text-slate-400">{resolvedScenarioName}</p>
+                  <p className="text-sm text-muted-foreground">{resolvedScenarioName}</p>
                 )}
               </div>
 
@@ -2548,12 +2548,12 @@ function HeyGenTestInner() {
               <div className="flex items-center gap-3">
                 {feedback && (
                   <span className="text-xl font-bold text-orange-500">
-                    {feedback.overall_score}<span className="text-sm text-slate-500">/100</span>
+                    {feedback.overall_score}<span className="text-sm text-muted-foreground">/100</span>
                   </span>
                 )}
                 <button
                   onClick={() => { setFeedback(null); setFeedbackLoading(false); }}
-                  className="text-slate-500 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+                  className="text-muted-foreground hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
@@ -2573,7 +2573,7 @@ function HeyGenTestInner() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">{resolvedPersonaName ?? "Buyer"}</p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-muted-foreground">
                   {resolvedPersonaRole}
                   {resolvedPersonaRole && personaDetails.company && " at "}
                   {personaDetails.company}
@@ -2581,13 +2581,13 @@ function HeyGenTestInner() {
               </div>
             </div>
 
-            {feedbackLoading && <p className="text-slate-400 text-sm animate-pulse">Analyzing your call with MEDDIC framework…</p>}
+            {feedbackLoading && <p className="text-muted-foreground text-sm animate-pulse">Analyzing your call with MEDDIC framework…</p>}
             {feedback && (
               <>
                 {feedback.overall_score === 0 && !feedback.strengths?.length && !feedback.weaknesses?.length ? (
                   <div className="text-center py-6">
-                    <p className="text-slate-400 text-sm">Analysis could not be completed.</p>
-                    <p className="text-slate-500 text-xs mt-1">Make sure the conversation has at least 2 turns before ending the call.</p>
+                    <p className="text-muted-foreground text-sm">Analysis could not be completed.</p>
+                    <p className="text-muted-foreground text-xs mt-1">Make sure the conversation has at least 2 turns before ending the call.</p>
                   </div>
                 ) : null}
                 {feedback.breakdown && (
@@ -2604,10 +2604,10 @@ function HeyGenTestInner() {
                       return (
                         <div key={key} className="bg-white/5 rounded-lg p-2.5 flex flex-col gap-1.5 border border-white/5">
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] text-slate-400 font-medium">{label}</span>
+                            <span className="text-[10px] text-muted-foreground font-medium">{label}</span>
                             <span className="text-xs font-bold text-orange-500">{val}</span>
                           </div>
-                          <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
+                          <div className="h-1 bg-muted rounded-full overflow-hidden">
                             <div className="h-full rounded-full bg-orange-500" style={{ width: `${val}%` }} />
                           </div>
                         </div>
@@ -2620,7 +2620,7 @@ function HeyGenTestInner() {
                     <div className="space-y-1">
                       <p className="text-[10px] text-orange-400 font-semibold uppercase tracking-wide">Strengths</p>
                       {feedback.strengths.map((s, i) => (
-                        <p key={i} className="text-xs text-slate-300 ml-1 flex items-start gap-1.5">
+                        <p key={i} className="text-xs text-muted-foreground ml-1 flex items-start gap-1.5">
                           <span className="text-orange-500 mt-0.5">•</span>
                           <span>{s}</span>
                         </p>
@@ -2631,7 +2631,7 @@ function HeyGenTestInner() {
                     <div className="space-y-1">
                       <p className="text-[10px] text-orange-300 font-semibold uppercase tracking-wide">Weaknesses</p>
                       {feedback.weaknesses.map((w, i) => (
-                        <p key={i} className="text-xs text-slate-300 ml-1 flex items-start gap-1.5">
+                        <p key={i} className="text-xs text-muted-foreground ml-1 flex items-start gap-1.5">
                           <span className="text-orange-300 mt-0.5">•</span>
                           <span>{w}</span>
                         </p>
@@ -2643,7 +2643,7 @@ function HeyGenTestInner() {
                   <div className="space-y-1">
                     <p className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">Missed Opportunities</p>
                     {feedback.missed_opportunities.map((m, i) => (
-                      <p key={i} className="text-xs text-slate-300 ml-1 flex items-start gap-1.5">
+                      <p key={i} className="text-xs text-muted-foreground ml-1 flex items-start gap-1.5">
                         <span className="text-orange-500 mt-0.5">•</span>
                         <span>{m}</span>
                       </p>
@@ -2654,7 +2654,7 @@ function HeyGenTestInner() {
                   <div className="bg-orange-950/20 border border-orange-500/20 rounded-lg px-3 py-2">
                     <p className="text-[10px] text-orange-400 font-semibold uppercase tracking-wide mb-1">Coaching</p>
                     {feedback.coaching_recommendations.map((r, i) => (
-                      <p key={i} className="text-xs text-slate-200 ml-1 flex items-start gap-1.5">
+                      <p key={i} className="text-xs text-foreground ml-1 flex items-start gap-1.5">
                         <span className="text-orange-400 mt-0.5">•</span>
                         <span>{r}</span>
                       </p>
@@ -2667,13 +2667,13 @@ function HeyGenTestInner() {
                     {feedback.coaching_moments!.map((m, i) => (
                       <div key={i} className="bg-white/5 border border-white/10 rounded-lg p-2.5 space-y-1.5">
                         <div className="space-y-0.5">
-                          <p className="text-[10px] text-slate-500">Buyer said:</p>
-                          <p className="text-xs italic text-slate-300">&ldquo;{m.buyer_quote}&rdquo;</p>
+                          <p className="text-[10px] text-muted-foreground">Buyer said:</p>
+                          <p className="text-xs italic text-muted-foreground">&ldquo;{m.buyer_quote}&rdquo;</p>
                         </div>
                         <p className="text-[10px] text-orange-400">Signal: {m.signal}</p>
                         <div className="space-y-0.5">
                           <p className="text-[10px] text-orange-400">You should have said:</p>
-                          <p className="text-xs bg-orange-500/10 border border-orange-500/20 rounded-md px-2 py-1 text-slate-200">{m.what_they_should_have_said}</p>
+                          <p className="text-xs bg-orange-500/10 border border-orange-500/20 rounded-md px-2 py-1 text-foreground">{m.what_they_should_have_said}</p>
                         </div>
                       </div>
                     ))}
@@ -2685,23 +2685,6 @@ function HeyGenTestInner() {
         </div>
       )}
 
-      {/* Debug Log */}
-      <div className="absolute bottom-14 left-3 z-10">
-        <button
-          onClick={() => setLogOpen((o) => !o)}
-          className="text-[9px] text-gray-600 hover:text-gray-400 uppercase tracking-wide flex items-center gap-1 transition-colors"
-        >
-          {logOpen ? "▼" : "▶"} Debug
-        </button>
-        {logOpen && (
-          <div className="bg-gray-900/90 border border-gray-800 rounded-lg p-2 h-24 w-64 overflow-y-auto font-mono text-[9px] text-gray-300 flex flex-col gap-0.5">
-            {log.length === 0 && <span className="text-gray-600">Waiting…</span>}
-            {log.map((l, i) => (
-              <span key={i} className={l.includes("❌") ? "text-red-400" : l.includes("✅") ? "text-green-300" : ""}>{l}</span>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

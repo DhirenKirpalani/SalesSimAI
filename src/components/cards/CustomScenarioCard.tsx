@@ -28,9 +28,9 @@ const PRODUCT_TYPE_LABELS: Record<string, string> = {
 };
 
 const PRODUCT_TYPE_COLORS: Record<string, string> = {
-  payment: "bg-blue-100 text-blue-800",
-  eor: "bg-purple-100 text-purple-800",
-  cards: "bg-green-100 text-green-800",
+  payment: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  eor: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+  cards: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
 };
 
 interface CustomScenarioCardProps {
@@ -139,34 +139,34 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
             <CardContent className="space-y-3">
               {/* What you're selling */}
               <div className="flex items-start gap-2">
-                <div className="p-1.5 rounded-md bg-orange-50 text-orange-500 shrink-0 mt-0.5">
+                <div className="p-1.5 rounded-md bg-orange-500/10 text-orange-500 shrink-0 mt-0.5">
                   <Building2 className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">You&apos;re selling</p>
-                  <p className="text-sm font-medium text-slate-800 line-clamp-1">{scenario.seller_product}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">You&apos;re selling</p>
+                  <p className="text-sm font-medium text-foreground line-clamp-1">{scenario.seller_product}</p>
                 </div>
               </div>
 
               {/* Who you're talking to */}
               <div className="flex items-start gap-2">
-                <div className="p-1.5 rounded-md bg-orange-50 text-orange-500 shrink-0 mt-0.5">
+                <div className="p-1.5 rounded-md bg-orange-500/10 text-orange-500 shrink-0 mt-0.5">
                   <Users className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Buyer</p>
-                  <p className="text-sm font-medium text-slate-800 line-clamp-1">{personaFull}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Buyer</p>
+                  <p className="text-sm font-medium text-foreground line-clamp-1">{personaFull}</p>
                 </div>
               </div>
 
               {/* The challenge / scenario type */}
               <div className="flex items-start gap-2">
-                <div className="p-1.5 rounded-md bg-orange-50 text-orange-500 shrink-0 mt-0.5">
+                <div className="p-1.5 rounded-md bg-orange-500/10 text-orange-500 shrink-0 mt-0.5">
                   <MessageSquare className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Scenario</p>
-                  <p className="text-sm text-slate-700 line-clamp-2">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Scenario</p>
+                  <p className="text-sm text-foreground line-clamp-2">
                     {scenario.scenario_type}
                     {(() => {
                       const pain = scenario.custom_persona?.painPoints?.[0] ?? presetPersona?.painPoints?.[0];
@@ -177,7 +177,7 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
               </div>
 
               {/* Meta row */}
-              <div className="flex items-center gap-3 text-xs text-slate-500 pt-1">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1">
                 <span className="flex items-center gap-1 whitespace-nowrap shrink-0">
                   <Clock className="w-3.5 h-3.5" />
                   {scenario.duration} min
