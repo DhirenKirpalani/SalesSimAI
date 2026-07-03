@@ -3,16 +3,24 @@ import { createClient } from "@/lib/supabase/server";
 import { SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
 
-function buildSystemPrompt(): string {
-  return `You are an expert B2B sales coach analyzing a sales call transcript using the MEDDIC framework.
+function buildSystemPrompt(participantRole: string = "seller"): string {
+  return `You are an expert B2B sales coach analyzing a sales call transcript using the MEDDIC framework. The human participant is the ${participantRole}. Score strictly. Do not give points for silence, greetings, "yes", "sounds good", or generic small talk.
 
-MEDDIC scoring guidance:
+MEDDIC scoring guidance — start every dimension at 0 and award points ONLY when the ${participantRole}'s own words provide clear evidence:
+- 0: No evidence the ${participantRole} addressed this dimension.
+- 20-40: Weak or implicit mention (one vague reference, not probed).
+- 50-70: Clear evidence (specific question or statement tied to the dimension).
+- 80-100: Strong evidence (probed deeply, quantified, or tied to a concrete next step).
+
+Dimensions:
 - Metrics: Did they quantify business impact and ROI?
 - Economic Buyer: Did they identify and engage the decision maker?
 - Decision Criteria: Did they uncover the buyer's evaluation criteria?
 - Decision Process: Did they map the buying process and timeline?
 - Identify Pain: Did they discover and probe specific pain points?
 - Champion: Did they build a relationship and internal advocate?
+
+Compute the overall_score as a weighted average: Identify Pain 25%, Metrics 20%, Economic Buyer 15%, Decision Criteria 15%, Decision Process 15%, Champion 10%.
 
 Return ONLY valid JSON in this exact shape:
 {
@@ -38,12 +46,19 @@ Return ONLY valid JSON in this exact shape:
   ]
 }
 
+Rules for strengths, weaknesses, missed opportunities, and coaching recommendations:
+- They MUST be grounded in the actual transcript and the scenario above.
+- Strengths: specific things the ${participantRole} actually said or did well. Do NOT list generic advice. If there are no real strengths, return an empty array.
+- Weaknesses: specific gaps or mistakes evident in the transcript. Use quotes or refer to actual turns.
+- Missed opportunities: specific questions or tactics the ${participantRole} failed to use at a real moment in the conversation.
+- Coaching recommendations: actionable advice that directly addresses the weaknesses and missed opportunities. Do not repeat generic sales tips.
+
 COACHING MOMENTS rules:
 - Pick 3-5 real moments from the transcript where the buyer said something significant.
 - For each, explain what signal that statement sends (objection, buying signal, etc.).
-- Provide an exact script the seller should have used — not generic advice, word-for-word what to say.
-- Be honest and specific. Reference actual moments from the transcript.`;
-}
+- Provide an exact script the ${participantRole} should have used — not generic advice, word-for-word what to say.
+- Be honest and specific. Reference actual moments from the transcript.
+`}
 
 export async function POST(req: NextRequest) {
   try {
@@ -99,8 +114,9 @@ export async function POST(req: NextRequest) {
     }
 
     const state = session.state as SimulationState;
+    const participantRole = scenario?.scenario_type === "Product Knowledge Interview" ? "CANDIDATE" : "SALESPERSON";
     const transcript = messages
-      .map((m) => `${m.role === "user" ? "SALESPERSON" : "BUYER"}: ${m.content}`)
+      .map((m) => `${m.role === "user" ? participantRole : "BUYER"}: ${m.content}`)
       .join("\n");
 
     const factsFound = Object.entries(state.facts_discovered ?? {})
@@ -115,6 +131,9 @@ BUYER: ${personaName}${personaRole ? `, ${personaRole}` : ""}${personaCompany ? 
 WHAT WAS BEING SOLD: ${scenario?.seller_description ?? ""}
 CALL CONTEXT: ${scenario?.context_note ?? ""}
 
+SCORING RUBRIC (checkpoints the seller should hit):
+${scenario?.scoring_criteria ?? "No rubric provided"}
+
 SESSION OUTCOME:
 - Final trust level: ${state.trust_level}/100
 - Buyer mood: ${state.buyer_mood} (-10 frustrated → +10 engaged)
@@ -128,7 +147,7 @@ ${transcript}`;
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
 
-    const systemPrompt = buildSystemPrompt();
+    const systemPrompt = buildSystemPrompt(participantRole.toLowerCase());
 
     const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -153,7 +172,31 @@ ${transcript}`;
     }
 
     const gptData = await gptRes.json();
-    const analysis = JSON.parse(gptData.choices[0].message.content);
+    const rawAnalysis = JSON.parse(gptData.choices[0].message.content);
+
+    // Normalize breakdown keys: accept MEDDIC names with spaces or snake_case, clamp to 0-100
+    const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
+    const rawBreakdown = rawAnalysis.breakdown ?? {};
+    const normalizedBreakdown = {
+      metrics: clamp(rawBreakdown["Metrics"] ?? rawBreakdown["metrics"] ?? 0),
+      economic_buyer: clamp(rawBreakdown["Economic Buyer"] ?? rawBreakdown["economic_buyer"] ?? 0),
+      decision_criteria: clamp(rawBreakdown["Decision Criteria"] ?? rawBreakdown["decision_criteria"] ?? 0),
+      decision_process: clamp(rawBreakdown["Decision Process"] ?? rawBreakdown["decision_process"] ?? 0),
+      identify_pain: clamp(rawBreakdown["Identify Pain"] ?? rawBreakdown["identify_pain"] ?? 0),
+      champion: clamp(rawBreakdown["Champion"] ?? rawBreakdown["champion"] ?? 0),
+    };
+    const analysis = {
+      ...rawAnalysis,
+      breakdown: normalizedBreakdown,
+      overall_score: Math.round(
+        normalizedBreakdown.identify_pain * 0.25 +
+        normalizedBreakdown.metrics * 0.20 +
+        normalizedBreakdown.economic_buyer * 0.15 +
+        normalizedBreakdown.decision_criteria * 0.15 +
+        normalizedBreakdown.decision_process * 0.15 +
+        normalizedBreakdown.champion * 0.10
+      ),
+    };
 
     // Cache the analysis result on the session row
     await supabase

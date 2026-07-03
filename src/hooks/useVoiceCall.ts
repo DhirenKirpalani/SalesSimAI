@@ -48,16 +48,31 @@ export function useVoiceCall(): UseVoiceCallReturn {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [micMuted, setMicMuted] = useState(false);
 
-  // Catch ElevenLabs SDK unhandled rejections (e.g. malformed error_event crash)
+  // Catch ElevenLabs SDK unhandled rejections and thrown errors (e.g. DataChannel errors)
   useEffect(() => {
-    const handler = (e: PromiseRejectionEvent) => {
-      console.error("[useVoiceCall] unhandled rejection:", e.reason);
-      setError(e.reason instanceof Error ? e.reason.message : "Voice connection error");
+    const rejectionHandler = (e: PromiseRejectionEvent) => {
+      const reason = e.reason;
+      const msg = typeof reason === "string" ? reason : reason instanceof Error ? reason.message : String(reason);
+      if (!/elevenlabs|datachannel|lossy|webrtc/i.test(msg)) return;
+      console.error("[useVoiceCall] unhandled rejection:", reason);
+      setError(msg || "Voice connection error");
       setStatus("error");
       e.preventDefault();
     };
-    window.addEventListener("unhandledrejection", handler);
-    return () => window.removeEventListener("unhandledrejection", handler);
+    const errorHandler = (e: ErrorEvent) => {
+      const msg = e.message || String(e.error);
+      if (!/datachannel|lossy|webrtc|elevenlabs/i.test(msg)) return;
+      console.error("[useVoiceCall] caught window error:", e.error);
+      setError(msg || "Voice connection error");
+      setStatus("error");
+      e.preventDefault();
+    };
+    window.addEventListener("unhandledrejection", rejectionHandler);
+    window.addEventListener("error", errorHandler);
+    return () => {
+      window.removeEventListener("unhandledrejection", rejectionHandler);
+      window.removeEventListener("error", errorHandler);
+    };
   }, []);
 
   const sessionIdRef = useRef<string | null>(null);
