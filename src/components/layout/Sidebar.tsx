@@ -16,8 +16,6 @@ import {
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useRole } from "@/hooks/useRole";
-import { Logo } from "@/components/layout/Logo";
-
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Scenarios", href: "/scenarios", icon: Library },
@@ -38,14 +36,10 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "hidden md:flex flex-col border-r bg-card transition-all duration-300 ease-in-out h-screen sticky top-0 z-40",
+        "hidden md:flex flex-col border-r bg-card transition-all duration-300 ease-in-out sticky top-16 h-[calc(100vh-4rem)] z-40",
         collapsed ? "w-16" : "w-60"
       )}
     >
-      <div className="flex items-center px-4 h-16 border-b shrink-0">
-        {!collapsed && <Logo />}
-      </div>
-
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
         {visibleNavItems.map((item) => {
           const active = pathname.startsWith(item.href);

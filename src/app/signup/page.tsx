@@ -10,9 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Zap, Eye, EyeOff, Mail, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, Mail, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { Logo } from "@/components/layout/Logo";
 
 const signupSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -99,12 +100,7 @@ export default function SignupPage() {
         className="w-full max-w-md relative z-10"
       >
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-6 hover:opacity-80 transition-opacity">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary text-primary-foreground">
-              <Zap className="w-4 h-4" />
-            </div>
-            <span className="font-semibold text-sm tracking-tight">SalesSim AI</span>
-          </Link>
+          <Logo href="/" className="inline-flex items-center justify-center mb-6 hover:opacity-80 transition-opacity text-xl" />
           <h1 className="text-2xl font-bold tracking-tight">Create your account</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Start your 14-day free trial. No credit card required.

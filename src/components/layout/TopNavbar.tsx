@@ -381,7 +381,7 @@ export function TopNavbar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6">
-      <div className="md:hidden">
+      <div className="flex items-center gap-3 md:hidden">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger className="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground">
             <Menu className="h-5 w-5" />
@@ -390,7 +390,7 @@ export function TopNavbar() {
             <div className="flex items-center px-4 h-16 border-b">
               <Logo />
             </div>
-            <nav className="flex flex-col gap-1 p-3">
+            <nav className="flex flex-col gap-1 p-3 pt-4">
               {mobileNavItems.map((item) => {
                 const active = pathname.startsWith(item.href);
                 return (
@@ -414,6 +414,9 @@ export function TopNavbar() {
           </SheetContent>
         </Sheet>
       </div>
+
+      <Logo className="hidden md:block" />
+      <Logo className="md:hidden" />
 
       <div className="flex-1" />
 
