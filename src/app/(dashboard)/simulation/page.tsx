@@ -1647,19 +1647,19 @@ function HeyGenTestInner() {
   useEffect(() => () => { stop(); }, [stop]);
 
   return (
-    <div className="h-full bg-[#0B0E14] text-white flex flex-col overflow-hidden -m-4 lg:-m-6">
+    <div className="h-full bg-[#0B0E14] text-white flex flex-col overflow-hidden">
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 bg-[#0B0E14]/90 backdrop-blur-sm z-20 shrink-0">
-        <div className="flex items-center gap-2.5">
+      <div className="flex items-center justify-between px-4 lg:px-6 py-2 border-b border-white/10 bg-[#0B0E14]/95 backdrop-blur-sm z-20 shrink-0">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => router.back()}
-            className="group flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-orange-500 hover:text-orange-400 transition-colors"
+            className="group flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white/10 text-white hover:bg-white/15 transition-colors"
             title="Back to scenario"
           >
-            <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+            <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
             Back
           </button>
-          <p className="text-sm font-semibold leading-none">
+          <p className="text-sm font-semibold leading-none text-white">
             {resolvedScenarioName ?? scenarioNameParam ?? "Simulation"}
           </p>
         </div>
