@@ -20,6 +20,7 @@ interface CoachingOverlayProps {
   onToggle: () => void;
   checkpoints?: Checkpoint[];
   hideToggle?: boolean;
+  suggestedNextQuestionOverride?: string;
 }
 
 export function CoachingOverlay({
@@ -31,6 +32,7 @@ export function CoachingOverlay({
   onToggle,
   checkpoints,
   hideToggle,
+  suggestedNextQuestionOverride,
 }: CoachingOverlayProps) {
   const [showCheckpoints, setShowCheckpoints] = useState(false);
   const steps = getCoachingSteps(state.scenarioType);
@@ -133,14 +135,14 @@ export function CoachingOverlay({
           </div>
 
           {/* Suggested question — highlighted */}
-          {state.suggestedNextQuestion && (
+          {(suggestedNextQuestionOverride || state.suggestedNextQuestion) && (
             <div className="bg-emerald-500/10 rounded-xl p-2.5 border border-emerald-500/20 space-y-1">
               <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-emerald-400 font-medium">
                 <MessageSquare className="w-3 h-3" />
                 Try This
               </div>
               <p className="text-xs text-emerald-100 leading-relaxed">
-                {state.suggestedNextQuestion}
+                {suggestedNextQuestionOverride || state.suggestedNextQuestion}
               </p>
             </div>
           )}
