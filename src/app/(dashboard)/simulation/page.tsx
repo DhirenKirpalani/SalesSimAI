@@ -1233,18 +1233,29 @@ function HeyGenTestInner() {
           } else {
             const coachData = await coachRes.json().catch(() => ({}));
             if (coachData.evaluation) {
+              const mb = coachData.evaluation.meddic_breakdown;
+              const breakdown = mb
+                ? {
+                    metrics: mb["Metrics"] ?? 0,
+                    economic_buyer: mb["Economic Buyer"] ?? 0,
+                    decision_criteria: mb["Decision Criteria"] ?? 0,
+                    decision_process: mb["Decision Process"] ?? 0,
+                    identify_pain: mb["Identify Pain"] ?? 0,
+                    champion: mb["Champion"] ?? 0,
+                  }
+                : {
+                    metrics: coachData.evaluation.discovery_score ?? 0,
+                    economic_buyer: coachData.evaluation.empathy_score ?? 0,
+                    decision_criteria: coachData.evaluation.objection_score ?? 0,
+                    decision_process: 0,
+                    identify_pain: coachData.evaluation.discovery_score ?? 0,
+                    champion: 0,
+                  };
               setFeedback({
                 overall_score: coachData.evaluation.overall_score,
-                breakdown: {
-                  metrics: coachData.evaluation.discovery_score,
-                  economic_buyer: coachData.evaluation.empathy_score,
-                  decision_criteria: 0,
-                  decision_process: 0,
-                  identify_pain: coachData.evaluation.objection_score,
-                  champion: 0,
-                },
-                strengths: coachData.evaluation.recommendations.slice(0, 3),
-                weaknesses: coachData.evaluation.missed_opportunities,
+                breakdown,
+                strengths: coachData.evaluation.strengths ?? coachData.evaluation.recommendations.slice(0, 3),
+                weaknesses: coachData.evaluation.weaknesses ?? coachData.evaluation.missed_opportunities,
                 missed_opportunities: coachData.evaluation.missed_opportunities,
                 coaching_recommendations: coachData.evaluation.recommendations,
                 coaching_moments: [],
@@ -2599,7 +2610,7 @@ function HeyGenTestInner() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">{resolvedPersonaName ?? "Buyer"}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-gray-300">
                   {resolvedPersonaRole}
                   {resolvedPersonaRole && personaDetails.company && " at "}
                   {personaDetails.company}
@@ -2607,13 +2618,13 @@ function HeyGenTestInner() {
               </div>
             </div>
 
-            {feedbackLoading && <p className="text-muted-foreground text-sm animate-pulse">Analyzing your call with MEDDIC framework…</p>}
+            {feedbackLoading && <p className="text-white text-sm animate-pulse">Analyzing your call with MEDDIC framework…</p>}
             {feedback && (
               <>
                 {feedback.overall_score === 0 && !feedback.strengths?.length && !feedback.weaknesses?.length ? (
                   <div className="text-center py-6">
-                    <p className="text-muted-foreground text-sm">Analysis could not be completed.</p>
-                    <p className="text-muted-foreground text-xs mt-1">Make sure the conversation has at least 2 turns before ending the call.</p>
+                    <p className="text-white text-sm">Analysis could not be completed.</p>
+                    <p className="text-gray-300 text-xs mt-1">Make sure the conversation has at least 2 turns before ending the call.</p>
                   </div>
                 ) : null}
                 {feedback.breakdown && (
@@ -2630,7 +2641,7 @@ function HeyGenTestInner() {
                       return (
                         <div key={key} className="bg-white/5 rounded-lg p-2.5 flex flex-col gap-1.5 border border-white/5">
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] text-muted-foreground font-medium">{label}</span>
+                            <span className="text-[10px] text-gray-300 font-medium">{label}</span>
                             <span className="text-xs font-bold text-orange-500">{val}</span>
                           </div>
                           <div className="h-1 bg-muted rounded-full overflow-hidden">
@@ -2642,22 +2653,24 @@ function HeyGenTestInner() {
                   </div>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {feedback.strengths?.length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-orange-400 font-semibold uppercase tracking-wide">Strengths</p>
-                      {feedback.strengths.map((s, i) => (
-                        <p key={i} className="text-xs text-muted-foreground ml-1 flex items-start gap-1.5">
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-orange-400 font-semibold uppercase tracking-wide">Strengths</p>
+                    {feedback.strengths?.length > 0 ? (
+                      feedback.strengths.map((s, i) => (
+                        <p key={i} className="text-xs text-gray-200 ml-1 flex items-start gap-1.5">
                           <span className="text-orange-500 mt-0.5">•</span>
                           <span>{s}</span>
                         </p>
-                      ))}
-                    </div>
-                  )}
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-500 ml-1 italic">No clear strengths identified in this call.</p>
+                    )}
+                  </div>
                   {feedback.weaknesses?.length > 0 && (
                     <div className="space-y-1">
                       <p className="text-[10px] text-orange-300 font-semibold uppercase tracking-wide">Weaknesses</p>
                       {feedback.weaknesses.map((w, i) => (
-                        <p key={i} className="text-xs text-muted-foreground ml-1 flex items-start gap-1.5">
+                        <p key={i} className="text-xs text-gray-200 ml-1 flex items-start gap-1.5">
                           <span className="text-orange-300 mt-0.5">•</span>
                           <span>{w}</span>
                         </p>
@@ -2669,7 +2682,7 @@ function HeyGenTestInner() {
                   <div className="space-y-1">
                     <p className="text-[10px] text-orange-500 font-semibold uppercase tracking-wide">Missed Opportunities</p>
                     {feedback.missed_opportunities.map((m, i) => (
-                      <p key={i} className="text-xs text-muted-foreground ml-1 flex items-start gap-1.5">
+                      <p key={i} className="text-xs text-gray-200 ml-1 flex items-start gap-1.5">
                         <span className="text-orange-500 mt-0.5">•</span>
                         <span>{m}</span>
                       </p>
@@ -2680,7 +2693,7 @@ function HeyGenTestInner() {
                   <div className="bg-orange-950/20 border border-orange-500/20 rounded-lg px-3 py-2">
                     <p className="text-[10px] text-orange-400 font-semibold uppercase tracking-wide mb-1">Coaching</p>
                     {feedback.coaching_recommendations.map((r, i) => (
-                      <p key={i} className="text-xs text-foreground ml-1 flex items-start gap-1.5">
+                      <p key={i} className="text-xs text-gray-200 ml-1 flex items-start gap-1.5">
                         <span className="text-orange-400 mt-0.5">•</span>
                         <span>{r}</span>
                       </p>
@@ -2693,13 +2706,13 @@ function HeyGenTestInner() {
                     {feedback.coaching_moments!.map((m, i) => (
                       <div key={i} className="bg-white/5 border border-white/10 rounded-lg p-2.5 space-y-1.5">
                         <div className="space-y-0.5">
-                          <p className="text-[10px] text-muted-foreground">Buyer said:</p>
-                          <p className="text-xs italic text-muted-foreground">&ldquo;{m.buyer_quote}&rdquo;</p>
+                          <p className="text-[10px] text-gray-300">Buyer said:</p>
+                          <p className="text-xs italic text-gray-300">&ldquo;{m.buyer_quote}&rdquo;</p>
                         </div>
                         <p className="text-[10px] text-orange-400">Signal: {m.signal}</p>
                         <div className="space-y-0.5">
                           <p className="text-[10px] text-orange-400">You should have said:</p>
-                          <p className="text-xs bg-orange-500/10 border border-orange-500/20 rounded-md px-2 py-1 text-foreground">{m.what_they_should_have_said}</p>
+                          <p className="text-xs bg-orange-500/10 border border-orange-500/20 rounded-md px-2 py-1 text-gray-200">{m.what_they_should_have_said}</p>
                         </div>
                       </div>
                     ))}
