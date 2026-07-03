@@ -170,11 +170,13 @@ function DraggableCoaching({
   coachingOpen,
   setCoachingOpen,
   checkpoints,
+  suggestedNextQuestionOverride,
 }: {
   coaching: ReturnType<typeof useCoaching>;
   coachingOpen: boolean;
   setCoachingOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
   checkpoints?: { id: string; name: string; status: CheckpointStatus }[];
+  suggestedNextQuestionOverride?: string;
 }) {
   const [pos, setPos] = useState({ x: 16, y: 60 }); // right offset, top offset
   const draggingRef = useRef(false);
@@ -226,6 +228,7 @@ function DraggableCoaching({
         isOpen={coachingOpen}
         onToggle={() => setCoachingOpen((o) => !o)}
         checkpoints={checkpoints}
+        suggestedNextQuestionOverride={suggestedNextQuestionOverride}
       />
     </div>
   );
@@ -377,6 +380,7 @@ function HeyGenTestInner() {
 
   // Live nudge bubbles — persistent coaching feedback log that accumulates after each turn
   const [liveNudges, setLiveNudges] = useState<Nudge[]>([]);
+  const [suggestedNextOverride, setSuggestedNextOverride] = useState<string | null>(null);
   const nudgeIdRef = useRef(0);
   const lastNudgeSignatureRef = useRef<string | null>(null);
 
@@ -457,6 +461,9 @@ function HeyGenTestInner() {
       checkpointId: result.checkpoint_hit || undefined,
       copyText: result.suggested_next || undefined,
     });
+    if (result.suggested_next && result.suggested_next.trim().length > 0) {
+      setSuggestedNextOverride(result.suggested_next.trim());
+    }
     setLiveNudges((prev) => {
       if (isSimilarNudge(prev, nudgeMessage)) {
         console.log("[simulation] skipping similar coach-turn nudge:", nudgeMessage);
@@ -595,6 +602,7 @@ function HeyGenTestInner() {
       lastAnalyzedPairRef.current = null;
       setCurrentStep(0);
       lastStepAdvanceRef.current = -1;
+      setSuggestedNextOverride(null);
     }
     addLog(isResume ? "Resuming LiveAvatar session…" : "Starting LiveAvatar session…");
 
@@ -837,6 +845,7 @@ function HeyGenTestInner() {
     lastAnalyzedPairRef.current = null;
     setCurrentStep(0);
     lastStepAdvanceRef.current = -1;
+    setSuggestedNextOverride(null);
     addLog("Starting voice call session…");
     coaching.reset();
     setCheckpointStatus({});
@@ -912,6 +921,7 @@ function HeyGenTestInner() {
     lastAnalyzedPairRef.current = null;
     setCurrentStep(0);
     lastStepAdvanceRef.current = -1;
+    setSuggestedNextOverride(null);
     addLog("Starting text chat session…");
     coaching.reset();
     setCheckpointStatus({});
@@ -960,6 +970,7 @@ function HeyGenTestInner() {
     setTextInput("");
     setTextLoading(true);
     addTranscript("user", message);
+    setSuggestedNextOverride(null);
 
     try {
       const res = await fetch("/api/simulation/turn", {
@@ -985,7 +996,13 @@ function HeyGenTestInner() {
         fetch("/api/simulation/coach-turn", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, sellerText: message, buyerText: buyerMsg }),
+          body: JSON.stringify({
+            sessionId,
+            sellerText: message,
+            buyerText: buyerMsg,
+            currentStep: coaching.state.currentStep,
+            stepsCompleted: coaching.state.stepsCompleted,
+          }),
         }).then((r) => r.json()).then(appendCoachTurnNudges).catch(() => {});
       }
     } catch (e) {
@@ -1543,6 +1560,7 @@ function HeyGenTestInner() {
     const pairKey = `${sellerText}|${buyerText}`;
     if (lastAnalyzedPairRef.current === pairKey) return;
     lastAnalyzedPairRef.current = pairKey;
+    setSuggestedNextOverride(null);
 
     // Debounce: wait for the buyer text to stabilize before calling the coach API
     if (coachDebounceRef.current) clearTimeout(coachDebounceRef.current);
@@ -1552,7 +1570,13 @@ function HeyGenTestInner() {
       fetch("/api/simulation/coach-turn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, sellerText, buyerText }),
+        body: JSON.stringify({
+          sessionId,
+          sellerText,
+          buyerText,
+          currentStep: coaching.state.currentStep,
+          stepsCompleted: coaching.state.stepsCompleted,
+        }),
       }).then((r) => r.json()).then(appendCoachTurnNudges).catch(() => {});
     }, 1500);
   }, [voiceCall.transcript, transcript, callMode, appendCoachTurnNudges, voiceSessionId]);
@@ -2181,6 +2205,7 @@ function HeyGenTestInner() {
                       }))
                     : undefined
                 }
+                suggestedNextQuestionOverride={suggestedNextOverride ?? undefined}
               />
             </div>
           </div>
@@ -2423,6 +2448,7 @@ function HeyGenTestInner() {
                   }))
                 : undefined
             }
+            suggestedNextQuestionOverride={suggestedNextOverride ?? undefined}
           />
         )}
       </div>

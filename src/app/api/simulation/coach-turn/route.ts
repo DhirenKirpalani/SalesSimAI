@@ -18,7 +18,7 @@ interface SessionState {
 
 export async function POST(req: NextRequest) {
   try {
-    const { sessionId, sellerText, buyerText } = await req.json();
+    const { sessionId, sellerText, buyerText, currentStep, stepsCompleted } = await req.json();
     if (!sessionId || !sellerText?.trim()) {
       return NextResponse.json({ fallback: true });
     }
@@ -112,7 +112,12 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return NextResponse.json({ fallback: true });
 
-    const systemPrompt = `You are a real-time sales coach monitoring a live sales call. Evaluate the seller's latest exchange against the rubric below AND check product facts against the knowledge base.
+    const completedSteps = Array.isArray(stepsCompleted)
+      ? stepsCompleted.map((c, i) => (c ? i : -1)).filter((i) => i >= 0)
+      : [];
+    const nextStepIndex = typeof currentStep === "number" ? currentStep : completedSteps.length;
+
+    const systemPrompt = `You are a concise, accurate sales coach observing a live sales call. Your job is to help the seller improve ONE thing on the very last thing they said.
 
 SCENARIO: ${scenario.scenario_type ?? "Discovery Call"}
 SELLING: ${scenario.seller_product ?? scenario.seller_company ?? "Unknown"}
@@ -126,34 +131,47 @@ SESSION STATE:
 - Trust: ${state?.trust_level ?? 30}/100
 - Mood: ${state?.buyer_mood ?? 0}
 - Facts uncovered: ${factsFound.length ? factsFound.join(", ") : "none"}
+- Coaching steps already covered: ${completedSteps.length ? completedSteps.join(", ") : "none"}
+- Next recommended coaching step index: ${nextStepIndex}
 
-PRODUCT KNOWLEDGE BASE:
+PRODUCT KNOWLEDGE BASE (use to fact-check seller claims):
 ${scenario.seller_description || "No product knowledge base provided."}${docContext}
 
-SCORING RUBRIC:
+SCORING RUBRIC (checkpoints the seller should hit):
 ${scenario.scoring_criteria}
 
 CONVERSATION SO FAR:
 ${history || "(start of call)"}
 
-Evaluate ONLY the latest exchange. Consider what has already been covered to avoid repeating nudges or re-scoring checkpoints already hit.
+Instructions:
+1. Look only at the LATEST exchange below.
+2. Decide if the seller's response was good, missed the mark, or needs a warning. Base this on the rubric and the buyer's actual words.
+3. If the buyer asked a question, raised an objection, or expressed concern, the next suggestion must directly address that point first. Do not change the subject or jump to a later rubric step until the buyer's immediate concern is handled.
+4. If the buyer did not raise a new concern, suggest the next logical step forward in the rubric, skipping nothing that is still pending.
+5. Never suggest going back to a step that is already marked as covered above.
+6. If the seller said something factually wrong about the product, list it in product_corrections. Otherwise leave that array empty.
+7. If no rubric checkpoint is clearly hit this turn, set checkpoint_hit and checkpoint_name to null.
+8. Be concise. Do not lecture. Do not contradict the rubric or the conversation history. Do not suggest actions the seller already took.
 
-Additionally, check whether the seller stated any product fact that contradicts the PRODUCT KNOWLEDGE BASE above (e.g., wrong numbers, wrong coverage, wrong features, wrong timelines). For each contradiction, include an entry in product_corrections. If the seller did not state any product fact or if all facts are correct, return an empty product_corrections array.
+Examples of good responses:
+- Seller: "We cover the Philippines." Buyer: "Are you sure?" → nudge: "Confirm Philippines coverage with specifics." suggested_next: "Share the countries and compliance details you cover."
+- Seller: "Tell me about your current process." Buyer: "We do it manually." → nudge: "Good discovery question." suggested_next: "Ask what breaks down most in that manual process."
+- Seller: "Our pricing is $99." (knowledge base says $199) → nudge: "Pricing correction needed." suggested_next: "Clarify the correct pricing before continuing." product_corrections: [{claim:"$99", correction:"$199 per month", severity:"error", topic:"pricing"}]
 
 Return ONLY valid JSON:
 {
-  "checkpoint_hit": "<checkpoint ID from the rubric, e.g. B1, B2 — or null if none clearly hit this turn>",
-  "checkpoint_name": "<short name of the checkpoint — or null>",
+  "checkpoint_hit": "<rubric checkpoint ID, e.g. B1, or null>",
+  "checkpoint_name": "<checkpoint name or null>",
   "quality": "good" | "warning" | "missed",
-  "nudge": "<direct, specific coaching message — max 15 words, reference what the seller actually said>",
-  "suggested_next": "<what the seller should do next — max 15 words, based on rubric progression>",
-  "already_covered": ["<checkpoint IDs already hit in previous turns>"],
+  "nudge": "<one clear coaching sentence, max 15 words, tied to the last exchange>",
+  "suggested_next": "<one concrete next action, max 15 words; address the buyer's concern first, then move forward>",
+  "already_covered": ["<checkpoint IDs already hit>"],
   "product_corrections": [
     {
-      "claim": "<exact incorrect claim the seller made>",
-      "correction": "<the correct fact from the product knowledge base>",
+      "claim": "<incorrect claim>",
+      "correction": "<correct fact from knowledge base>",
       "severity": "error" | "warning",
-      "topic": "<short topic label, e.g., coverage, pricing, features>"
+      "topic": "<coverage/pricing/features/etc>"
     }
   ]
 }`;

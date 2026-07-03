@@ -233,13 +233,18 @@ export function analyzeTurn(
     newCompleted[detectedStep] = true;
   }
 
-  // Determine current step (first uncompleted)
+  // Determine current step (first uncompleted, or last if all done)
   let currentStep: DiscoveryStepId = 0;
+  let allCompleted = true;
   for (let i = 0; i < newCompleted.length; i++) {
     if (!newCompleted[i]) {
       currentStep = i;
+      allCompleted = false;
       break;
     }
+  }
+  if (allCompleted) {
+    currentStep = (steps.length - 1) as DiscoveryStepId;
   }
 
   // Extract uncovered facts from buyer response
@@ -247,9 +252,14 @@ export function analyzeTurn(
 
   // Pick a scenario-aware suggestion for the next step
   const questions = getSuggestedQuestions(ctx ?? {});
-  const suggestionPool = questions[currentStep] ?? ["Keep the conversation moving forward."];
-  const rotationIndex = currentState.sellerQuestionCount % suggestionPool.length;
-  const newSuggestion = suggestionPool[rotationIndex];
+  let newSuggestion: string;
+  if (allCompleted) {
+    newSuggestion = "Great progress — summarize what you've learned and propose clear next steps.";
+  } else {
+    const suggestionPool = questions[currentStep] ?? ["Keep the conversation moving forward."];
+    const rotationIndex = currentState.sellerQuestionCount % suggestionPool.length;
+    newSuggestion = suggestionPool[rotationIndex];
+  }
 
   return {
     stepDetected: detectedStep,
@@ -272,11 +282,16 @@ export function updateCoachingState(
   }
 
   let currentStep: DiscoveryStepId = 0;
+  let allCompleted = true;
   for (let i = 0; i < newCompleted.length; i++) {
     if (!newCompleted[i]) {
       currentStep = i as DiscoveryStepId;
+      allCompleted = false;
       break;
     }
+  }
+  if (allCompleted) {
+    currentStep = (newCompleted.length - 1) as DiscoveryStepId;
   }
 
   return {
