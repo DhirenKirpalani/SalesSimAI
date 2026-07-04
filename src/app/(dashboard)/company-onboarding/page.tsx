@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { AvatarPicker } from "@/components/AvatarPicker";
+import { createClient } from "@/lib/supabase/client";
 import {
   Loader2,
   Sparkles,
@@ -131,6 +132,24 @@ export default function CompanyOnboardingPage() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [extractionPhase, setExtractionPhase] = useState(0);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
+
+  // Load user's organization on mount
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", user.id)
+        .single();
+      if (profile?.organization_id) {
+        setOrganizationId(profile.organization_id);
+      }
+    })();
+  }, []);
 
   // Cycle through extraction phases while loading
   useEffect(() => {
@@ -168,6 +187,7 @@ export default function CompanyOnboardingPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Extraction failed");
         setProfile(data.data);
+        await saveCompanyProfile(data.data);
       } else if (hasFiles) {
         const formData = new FormData();
         uploadedFiles.forEach((f, i) => formData.append(`file${i}`, f));
@@ -178,6 +198,7 @@ export default function CompanyOnboardingPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Extraction failed");
         setProfile(data.data);
+        await saveCompanyProfile(data.data);
       } else {
         const res = await fetch("/api/company/extract", {
           method: "POST",
@@ -187,6 +208,7 @@ export default function CompanyOnboardingPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Extraction failed");
         setProfile(data.data);
+        await saveCompanyProfile(data.data);
       }
       setStep("preview");
     } catch (e: any) {
@@ -245,6 +267,19 @@ export default function CompanyOnboardingPage() {
 
   const updateProfileField = <K extends keyof CompanyProfile>(key: K, value: CompanyProfile[K]) => {
     setProfile((prev) => prev ? { ...prev, [key]: value } : prev);
+  };
+
+  const saveCompanyProfile = async (companyProfile: CompanyProfile) => {
+    if (!organizationId) return;
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("organizations")
+        .update({ profile_data: companyProfile })
+        .eq("id", organizationId);
+    } catch (e) {
+      console.error("[company-onboarding] Failed to save company profile:", e);
+    }
   };
 
   const steps = [

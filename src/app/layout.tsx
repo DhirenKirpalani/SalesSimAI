@@ -1,20 +1,8 @@
 import type { Metadata } from "next";
-import { Inter, Fraunces, JetBrains_Mono } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeInit } from "@/components/ThemeInit";
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
@@ -79,9 +67,30 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable} h-full antialiased overflow-x-hidden`}
+      className={`${jetbrainsMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  const item = localStorage.getItem("sales-sim-theme");
+                  if (item) {
+                    const parsed = JSON.parse(item);
+                    if (parsed?.state?.darkMode === true) {
+                      document.documentElement.classList.add("dark");
+                    } else {
+                      document.documentElement.classList.remove("dark");
+                    }
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         <ThemeInit />
         <TooltipProvider>{children}</TooltipProvider>

@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
 import { LandingPage } from "@/components/landing/LandingPage";
+import { PageLayout } from "@/components/landing/PageLayout";
 
 export const metadata: Metadata = {
-  title: "Day1 — Practice Sales Conversations with AI Buyers",
+  title: "Day1 | AI Field Intelligence for Sales Teams",
   description:
-    "Train against realistic prospects, improve objection handling, and increase close rates with AI-powered sales simulations.",
+    "Day1 turns your sales calls into a live intelligence loop — surfacing objections and use cases for leaders and keeping AI roleplay and battle cards current for reps.",
   alternates: {
     canonical: "https://www.day1app.io/",
   },
   openGraph: {
-    title: "Day1 — Practice Sales Conversations with AI Buyers",
+    title: "Day1 | AI Field Intelligence for Sales Teams",
     description:
-      "Train against realistic prospects, improve objection handling, and increase close rates with AI-powered sales simulations.",
+      "Day1 turns your sales calls into a live intelligence loop — surfacing objections and use cases for leaders and keeping AI roleplay and battle cards current for reps.",
     url: "https://www.day1app.io/",
   },
 };
@@ -64,7 +65,9 @@ export default function Home() {
           }),
         }}
       />
-      <LandingPage />
+      <PageLayout>
+        <LandingPage />
+      </PageLayout>
     </>
   );
 }
