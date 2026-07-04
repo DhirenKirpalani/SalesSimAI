@@ -42,6 +42,7 @@ interface CustomScenarioCardProps {
 export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenarios" }: CustomScenarioCardProps) {
   const [open, setOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [startLoading, setStartLoading] = useState(false);
   const [overrideAvatarId, setOverrideAvatarId] = useState(scenario.avatar_id ?? "");
   const [overrideVoiceId, setOverrideVoiceId] = useState(scenario.voice_id ?? "");
   const router = useRouter();
@@ -101,15 +102,35 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
     onDeleted();
   };
 
-  const handleStart = (e: React.MouseEvent) => {
+  const handleStart = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const avatarParam = overrideAvatarId ? `&avatarId=${encodeURIComponent(overrideAvatarId)}` : "";
-    const voiceParam = !overrideAvatarId && overrideVoiceId ? `&voiceId=${encodeURIComponent(overrideVoiceId)}` : "";
-    const nameParam = scenario.name ? `&scenarioName=${encodeURIComponent(scenario.name)}` : "";
-    const avatarNameParam = scenario.avatar_name ? `&avatarName=${encodeURIComponent(scenario.avatar_name.split(" ")[0])}` : "";
-    const voiceAvatarParam = scenario.voice_avatar_image_url ? `&voiceAvatarImageUrl=${encodeURIComponent(scenario.voice_avatar_image_url)}` : "";
-    const elevenVoiceParam = scenario.elevenlabs_voice_id ? `&elevenlabsVoiceId=${encodeURIComponent(scenario.elevenlabs_voice_id)}` : "";
-    router.push(`/simulation?scenarioId=${scenario.id}&scenarioTable=${table}${avatarParam}${voiceParam}${nameParam}${avatarNameParam}${voiceAvatarParam}${elevenVoiceParam}`);
+    if (startLoading) return;
+    setStartLoading(true);
+    try {
+      const res = await fetch("/api/simulation/prepare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scenarioId: scenario.id,
+          scenarioTable: table,
+          avatarId: overrideAvatarId || undefined,
+          voiceId: !overrideAvatarId ? overrideVoiceId || undefined : undefined,
+          scenarioName: scenario.name || undefined,
+          avatarName: scenario.avatar_name ? scenario.avatar_name.split(" ")[0] : undefined,
+          voiceAvatarImageUrl: scenario.voice_avatar_image_url || undefined,
+          elevenlabsVoiceId: scenario.elevenlabs_voice_id || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.sessionId) {
+        throw new Error(data.error || "Failed to prepare simulation");
+      }
+      router.push(`/simulation?sessionId=${data.sessionId}`);
+    } catch (err) {
+      console.error("[handleStart]", err);
+      alert(err instanceof Error ? err.message : "Failed to start simulation");
+      setStartLoading(false);
+    }
   };
 
   return (
@@ -194,9 +215,9 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
               </div>
 
               <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                <Button size="sm" className="flex-1 rounded-lg gap-1 text-xs group-hover:gap-2 transition-all bg-orange-500 hover:bg-orange-600 text-white" onClick={handleStart}>
-                  Start Simulation
-                  <ArrowRight className="w-3.5 h-3.5" />
+                <Button size="sm" className="flex-1 rounded-lg gap-1 text-xs group-hover:gap-2 transition-all bg-orange-500 hover:bg-orange-600 text-white" onClick={handleStart} disabled={startLoading}>
+                  {startLoading ? "Preparing…" : "Start Simulation"}
+                  {!startLoading && <ArrowRight className="w-3.5 h-3.5" />}
                 </Button>
                 {showDelete && (
                   <Button
@@ -344,9 +365,9 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
               <Pencil className="w-3.5 h-3.5" />
               Edit
             </Button>
-            <Button className="rounded-xl gap-1" onClick={handleStart}>
-              Start Simulation
-              <ArrowRight className="w-4 h-4" />
+            <Button className="rounded-xl gap-1" onClick={handleStart} disabled={startLoading}>
+              {startLoading ? "Preparing…" : "Start Simulation"}
+              {!startLoading && <ArrowRight className="w-4 h-4" />}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -234,17 +234,78 @@ function DraggableCoaching({
   );
 }
 
+interface SessionConfig {
+  sessionId?: string;
+  scenarioId?: string;
+  scenarioTable?: string;
+  avatarId?: string;
+  voiceId?: string;
+  scenarioName?: string;
+  avatarName?: string;
+  voiceAvatarImageUrl?: string;
+  elevenlabsVoiceId?: string;
+}
+
+function useSessionConfig(): SessionConfig & { loading: boolean; error: string | null } {
+  const searchParams = useSearchParams();
+  const sessionId = searchParams.get("sessionId");
+  const [config, setConfig] = useState<SessionConfig>({});
+  const [loading, setLoading] = useState(Boolean(sessionId));
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setConfig({
+        scenarioId: searchParams.get("scenarioId") ?? undefined,
+        scenarioTable: searchParams.get("scenarioTable") ?? undefined,
+        avatarId: searchParams.get("avatarId") ?? undefined,
+        voiceId: searchParams.get("voiceId") ?? undefined,
+        scenarioName: searchParams.get("scenarioName") ?? undefined,
+        avatarName: searchParams.get("avatarName") ?? undefined,
+        voiceAvatarImageUrl: searchParams.get("voiceAvatarImageUrl") ?? undefined,
+        elevenlabsVoiceId: searchParams.get("elevenlabsVoiceId") ?? undefined,
+      });
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`/api/simulation/session/${sessionId}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Failed to load session");
+        return res.json();
+      })
+      .then((data: SessionConfig) => {
+        if (cancelled) return;
+        setConfig({ ...data, sessionId });
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : String(err));
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, searchParams]);
+
+  return { ...config, loading, error };
+}
+
 function HeyGenTestInner() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const scenarioId = searchParams.get("scenarioId") ?? undefined;
-  const scenarioTable = searchParams.get("scenarioTable") ?? undefined;
-  const avatarId = searchParams.get("avatarId") ?? undefined;
-  const voiceId = searchParams.get("voiceId") ?? undefined;
-  const scenarioNameParam = searchParams.get("scenarioName") ?? undefined;
-  const avatarNameParam = searchParams.get("avatarName") ?? undefined;
-  const voiceAvatarImageUrlParam = searchParams.get("voiceAvatarImageUrl") ?? undefined;
-  const elevenlabsVoiceIdParam = searchParams.get("elevenlabsVoiceId") ?? undefined;
+  const sessionConfig = useSessionConfig();
+  const sessionIdParam = sessionConfig.sessionId;
+  const scenarioId = sessionConfig.scenarioId;
+  const scenarioTable = sessionConfig.scenarioTable;
+  const avatarId = sessionConfig.avatarId;
+  const voiceId = sessionConfig.voiceId;
+  const scenarioNameParam = sessionConfig.scenarioName;
+  const avatarNameParam = sessionConfig.avatarName;
+  const voiceAvatarImageUrlParam = sessionConfig.voiceAvatarImageUrl;
+  const elevenlabsVoiceIdParam = sessionConfig.elevenlabsVoiceId;
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -858,7 +919,7 @@ function HeyGenTestInner() {
         const res = await fetch("/api/simulation/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ scenarioId, scenarioTable, callMode: "voice" }),
+          body: JSON.stringify({ scenarioId, scenarioTable, callMode: "voice", sessionId: sessionIdParam }),
         });
         const data = await res.json();
         if (!res.ok || !data.session) throw new Error(data.error ?? "Failed to create session");
@@ -930,7 +991,7 @@ function HeyGenTestInner() {
       const res = await fetch("/api/simulation/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenarioId, scenarioTable, callMode: "text" }),
+        body: JSON.stringify({ scenarioId, scenarioTable, callMode: "text", sessionId: sessionIdParam }),
       });
       const data = await res.json();
       if (!res.ok || !data.session) throw new Error(data.error ?? "Failed to create session");
@@ -1666,8 +1727,9 @@ function HeyGenTestInner() {
   }, [callMode, status]);
 
   // Pre-create voice session as soon as user selects voice mode so DB round-trip is hidden
+  // Skip when a sessionId is already provided from the route so we don't create a duplicate session.
   useEffect(() => {
-    if (callMode !== "voice" || status !== "idle" || !scenarioId || !scenarioTable) return;
+    if (callMode !== "voice" || status !== "idle" || !scenarioId || !scenarioTable || sessionIdParam) return;
     prewarmedSessionRef.current = fetch("/api/simulation/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1676,10 +1738,42 @@ function HeyGenTestInner() {
       .then((r) => r.json())
       .then((d) => (d.session ? d : null))
       .catch(() => null);
-  }, [callMode, status, scenarioId, scenarioTable]);
+  }, [callMode, status, scenarioId, scenarioTable, sessionIdParam]);
 
   // Cleanup on unmount
   useEffect(() => () => { stop(); }, [stop]);
+
+  if (sessionConfig.loading) {
+    return (
+      <div className="h-full bg-[#0B0E14] text-white flex flex-col overflow-hidden">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-white/20 border-t-primary rounded-full animate-spin" />
+            <p className="text-sm text-muted-foreground">Loading session…</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionConfig.error) {
+    return (
+      <div className="h-full bg-[#0B0E14] text-white flex flex-col overflow-hidden">
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="max-w-md text-center">
+            <p className="text-red-400 font-medium mb-2">Failed to load session</p>
+            <p className="text-sm text-muted-foreground mb-4">{sessionConfig.error}</p>
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:opacity-90"
+            >
+              Back to dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full bg-[#0B0E14] text-white flex flex-col overflow-hidden">

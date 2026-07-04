@@ -1,11 +1,16 @@
 import { LandingNavbar } from "@/components/landing/LandingNavbar";
 import { Footer } from "@/components/landing/Footer";
+import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd";
 import { Metadata } from "next";
 import { Shield, Lock, Users, FileCheck } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Security | Day1",
-  description: "How Day1 keeps your conversations and content secure.",
+  title: "Security",
+  description:
+    "Learn how Day1 protects your sales conversations, training data, and customer content with enterprise-grade security.",
+  alternates: {
+    canonical: "https://www.day1app.io/security",
+  },
 };
 
 const securityItems = [
@@ -34,6 +39,7 @@ const securityItems = [
 export default function SecurityPage() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
+      <BreadcrumbJsonLd items={[{ label: "Home", path: "/" }, { label: "Security", path: "/security" }]} />
       <LandingNavbar />
       <main className="flex-1 py-20 lg:py-28">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">

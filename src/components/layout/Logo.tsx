@@ -21,7 +21,7 @@ export function Logo({ className = "", href = "/", onClick }: LogoProps) {
     >
       <Image
         src={src}
-        alt="SalesSim"
+        alt="Day1"
         width={150}
         height={40}
         className="h-10 w-auto"

@@ -68,7 +68,7 @@ export function Footer() {
             >
               <Image
                 src={logoSrc}
-                alt="SalesSim"
+                alt="Day1"
                 width={150}
                 height={40}
                 className="h-10 w-auto"
