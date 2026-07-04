@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   BookOpen,
+  Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -22,6 +23,7 @@ const navItems = [
   { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
   { label: "Company Knowledge", href: "/company-knowledge", icon: BookOpen },
+  { label: "Call Library", href: "/integrations", icon: Phone },
   { label: "Profile", href: "/profile", icon: User },
   { label: "Admin", href: "/admin", icon: ShieldCheck, adminOnly: true },
 ];
