@@ -126,7 +126,7 @@ export default function InviteAcceptPage() {
           </div>
           <CardTitle className="text-xl">You&apos;ve been invited</CardTitle>
           <CardDescription>
-            Join <span className="font-semibold text-foreground">{invite?.org_name}</span> on SalesSim AI
+            Join <span className="font-semibold text-foreground">{invite?.org_name}</span> on Day1
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5 pt-4">

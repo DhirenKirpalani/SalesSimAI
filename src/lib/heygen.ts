@@ -58,7 +58,7 @@ export async function deleteLiveAvatarContext(
 
 export async function createLiveAvatarSecret(
   secret_value: string,
-  secret_name = "SalesSim OpenAI Key"
+  secret_name = "day1 OpenAI Key"
 ): Promise<string> {
   const res = await fetch(`${LIVEAVATAR_BASE}/v1/secrets`, {
     method: "POST",

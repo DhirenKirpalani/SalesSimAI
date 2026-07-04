@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
         console.log("[heygen/new]", llmError);
         return;
       }
-      const uniqueName = `SalesSim-${Date.now()}`;
+      const uniqueName = `day1-${Date.now()}`;
       try {
         console.log("[heygen/new] Creating LLM secret + config for prod proxy...");
         const secretId = await createLiveAvatarSecret(process.env.OPENAI_API_KEY!, uniqueName);

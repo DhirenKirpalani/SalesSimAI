@@ -9,7 +9,7 @@ const whyCards = [
 export function WhySection() {
   return (
     <section className="max-w-[1100px] mx-auto px-6 lg:px-16 py-16 lg:py-20">
-      <p className="text-[0.7rem] font-semibold tracking-[0.14em] uppercase text-[var(--primary)] mb-4">Why SalesSim</p>
+      <p className="text-[0.7rem] font-semibold tracking-[0.14em] uppercase text-[var(--primary)] mb-4">Why Day1</p>
       <h2 className="font-serif text-[1.75rem] sm:text-[2.1rem] font-bold tracking-[-0.02em] text-[var(--foreground)] mb-3 leading-[1.2]">
         Prospective and retrospective. In one place.
       </h2>

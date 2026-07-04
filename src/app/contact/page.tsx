@@ -7,8 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Mail, MapPin, Phone } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Contact | SalesSim",
-  description: "Get in touch with the SalesSim team.",
+  title: "Contact | Day1",
+  description: "Get in touch with the Day1 team.",
 };
 
 export default function ContactPage() {
@@ -24,7 +24,7 @@ export default function ContactPage() {
             Talk to our team
           </h1>
           <p className="text-base sm:text-lg text-muted-foreground leading-relaxed max-w-2xl mb-12">
-            Have questions about pricing, security, or how SalesSim fits your team? We are here to help.
+            Have questions about pricing, security, or how Day1 fits your team? We are here to help.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">

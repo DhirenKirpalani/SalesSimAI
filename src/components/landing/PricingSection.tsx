@@ -9,7 +9,7 @@ export function PricingSection() {
         Let's talk about your team.
       </h2>
       <p className="text-[0.975rem] text-[var(--muted-foreground)] max-w-[520px] leading-[1.75] mx-auto">
-        Tell us what you're trying to solve and we'll show you how SalesSim fits. No implementation fees, no long-term commitment required to get started.
+        Tell us what you're trying to solve and we'll show you how Day1 fits. No implementation fees, no long-term commitment required to get started.
       </p>
 
       <div className="mt-12 bg-[var(--card)] rounded-[10px] border border-[var(--border)] p-8 md:p-12 max-w-[600px] mx-auto">

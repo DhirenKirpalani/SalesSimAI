@@ -26,7 +26,7 @@ export function HeroSection() {
           Every conversation your team has is <em className="text-[var(--primary)] not-italic">data.</em> Most companies let it disappear.
         </h1>
         <p className="text-[1.05rem] text-[var(--muted-foreground)] leading-[1.75] mb-8 max-w-[440px]">
-          Train before the call. Capture what happens on it. Learn from it at scale. SalesSim turns every conversation — practice or live — into a coaching and intelligence asset.
+          Train before the call. Capture what happens on it. Learn from it at scale. Day1 turns every conversation — practice or live — into a coaching and intelligence asset.
         </p>
         <div className="flex flex-wrap items-center gap-5 mb-4">
           {isLoggedIn ? (

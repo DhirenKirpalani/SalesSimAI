@@ -59,7 +59,7 @@ export function FeaturesSection() {
         One platform. Every conversation that matters.
       </h2>
       <p className="text-[0.975rem] text-[var(--muted-foreground)] max-w-[520px] leading-[1.75]">
-        Different teams have different priorities. SalesSim gives each persona the tool that fits their job — all pulling from the same conversation layer underneath.
+        Different teams have different priorities. Day1 gives each persona the tool that fits their job — all pulling from the same conversation layer underneath.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-[var(--border)] border border-[var(--border)] rounded-[10px] overflow-hidden mt-12">

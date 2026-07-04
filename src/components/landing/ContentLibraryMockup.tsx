@@ -1,7 +1,7 @@
 "use client";
 
 const files = [
-  { type: "pdf", typeClass: "bg-[#FDECEA] text-[#C0392B] border-[#F5C6BF]", name: "Product Overview — SalesSim Platform Q2 2026", meta: "Uploaded 2 days ago · Used in 4 modules", status: "active" },
+  { type: "pdf", typeClass: "bg-[#FDECEA] text-[#C0392B] border-[#F5C6BF]", name: "Product Overview — Day1 Platform Q2 2026", meta: "Uploaded 2 days ago · Used in 4 modules", status: "active" },
   { type: "doc", typeClass: "bg-[#EBF3FE] text-[#1A56A0] border-[#B8D4F7]", name: "CFO Objection Handling Playbook", meta: "Uploaded 5 days ago · Used in roleplay + chatbot", status: "active" },
   { type: "ppt", typeClass: "bg-[#FEF0EE] text-[#C94415] border-[#F9C4BB]", name: "Competitor Battlecard — Airwallex 2026", meta: "Uploaded 1 week ago · Used in roleplay", status: "active" },
   { type: "mp4", typeClass: "bg-[#EEF7F2] text-[#1A6B3C] border-[#B3D9C3]", name: "Top performer call recording — Q1 Enterprise close", meta: "Uploaded today · Processing", status: "new" },

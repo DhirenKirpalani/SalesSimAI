@@ -11,7 +11,7 @@ const testimonials = [
     role: "VP of Sales",
     org: "CloudScale",
     quote:
-      "SalesSim AI reduced our onboarding time by 40%. New reps are confidently handling objections within two weeks instead of two months.",
+      "Day1 reduced our onboarding time by 40%. New reps are confidently handling objections within two weeks instead of two months.",
     initials: "RK",
   },
   {
@@ -55,7 +55,7 @@ export function TestimonialsSection() {
             Loved by revenue teams worldwide
           </h2>
           <p className="mt-4 text-muted-foreground max-w-2xl mx-auto">
-            Join hundreds of companies using SalesSim AI to build world-class sales teams.
+            Join hundreds of companies using Day1 to build world-class sales teams.
           </p>
         </motion.div>
 
