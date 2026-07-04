@@ -1,5 +1,4 @@
-import { LandingNavbar } from "@/components/landing/LandingNavbar";
-import { Footer } from "@/components/landing/Footer";
+import { PageLayout } from "@/components/landing/PageLayout";
 import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd";
 import { Metadata } from "next";
 import { Shield, Lock, Users, FileCheck } from "lucide-react";
@@ -38,18 +37,17 @@ const securityItems = [
 
 export default function SecurityPage() {
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <PageLayout>
       <BreadcrumbJsonLd items={[{ label: "Home", path: "/" }, { label: "Security", path: "/security" }]} />
-      <LandingNavbar />
-      <main className="flex-1 py-20 lg:py-28">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <span className="inline-block text-[11px] font-semibold text-primary uppercase tracking-[0.15em] mb-4">
+      <div className="wrap py-20 lg:py-28">
+        <div className="max-w-4xl mx-auto">
+          <span className="inline-block text-xs font-bold uppercase tracking-widest text-[#FF6B45] mb-4">
             Trust
           </span>
-          <h1 className="font-serif text-3xl sm:text-4xl lg:text-5xl leading-[1.15] tracking-tight text-foreground mb-4">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#1B1A1E] mb-4" style={{ fontFamily: "Poppins, sans-serif" }}>
             Security at Day1
           </h1>
-          <p className="text-base sm:text-lg text-muted-foreground leading-relaxed max-w-2xl mb-12">
+          <p className="text-base sm:text-lg text-[#68646C] leading-relaxed max-w-2xl mb-12">
             Your conversations and content are the foundation of your business. We protect them with enterprise-grade security, strict access controls, and continuous monitoring.
           </p>
 
@@ -57,23 +55,22 @@ export default function SecurityPage() {
             {securityItems.map((item) => (
               <div
                 key={item.title}
-                className="rounded-2xl border border-border bg-card p-6 shadow-sm"
+                className="rounded-2xl border border-[#E7E4DF] bg-white p-6 shadow-sm"
               >
-                <div className="w-10 h-10 rounded-lg border border-border bg-background flex items-center justify-center text-foreground mb-5">
+                <div className="w-10 h-10 rounded-lg border border-[#E7E4DF] bg-[#F5F4F1] flex items-center justify-center text-[#1B1A1E] mb-5">
                   <item.icon className="w-5 h-5" />
                 </div>
-                <h2 className="font-semibold text-foreground text-lg mb-2">
+                <h2 className="font-semibold text-[#1B1A1E] text-lg mb-2" style={{ fontFamily: "Poppins, sans-serif" }}>
                   {item.title}
                 </h2>
-                <p className="text-sm text-muted-foreground leading-relaxed">
+                <p className="text-sm text-[#68646C] leading-relaxed">
                   {item.description}
                 </p>
               </div>
             ))}
           </div>
         </div>
-      </main>
-      <Footer />
-    </div>
+      </div>
+    </PageLayout>
   );
 }
