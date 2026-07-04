@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Image from "next/image";
+import { HeroVisual } from "./HeroVisual";
+import { flagSvg, shieldSvg, bubbleSvg } from "./enterprise-svgs";
+import { useActiveSection, useAuth } from "./PageLayout";
 
 const processSteps = [
   {
@@ -28,16 +31,52 @@ const processSteps = [
 ];
 
 export function LandingPage() {
-  const pathname = usePathname();
-  const [activeSection, setActiveSection] = useState("");
+  const { setActiveSection } = useActiveSection();
+  const { user } = useAuth();
   const [openStep, setOpenStep] = useState(1);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const featureCarouselRef = useRef<HTMLDivElement>(null);
 
-  const scrollToTop = (e: MouseEvent<HTMLAnchorElement>) => {
-    if (pathname === "/") {
-      e.preventDefault();
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  };
+  useEffect(() => {
+    if (!isPlaying) return;
+    const interval = setInterval(() => {
+      setOpenStep((prev) => (prev + 1) % processSteps.length);
+    }, 4300);
+    return () => clearInterval(interval);
+  }, [isPlaying]);
+
+  useEffect(() => {
+    const carousel = featureCarouselRef.current;
+    if (!carousel) return;
+    let direction = 1;
+    const interval = setInterval(() => {
+      const maxScroll = carousel.scrollWidth - carousel.clientWidth;
+      if (carousel.scrollLeft >= maxScroll - 1) direction = -1;
+      if (carousel.scrollLeft <= 1) direction = 1;
+      carousel.scrollBy({ left: direction * 320, behavior: "smooth" });
+    }, 3500);
+    const pause = () => clearInterval(interval);
+    const resume = () => {
+      clearInterval(interval);
+      const newInterval = setInterval(() => {
+        const maxScroll = carousel.scrollWidth - carousel.clientWidth;
+        if (carousel.scrollLeft >= maxScroll - 1) direction = -1;
+        if (carousel.scrollLeft <= 1) direction = 1;
+        carousel.scrollBy({ left: direction * 320, behavior: "smooth" });
+      }, 3500);
+      return newInterval;
+    };
+    let currentInterval = interval;
+    const handleMouseEnter = () => clearInterval(currentInterval);
+    const handleMouseLeave = () => { currentInterval = resume(); };
+    carousel.addEventListener("mouseenter", handleMouseEnter);
+    carousel.addEventListener("mouseleave", handleMouseLeave);
+    return () => {
+      clearInterval(currentInterval);
+      carousel.removeEventListener("mouseenter", handleMouseEnter);
+      carousel.removeEventListener("mouseleave", handleMouseLeave);
+    };
+  }, []);
 
   const scrollTo = (id: string) => (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
@@ -54,36 +93,42 @@ export function LandingPage() {
   }, []);
 
   useEffect(() => {
-    const updateFromHash = () => setActiveSection(window.location.hash);
-    updateFromHash();
-    window.addEventListener("hashchange", updateFromHash);
-    return () => window.removeEventListener("hashchange", updateFromHash);
-  }, []);
+    const sections = ["hero", "features", "process", "usecases", "insights", "faq"];
+    const updateActiveSection = () => {
+      const scrollPos = window.scrollY + 120;
+      let current = "";
+      for (const id of sections) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const top = el.offsetTop;
+        const height = el.offsetHeight;
+        if (scrollPos >= top && scrollPos < top + height) {
+          current = id === "hero" ? "" : `#${id}`;
+          break;
+        }
+      }
+      setActiveSection(current);
+    };
+    updateActiveSection();
+    window.addEventListener("scroll", updateActiveSection, { passive: true });
+    return () => window.removeEventListener("scroll", updateActiveSection);
+  }, [setActiveSection]);
 
   useEffect(() => {
-    const sections = ["hero", "features", "process", "usecases", "insights", "faq"];
-    const observer = new IntersectionObserver(
+    const revealObserver = new IntersectionObserver(
       (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting);
-        if (visible.length === 0) return;
-        const topmost = visible.reduce((a, b) =>
-          a.boundingClientRect.top < b.boundingClientRect.top ? a : b
-        );
-        setActiveSection(topmost.target.id === "hero" ? "" : `#${topmost.target.id}`);
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) entry.target.classList.add("visible");
+        });
       },
-      { rootMargin: "0px 0px -80% 0px", threshold: 0 }
+      { threshold: 0.12, rootMargin: "0px 0px -10% 0px" }
     );
-    sections.forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
+    document.querySelectorAll(".landing-page section").forEach((el) => {
+      el.classList.add("reveal");
+      revealObserver.observe(el);
     });
-    return () => observer.disconnect();
+    return () => revealObserver.disconnect();
   }, []);
-
-  const isActive = (href: string) => {
-    if (href.startsWith("#")) return activeSection === href;
-    return false;
-  };
 
   useEffect(() => {
     const handlers = new Map<Element, EventListener>();
@@ -113,29 +158,6 @@ export function LandingPage() {
 
   return (
     <div className="landing-page">
-      
-
-      <header>
-        <nav className="wrap">
-          <div className="logo">
-            <Link href="/" onClick={scrollToTop}>
-              <img src="/images/Logo.png" alt="Day1" style={{ height: 40, width: "auto" }} />
-            </Link>
-          </div>
-          <div className="nav-links">
-            <a href="#features" onClick={scrollTo("features")} className={isActive("#features") ? "active" : ""}>Product</a>
-            <a href="#process" onClick={scrollTo("process")} className={isActive("#process") ? "active" : ""}>How it works</a>
-            <a href="#usecases" onClick={scrollTo("usecases")} className={isActive("#usecases") ? "active" : ""}>Use cases</a>
-            <a href="#insights" onClick={scrollTo("insights")} className={isActive("#insights") ? "active" : ""}>Resources</a>
-            <a href="#faq" onClick={scrollTo("faq")} className={isActive("#faq") ? "active" : ""}>FAQ</a>
-          </div>
-          <div className="nav-cta">
-            <Link className="nav-login" href="/login">Login</Link>
-            <Link className="btn btn-primary btn-sm" href="/book-demo">Book a demo</Link>
-          </div>
-        </nav>
-      </header>
-
       <section id="hero" className="hero">
         <div className="wrap hero-grid">
           <div>
@@ -143,47 +165,56 @@ export function LandingPage() {
             <h1>Every call makes<br />the whole team <span className="hl">better.</span></h1>
             <p className="lead">Day1 turns your sales calls into a live intelligence loop. <strong>Objections and use cases surface on the leader dashboard</strong>, the AI buyer gets sharper, and <strong>battle cards go live in the next call</strong> — before the moment is missed.</p>
             <div className="hero-actions">
-              <Link className="btn btn-outline" href="#features" onClick={scrollTo("features")}>Discover solution</Link>
-              <Link className="btn btn-primary" href="/book-demo">Book a demo →</Link>
+              {user ? (
+                <Link className="btn btn-primary" href="/dashboard">Go to Dashboard →</Link>
+              ) : (
+                <>
+                  <Link className="btn btn-outline" href="#features" onClick={scrollTo("features")}>Discover solution</Link>
+                  <Link className="btn btn-primary" href="/book-demo">Book a demo →</Link>
+                </>
+              )}
             </div>
             <div className="hero-meta">
               <span><i className="dot"></i>Works with your call recorder</span>
               <span><i className="dot"></i>No change to how reps sell</span>
             </div>
           </div>
-          <div className="call-card">
-            <div className="call-card-head">🎙️ AI Call Intel</div>
-            <h4>Discovery Session</h4>
-            <div className="skeleton-line" style={{ width: "85%" }}></div>
-            <div className="skeleton-line" style={{ width: "60%" }}></div>
-            <div className="skeleton-line highlight" style={{ width: "92%" }}></div>
-            <div className="skeleton-line" style={{ width: "70%" }}></div>
-            <div className="cc-row" style={{ marginTop: 14 }}>
-              <div className="avatar">🎯</div>
-              <div className="info"><div className="name">Pricing vs. incumbent</div><div className="sub">Battle card triggered mid-call</div></div>
-              <span className="chip obj">Objection</span>
-            </div>
-            <div className="cc-row">
-              <div className="avatar">📦</div>
-              <div className="info"><div className="name">Multi-entity payouts</div><div className="sub">Use case tagged for playbook</div></div>
-              <span className="chip use">Use case</span>
-            </div>
-            <div className="cc-cta">Let's go →</div>
-          </div>
+          <HeroVisual />
         </div>
       </section>
 
       <div className="audience-strip">
         <div className="wrap">
-          <div>
+          <div className="audience-card">
+            <div className="audience-icon">
+              <svg viewBox="0 0 48 48" fill="none">
+                <rect x="6" y="14" width="36" height="24" rx="6" stroke="currentColor" strokeWidth="2.5"/>
+                <path d="M14 26h8M14 32h20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                <circle cx="32" cy="22" r="3" fill="currentColor"/>
+                <path d="M12 14v-3a4 4 0 0 1 4-4h16a4 4 0 0 1 4 4v3" stroke="currentColor" strokeWidth="2.5"/>
+              </svg>
+            </div>
             <h4>For sales leaders</h4>
             <p>See what's actually happening on the ground, call by call — no more guessing after the deal is lost.</p>
           </div>
-          <div>
+          <div className="audience-card">
+            <div className="audience-icon">
+              <svg viewBox="0 0 48 48" fill="none">
+                <path d="M24 6c-9.4 0-17 7.6-17 17s7.6 17 17 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                <path d="M24 6c9.4 0 17 7.6 17 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="4 4"/>
+                <circle cx="24" cy="23" r="6" stroke="currentColor" strokeWidth="2.5"/>
+                <path d="M28 27l6 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+              </svg>
+            </div>
             <h4>For reps</h4>
             <p>Practice against an AI buyer that learns from real objections your team hears every day.</p>
           </div>
-          <div>
+          <div className="audience-card">
+            <div className="audience-icon">
+              <svg viewBox="0 0 48 48" fill="none">
+                <path d="M24 6l6 12h12L30 30l4 14-10-7-10 7 4-14L6 18h12l6-12z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/>
+              </svg>
+            </div>
             <h4>For product teams</h4>
             <p>Push a launch, capture what changed, and know reps are tested and ready before the next call.</p>
           </div>
@@ -197,31 +228,99 @@ export function LandingPage() {
             <h2>A field intel dashboard, not another call recorder.</h2>
             <p>Five capabilities working off the same feed of real conversations.</p>
           </div>
-          <div className="feature-grid">
-            <div className="feature-card wide">
-              <div className="feature-icon">📊</div>
-              <h4>Call Intelligence Dashboard</h4>
-              <p>See what's happening on the ground across every rep and every deal. Objections, use cases, and call quality, tracked in one view built for sales leaders — not buried in a CRM field.</p>
+          <div className="feature-carousel-wrapper">
+            <div className="feature-carousel" ref={featureCarouselRef}>
+              <div className="feature-card">
+                <div className="feature-icon">
+                  <svg viewBox="0 0 48 48" fill="none"><rect x="6" y="8" width="36" height="32" rx="6" stroke="currentColor" strokeWidth="2.5"/><path d="M14 36V24M14 24l6-6 6 8 8-14 6 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </div>
+                <h4>Call Intelligence Dashboard</h4>
+                <p>See what's happening on the ground across every rep and every deal. Objections, use cases, and call quality, tracked in one view built for sales leaders — not buried in a CRM field.</p>
+                <svg className="feature-image" viewBox="0 0 240 160" fill="none">
+                  <rect width="240" height="160" rx="16" fill="#FFF5F0" />
+                  <rect x="16" y="16" width="208" height="28" rx="6" fill="#fff" stroke="#FFD6C8" strokeWidth="2" />
+                  <rect x="28" y="60" width="80" height="84" rx="10" fill="#fff" stroke="#FFD6C8" strokeWidth="2" />
+                  <rect x="120" y="60" width="92" height="84" rx="10" fill="#fff" stroke="#FFD6C8" strokeWidth="2" />
+                  <rect x="32" y="96" width="56" height="8" rx="4" fill="#FF8A65" />
+                  <rect x="32" y="112" width="44" height="8" rx="4" fill="#FFD6C8" />
+                  <rect x="32" y="128" width="52" height="8" rx="4" fill="#FFD6C8" />
+                  <rect x="132" y="80" width="12" height="48" rx="3" fill="#FF6B45" />
+                  <rect x="152" y="64" width="12" height="64" rx="3" fill="#FF8A65" />
+                  <rect x="172" y="88" width="12" height="40" rx="3" fill="#FFD6C8" />
+                  <rect x="192" y="72" width="12" height="56" rx="3" fill="#FF8A65" />
+                </svg>
+              </div>
+              <div className="feature-card">
+                <div className="feature-icon">
+                  <svg viewBox="0 0 48 48" fill="none"><rect x="14" y="10" width="20" height="20" rx="10" stroke="currentColor" strokeWidth="2.5"/><path d="M24 20v8M20 24h8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/><path d="M18 36h12M24 30v6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>
+                </div>
+                <h4>AI Buyer Roleplay</h4>
+                <p>Reps practice against an AI buyer that evolves from real calls — sharper and more current with every cycle.</p>
+                <svg className="feature-image" viewBox="0 0 160 160" fill="none">
+                  <rect width="160" height="160" rx="16" fill="#FFF5F0" />
+                  <circle cx="80" cy="52" r="28" fill="#FFE8E0" />
+                  <circle cx="80" cy="52" r="20" fill="#FF8A65" />
+                  <circle cx="80" cy="52" r="12" fill="#FF6B45" />
+                  <path d="M80 84v16" stroke="#FF6B45" strokeWidth="4" strokeLinecap="round" />
+                  <path d="M52 116h56" stroke="#FF8A65" strokeWidth="4" strokeLinecap="round" />
+                  <path d="M80 104v20" stroke="#FF6B45" strokeWidth="4" strokeLinecap="round" />
+                  <rect x="48" y="124" width="64" height="12" rx="6" fill="#FFD6C8" />
+                </svg>
+              </div>
+              <div className="feature-card">
+                <div className="feature-icon">
+                  <svg viewBox="0 0 48 48" fill="none"><path d="M24 6v6M24 36v6M6 24h6M36 24h6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/><circle cx="24" cy="24" r="10" stroke="currentColor" strokeWidth="2.5"/><path d="M20 24h8M24 20v8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>
+                </div>
+                <h4>Collective Call Learning</h4>
+                <p>One rep's toughest objection becomes practice for the whole team, automatically — nobody learns alone.</p>
+                <svg className="feature-image" viewBox="0 0 160 160" fill="none">
+                  <rect width="160" height="160" rx="16" fill="#FFF5F0" />
+                  <circle cx="80" cy="56" r="24" fill="#FFE8E0" />
+                  <circle cx="80" cy="56" r="14" fill="#FF6B45" />
+                  <circle cx="48" cy="112" r="18" fill="#FF8A65" />
+                  <circle cx="80" cy="124" r="18" fill="#FF6B45" />
+                  <circle cx="112" cy="112" r="18" fill="#FF8A65" />
+                  <path d="M66 88L54 100M94 88l12 12" stroke="#FF8A65" strokeWidth="3" strokeLinecap="round" />
+                </svg>
+              </div>
+              <div className="feature-card">
+                <div className="feature-icon">
+                  <svg viewBox="0 0 48 48" fill="none"><path d="M24 6l6 12h12L30 30l4 14-10-7-10 7 4-14L6 18h12l6-12z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/></svg>
+                </div>
+                <h4>Product Launch Readiness</h4>
+                <p>Product leaders upload a launch. Day1 turns it into a knowledge check so reps stay current before it shows up on a live call.</p>
+                <svg className="feature-image" viewBox="0 0 160 160" fill="none">
+                  <rect width="160" height="160" rx="16" fill="#FFF5F0" />
+                  <path d="M80 20l12 24h24L96 84l8 28-24-16-24 16 8-28L44 44h24l12-24z" fill="#FF6B45" />
+                  <path d="M56 110h48M68 122h24" stroke="#FF8A65" strokeWidth="4" strokeLinecap="round" />
+                  <circle cx="44" cy="116" r="8" fill="#FFD6C8" />
+                  <circle cx="116" cy="116" r="8" fill="#FFD6C8" />
+                </svg>
+              </div>
+              <div className="feature-card">
+                <div className="feature-icon">
+                  <svg viewBox="0 0 48 48" fill="none"><rect x="8" y="10" width="32" height="24" rx="6" stroke="currentColor" strokeWidth="2.5"/><path d="M16 22h6M16 28h12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/><path d="M32 18l-4 8h6l-4 8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </div>
+                <h4>Live Battle Cards</h4>
+                <p>Deployed directly into real calls — objection handling and product knowledge, delivered right when reps need it, not after the call ends.</p>
+                <svg className="feature-image" viewBox="0 0 160 160" fill="none">
+                  <rect width="160" height="160" rx="16" fill="#FFF5F0" />
+                  <rect x="32" y="28" width="96" height="64" rx="10" fill="#fff" stroke="#FF6B45" strokeWidth="2" />
+                  <rect x="40" y="44" width="56" height="6" rx="3" fill="#FFD6C8" />
+                  <rect x="40" y="58" width="72" height="6" rx="3" fill="#FFD6C8" />
+                  <rect x="40" y="72" width="48" height="6" rx="3" fill="#FFD6C8" />
+                  <path d="M108 100l-10 20h14l-10 20" stroke="#FF6B45" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+                  <rect x="28" y="108" width="64" height="24" rx="8" fill="#FFD6C8" />
+                </svg>
+              </div>
             </div>
-            <div className="feature-card">
-              <div className="feature-icon">🤖</div>
-              <h4>AI Buyer Roleplay</h4>
-              <p>Reps practice against an AI buyer that evolves from real calls — sharper and more current with every cycle.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">🔁</div>
-              <h4>Collective Call Learning</h4>
-              <p>One rep's toughest objection becomes practice for the whole team, automatically — nobody learns alone.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">🚀</div>
-              <h4>Product Launch Readiness</h4>
-              <p>Product leaders upload a launch. Day1 turns it into a knowledge check so reps stay current before it shows up on a live call.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">�</div>
-              <h4>Live Battle Cards</h4>
-              <p>Deployed directly into real calls — objection handling and product knowledge, delivered right when reps need it, not after the call ends.</p>
+            <div className="feature-carousel-controls">
+              <button className="feature-carousel-btn" onClick={() => featureCarouselRef.current?.scrollBy({ left: -320, behavior: 'smooth' })} aria-label="Previous">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 19l-7-7 7-7"/></svg>
+              </button>
+              <button className="feature-carousel-btn" onClick={() => featureCarouselRef.current?.scrollBy({ left: 320, behavior: 'smooth' })} aria-label="Next">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+              </button>
             </div>
           </div>
         </div>
@@ -235,35 +334,79 @@ export function LandingPage() {
             <p>Our process of intelligence.</p>
           </div>
           <div className="process-layout">
-            <div className="process-list">
+            <div className="process-tabs">
               {processSteps.map((step, index) => (
                 <div
                   key={step.id}
-                  className={`item ${openStep === index ? "active" : ""}`}
-                  onClick={() => setOpenStep(openStep === index ? -1 : index)}
+                  className={`tab-item ${openStep === index ? "is-tab-active" : ""}`}
+                  onClick={() => setOpenStep(index)}
                 >
-                  <div className="item-head">
+                  <div className="tab-heading">
                     {step.title}
-                    <span className="chev">{openStep === index ? "−" : "+"}</span>
+                    <span className="tab-toggle">{openStep === index ? "−" : "+"}</span>
                   </div>
-                  {openStep === index && <div className="item-body">{step.body}</div>}
+                  {openStep === index && (
+                    <div className="tab-description">{step.body}</div>
+                  )}
                 </div>
               ))}
             </div>
             <div className="process-visual">
-              <div className="pv-card">
-                <div className="pv-title">Call in Progress…</div>
-                <div className="pv-sub">Analyzing live</div>
-                <div className="pv-panels">
-                  <div className="pv-panel">Rep<span className="cap">Marcus T.</span></div>
-                  <div className="pv-panel">AI Buyer<span className="cap">Kilotech Persona</span></div>
-                </div>
-                <div className="pv-controls">
-                  <div className="ctrl">�️</div>
-                  <div className="ctrl">⏸</div>
-                  <div className="ctrl stop">■</div>
+              <div className={`pv-card pv-card-${processSteps[openStep].id}`}>
+                <div className="pv-title">{processSteps[openStep].title}</div>
+                <div className="pv-sub">{processSteps[openStep].body}</div>
+                <div className="pv-image">
+                  {openStep === 0 && (
+                    <svg className="pv-illustration" viewBox="0 0 120 120" fill="none">
+                      <rect width="120" height="120" rx="24" fill="#FFF5F0" />
+                      <path d="M40 50h40v10H40z" fill="#FFD6C8" />
+                      <circle cx="48" cy="70" r="8" fill="#FF8A65" />
+                      <circle cx="60" cy="70" r="8" fill="#FF6B45" />
+                      <circle cx="72" cy="70" r="8" fill="#FF8A65" />
+                      <path d="M35 40c0-12 12-20 25-20s25 8 25 20" stroke="#FF6B45" strokeWidth="4" strokeLinecap="round" />
+                      <path d="M30 52h6v16h-6z" fill="#FF6B45" rx="2" />
+                      <path d="M84 52h6v16h-6z" fill="#FF6B45" rx="2" />
+                    </svg>
+                  )}
+                  {openStep === 1 && (
+                    <svg className="pv-illustration" viewBox="0 0 120 120" fill="none">
+                      <rect width="120" height="120" rx="24" fill="#FFF5F0" />
+                      <rect x="24" y="80" width="12" height="24" rx="4" fill="#FFD6C8" />
+                      <rect x="44" y="64" width="12" height="40" rx="4" fill="#FF8A65" />
+                      <rect x="64" y="48" width="12" height="56" rx="4" fill="#FF6B45" />
+                      <rect x="84" y="56" width="12" height="48" rx="4" fill="#FF8A65" />
+                      <path d="M24 42h72M24 32h72M24 22h48" stroke="#E5E5E5" strokeWidth="3" strokeLinecap="round" />
+                    </svg>
+                  )}
+                  {openStep === 2 && (
+                    <svg className="pv-illustration" viewBox="0 0 120 120" fill="none">
+                      <rect width="120" height="120" rx="24" fill="#FFF5F0" />
+                      <circle cx="60" cy="46" r="18" fill="#FFD6C8" />
+                      <circle cx="60" cy="46" r="10" fill="#FF6B45" />
+                      <path d="M60 64v24" stroke="#FF6B45" strokeWidth="4" strokeLinecap="round" />
+                      <path d="M60 88h16M60 96h24" stroke="#FF8A65" strokeWidth="4" strokeLinecap="round" />
+                      <rect x="36" y="76" width="20" height="28" rx="8" fill="#FF6B45" />
+                    </svg>
+                  )}
+                  {openStep === 3 && (
+                    <svg className="pv-illustration" viewBox="0 0 120 120" fill="none">
+                      <rect width="120" height="120" rx="24" fill="#FFF5F0" />
+                      <rect x="28" y="34" width="64" height="44" rx="10" fill="#fff" stroke="#FF6B45" strokeWidth="2" />
+                      <path d="M40 58h20M40 66h32" stroke="#E5E5E5" strokeWidth="3" strokeLinecap="round" />
+                      <path d="M84 46l-14 14-6-6" stroke="#FF6B45" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M86 80l-8 16-8-16h5V64h6v16h5z" fill="#FF6B45" />
+                    </svg>
+                  )}
                 </div>
               </div>
+              <button
+                className={`tabs-playpause ${isPlaying ? "" : "is-paused"}`}
+                onClick={() => setIsPlaying(!isPlaying)}
+                aria-label={isPlaying ? "Pause" : "Play"}
+              >
+                <svg className="icon-pause" viewBox="0 0 24 24" fill="currentColor"><path d="M9.75 20.25H7.5a.75.75 0 0 1-.75-.75V4.5a.75.75 0 0 1 .75-.75h2.25a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75Z" /><path d="M16.5 20.25H14.25a.75.75 0 0 1-.75-.75V4.5a.75.75 0 0 1 .75-.75H16.5a.75.75 0 0 1 .75.75v15a.75.75 0 0 1-.75.75Z" /></svg>
+                <svg className="icon-play" viewBox="0 0 24 24" fill="currentColor"><path d="M6.23 20.63a1.5 1.5 0 0 1-.82-.23 1.5 1.5 0 0 1-.68-1.28V5.2c0-.53.27-1.01.68-1.28.41-.28.93-.34 1.4-.18l11.62 6.95c.47.28.75.78.75 1.33 0 .55-.28 1.05-.75 1.33L7.09 20.3c-.26.16-.56.24-.86.24Z" /></svg>
+              </button>
             </div>
           </div>
         </div>
@@ -272,63 +415,105 @@ export function LandingPage() {
       <section id="usecases">
         <div className="wrap">
           <div className="persona-banner">
-            <div className="section-head">
+            <div className="section-head center">
               <h2 style={{ color: "#fff" }}>Buyers built from your own calls.</h2>
               <p>Every persona reps practice against is shaped by objections, hesitations, and questions Day1 captures from your team's real calls.</p>
             </div>
-            <div className="persona-strip">
-              <div className="persona-card"><div className="persona-photo">👤</div><div className="persona-info"><div className="name">Priya Nair</div><div className="role">Finance Buyer</div><div className="line">"Walk me through the pricing again."</div></div></div>
-              <div className="persona-card"><div className="persona-photo">👤</div><div className="persona-info"><div className="name">Daniel Ho</div><div className="role">Procurement</div><div className="line">"What does your competitor do better?"</div></div></div>
-              <div className="persona-card"><div className="persona-photo">👤</div><div className="persona-info"><div className="name">Wei Ling Tan</div><div className="role">Ops Director</div><div className="line">"How does this fit our current stack?"</div></div></div>
-              <div className="persona-card"><div className="persona-photo">👤</div><div className="persona-info"><div className="name">Marcus Lee</div><div className="role">Skeptical CFO</div><div className="line">"Prove the ROI, not the pitch."</div></div></div>
-              <div className="persona-card"><div className="persona-photo">👤</div><div className="persona-info"><div className="name">Amira Yusof</div><div className="role">New Prospect</div><div className="line">"I'm still comparing three vendors."</div></div></div>
+            <div className="persona-marquee">
+              <div className="persona-row persona-row-left">
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c970a6cc3c8bccf1b492a_01.avif" alt="Sofia Moretti" className="persona-photo" /><div className="persona-info"><div className="name">Priya Nair</div><div className="role">Finance Buyer</div><div className="line">"Walk me through the pricing again."</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0ed60ce341dacc09501e25_33.webp" alt="Hugo Lambert" className="persona-photo" /><div className="persona-info"><div className="name">Daniel Ho</div><div className="role">Procurement</div><div className="line">"What does your competitor do better?"</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c9a595eb16f7015d5c8ed_03.avif" alt="Anna Schmidt" className="persona-photo" /><div className="persona-info"><div className="name">Wei Ling Tan</div><div className="role">Ops Director</div><div className="line">"How does this fit our current stack?"</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c9a599f26b99ef87159c7_02.avif" alt="David Bernard" className="persona-photo" /><div className="persona-info"><div className="name">Marcus Lee</div><div className="role">Skeptical CFO</div><div className="line">"Prove the ROI, not the pitch."</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0ed60c2e8527d759f62697_2.webp" alt="Layla Okonkwo" className="persona-photo" /><div className="persona-info"><div className="name">Amira Yusof</div><div className="role">New Prospect</div><div className="line">"I'm still comparing three vendors."</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c970a6cc3c8bccf1b492a_01.avif" alt="Sofia Moretti" className="persona-photo" /><div className="persona-info"><div className="name">Priya Nair</div><div className="role">Finance Buyer</div><div className="line">"Walk me through the pricing again."</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0ed60ce341dacc09501e25_33.webp" alt="Hugo Lambert" className="persona-photo" /><div className="persona-info"><div className="name">Daniel Ho</div><div className="role">Procurement</div><div className="line">"What does your competitor do better?"</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c9a595eb16f7015d5c8ed_03.avif" alt="Anna Schmidt" className="persona-photo" /><div className="persona-info"><div className="name">Wei Ling Tan</div><div className="role">Ops Director</div><div className="line">"How does this fit our current stack?"</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c9a599f26b99ef87159c7_02.avif" alt="David Bernard" className="persona-photo" /><div className="persona-info"><div className="name">Marcus Lee</div><div className="role">Skeptical CFO</div><div className="line">"Prove the ROI, not the pitch."</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0ed60c2e8527d759f62697_2.webp" alt="Layla Okonkwo" className="persona-photo" /><div className="persona-info"><div className="name">Amira Yusof</div><div className="role">New Prospect</div><div className="line">"I'm still comparing three vendors."</div></div></div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section>
+      <section className="padding-global">
+        <div className="wrap">
+          <div className="grid-vertical">
+            <div className="section-head">
+              <div className="eyebrow">Built to fit</div>
+              <h2>Built for enterprise standards</h2>
+              <p>Everything you need to deploy Day1 at scale, with full confidence.</p>
+            </div>
+            <div className="list-card">
+              <div className="card-persona big">
+                <div className="content-card">
+                  <div className="w-embed ent-hero-svg" dangerouslySetInnerHTML={{ __html: flagSvg }} />
+                </div>
+                <div className="container-card-content big">
+                  <div className="heading-4">25+ languages<br/>available</div>
+                  <div className="paragraph text-medium-grey">Deploy Day1 worldwide. 25+ languages available to train your local teams with the same level of excellence.</div>
+                </div>
+              </div>
+              <div className="card-persona big">
+                <div className="content-card">
+                  <div className="w-embed ent-hero-svg" dangerouslySetInnerHTML={{ __html: shieldSvg }} />
+                </div>
+                <div className="container-card-content big">
+                  <div className="heading-4">Security<br/>and Compliance</div>
+                  <div className="paragraph text-medium-grey">ISO 27001, GDPR, European hosting. Your data and your customers' data are protected at the highest level.</div>
+                </div>
+              </div>
+              <div className="card-persona big">
+                <div className="content-card">
+                  <div className="w-embed ent-hero-svg" dangerouslySetInnerHTML={{ __html: bubbleSvg }} />
+                </div>
+                <div className="container-card-content big">
+                  <div className="heading-4">Connected<br/>to your CRM and LMS</div>
+                  <div className="paragraph text-medium-grey">Native integration with your CRM, LMS, and HR tools. Data flows seamlessly, teams save time.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="padding-global">
         <div className="wrap">
           <div className="section-head">
-            <div className="eyebrow">Built to fit</div>
-            <h2>Works with how your team already sells.</h2>
+            <h2>The challenges we solve together</h2>
+            <p>Reduce performance gaps, align strategy and execution, accelerate new employee autonomy.</p>
           </div>
-          <div className="ent-grid">
-            <div className="ent-card">
-              <div className="ent-visual"><span className="badge-pill">Call recorder</span><span className="badge-pill">CRM</span></div>
-              <h4>Connected to your stack</h4>
-              <p>Day1 plugs into the call recording tool and CRM your team already uses. No new dialer, no new habit for reps.</p>
+          <div className="challenges-grid-wrapper">
+            <div className="challenges-grid">
+              <div className="challenges-item">
+                <img src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/68dc0f905c0590c393e0e575_Frame%202147225027.avif" loading="lazy" alt="sales-working-on-muchbetter-ai-to-train-sales" className="challenges-item-bg" />
+                <div className="challenges-item-content">
+                  <p className="heading-4 text-white">Reduce ramp-up time by 30% to 50%</p>
+                  <p className="paragraph medium text-white-80">Enable new hires to reach productivity faster through realistic practice, structured onboarding, and continuous reinforcement from day one.</p>
+                </div>
+              </div>
+              <div className="challenges-item small">
+                <div className="challenges-item-content">
+                  <p className="number-heading-display">30–50% <br />faster ramp-up</p>
+                  <p className="paragraph medium text-white-80">Cut time to first confident live call</p>
+                </div>
+              </div>
             </div>
-            <div className="ent-card">
-              <div className="ent-visual"><span className="badge-pill">GDPR-ready</span><span className="badge-pill">SG & EU hosting</span></div>
-              <h4>Security & data protection</h4>
-              <p><strong>GDPR-aligned</strong> data handling with <strong>Singapore and EU hosting</strong> options. ISO 27001 certification is on our roadmap as we scale.</p>
-            </div>
-            <div className="ent-card">
-              <div className="ent-visual"><span className="badge-pill">Real-time</span></div>
-              <h4>Live inside every call</h4>
-              <p>Battle cards and objection guidance surface while the call is happening, not in a report reviewed days later.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section style={{ background: "#fff", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
-        <div className="wrap">
-          <div className="bento">
-            <div className="bento-photo">
-              <div><h4>Built to cut ramp-up time</h4><p>Give new reps realistic practice from day one instead of waiting weeks to sit in on a live call.</p></div>
-            </div>
-            <div className="bento-solid">
-              <div className="big">Day 1</div>
-              <div className="small">First call intel loop shipping now</div>
-            </div>
-            <div className="bento-solid">
-              <div className="big">0 → 1</div>
-              <div className="small">Every call from here forward feeds the loop</div>
-            </div>
-            <div className="bento-photo">
-              <div><h4>Built to sharpen product knowledge</h4><p>Test reps on new launches before that knowledge gap shows up on a live client call.</p></div>
+            <div className="challenges-grid odd">
+              <div className="challenges-item small">
+                <div className="challenges-item-content">
+                  <p className="number-heading-display">45% <br />better handling</p>
+                  <p className="paragraph medium text-white-80">Measured in practice, not just training</p>
+                </div>
+              </div>
+              <div className="challenges-item">
+                <img src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/68dc0f900ac2dfa57ce34c10_Frame%202147225035.avif" loading="lazy" alt="sales-ai-coaching-pictures" className="challenges-item-bg" />
+                <div className="challenges-item-content">
+                  <p className="heading-4 text-white">Increase product knowledge and technical objection handling by 45%</p>
+                  <p className="paragraph medium text-white-80">Help teams master complex products, respond confidently to customer questions, and handle technical objections more effectively.</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -336,61 +521,188 @@ export function LandingPage() {
 
       <section>
         <div className="wrap">
-          <div className="experience">
-            <div className="exp-grid">
+          <div className="card-release-cta _02">
+            <div className="bloc-spacing">
+            <div className="spacer-xs max-w-400">
               <div>
-                <h2>See the Day1 dashboard</h2>
-                <p>Milestones, call scores, and coaching — one view for reps and leaders to track progress together.</p>
-                <Link className="btn btn-primary" href="/book-demo">See it in action →</Link>
+                <h2 className="heading-2 text-white">Try the Day1</h2>
+                <h2 className="heading-1-display-2 text-color-white">Experience</h2>
               </div>
-              <div className="dash-mock">
-                <div className="dash-top">Welcome back, Marcus</div>
-                <div className="dash-sub">Here's how this week is shaping up.</div>
-                <div className="dash-stats">
-                  <div className="dash-stat orange"><div className="num">18</div><div className="lbl">Calls analyzed</div></div>
-                  <div className="dash-stat light"><div className="num">78%</div><div className="lbl">Objection handling</div></div>
-                </div>
-                <div className="rail">
-                  <div className="node done">✓</div><div className="rail-line"></div>
-                  <div className="node current">▶</div><div className="rail-line"></div>
-                  <div className="node">🔒</div>
-                </div>
-                <div className="rail-labels"><span>Pricing objections</span><span>Product Q1 launch</span><span>Multi-entity use case</span></div>
-                <div className="perf-bar-label"><span>Objection handling score</span><span>78%</span></div>
-                <div className="perf-bar"><div className="perf-fill" style={{ width: "78%" }}></div></div>
+              <div className="paragraph large text-white-80">Don't let engagement rely on memory. Automated notifications bring teams back to practice regularly: turning consistency into performance.</div>
+              <div className="div-button">
+                <Link className="button w-inline-block" href={user ? "/dashboard" : "/book-demo"}>
+                  <div className="button-content">
+                    <p className="button-text">{user ? "Go to Dashboard" : "Try it now"}</p>
+                    <div className="button-icon w-embed">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <path d="M9 4L7.9425 5.0575L12.1275 9.25H3V10.75H12.1275L7.9425 14.9425L9 16L15 10L9 4Z" fill="currentColor" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="button-bg"></div>
+                </Link>
               </div>
             </div>
           </div>
+          <div className="image-screen mobile-hide">
+            <div className="day1-screen screen">
+              <div className="day1-sidebar">
+                <div className="day1-logo">
+                  <Image src="/images/Logo.png" alt="Day1" width={40} height={40} />
+                </div>
+                <div className="day1-nav">
+                  <div className="day1-nav-label">TRAIN</div>
+                  <div className="day1-nav-item active"><span className="day1-nav-icon">▤</span>Dashboard</div>
+                  <div className="day1-nav-item"><span className="day1-nav-icon">▶</span>Pathways</div>
+                  <div className="day1-nav-item"><span className="day1-nav-icon">◷</span>History</div>
+                </div>
+                <div className="day1-nav">
+                  <div className="day1-nav-label">SETTINGS</div>
+                  <div className="day1-nav-item"><span className="day1-nav-icon">🌐</span>Language</div>
+                  <div className="day1-nav-item"><span className="day1-nav-icon">⎋</span>Sign out</div>
+                </div>
+              </div>
+              <div className="day1-main">
+                <div className="day1-header">
+                  <div>
+                    <div className="day1-welcome">Welcome back, Marcus</div>
+                    <div className="day1-sub">Here's how this week is shaping up.</div>
+                  </div>
+                  <div className="day1-badges">
+                    <div className="day1-badge">🏆 Badges</div>
+                    <div className="day1-badge dark">Next simulation awaits</div>
+                  </div>
+                </div>
+                <div className="day1-stats">
+                  <div className="day1-stat-card gradient"><div className="day1-stat-label">Activities completed</div><div className="day1-stat-num">18</div></div>
+                  <div className="day1-stat-card"><div className="day1-stat-label">Last 3 simulations</div><div className="day1-stat-num green">78%</div></div>
+                  <div className="day1-stat-card"><div className="day1-stat-label">Quiz scores</div><div className="day1-stat-num yellow">84%</div></div>
+                  <div className="day1-stat-card"><div className="day1-stat-label">Top skill this month</div><div className="day1-stat-num pink">Discovery</div></div>
+                </div>
+                <div className="day1-path">
+                  <div className="day1-path-header">
+                    <div><div className="day1-path-title">[Pathway in progress]</div><div className="day1-path-sub">Progress: 35%</div></div>
+                    <div className="day1-path-meta">Pathway 1</div>
+                  </div>
+                  <div className="day1-path-rail">
+                    <div className="day1-path-node done">✓</div>
+                    <div className="day1-path-line"></div>
+                    <div className="day1-path-node current">▶</div>
+                    <div className="day1-path-line"></div>
+                    <div className="day1-path-node">🔒</div>
+                    <div className="day1-path-line"></div>
+                    <div className="day1-path-node">🔒</div>
+                    <div className="day1-path-line"></div>
+                    <div className="day1-path-node">🔒</div>
+                    <div className="day1-path-line"></div>
+                    <div className="day1-path-node badge">🏅</div>
+                  </div>
+                  <div className="day1-path-labels">
+                    <span>Pricing objections</span>
+                    <span>Product Q1 launch</span>
+                    <span>Multi-entity</span>
+                    <span>Enterprise</span>
+                    <span>Advanced close</span>
+                    <span>Badge</span>
+                  </div>
+                </div>
+                <div className="day1-insights">
+                  <div className="day1-insight">
+                    <div className="day1-insight-title">Performance</div>
+                    <div className="day1-insight-sub">Based on the last 3 simulations</div>
+                    <div className="day1-skill"><span>Discovery</span><span className="day1-skill-bar"><span style={{ width: "80%" }}></span></span><span>80%</span></div>
+                    <div className="day1-skill"><span>Objection handling</span><span className="day1-skill-bar"><span style={{ width: "50%" }}></span></span><span>50%</span></div>
+                    <div className="day1-skill"><span>Technical depth</span><span className="day1-skill-bar"><span style={{ width: "60%" }}></span></span><span>60%</span></div>
+                    <div className="day1-skill"><span>Closing</span><span className="day1-skill-bar"><span style={{ width: "80%" }}></span></span><span>80%</span></div>
+                  </div>
+                  <div className="day1-insight">
+                    <div className="day1-insight-title">Strengths</div>
+                    <div className="day1-insight-text">You consistently handle pricing objections and connect the product to business outcomes.</div>
+                  </div>
+                  <div className="day1-insight">
+                    <div className="day1-insight-title">Focus areas</div>
+                    <div className="day1-insight-text">Push deeper on multi-entity use cases and security questions during enterprise calls.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         </div>
       </section>
 
       <section id="insights">
         <div className="wrap">
-          <div className="section-head">
-            <div className="eyebrow">Resources</div>
-            <h2>Discover our latest insights</h2>
-          </div>
-          <div className="insight-grid">
-            <div className="insight-card main">
-              <div className="insight-photo">Launching Day1: Day One</div>
-              <div className="insight-body">
-                <div className="insight-date">July 5, 2026</div>
-                <div className="insight-title">Why we're building a field intel loop, not another call recorder.</div>
-                <a className="insight-link">Read the story →</a>
+          <div className="spacer-l">
+            <div className="last-ressources-header">
+              <div className="max-w-500">
+                <h2 className="heading-2">Discover our latest insights</h2>
               </div>
+              <Link className="button w-inline-block" href="/resources">
+                <div className="button-content">
+                  <p className="button-text">All our resources</p>
+                  <div className="button-icon w-embed">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+                      <path d="M9 4L7.9425 5.0575L12.1275 9.25H3V10.75H12.1275L7.9425 14.9425L9 16L15 10L9 4Z" fill="currentColor" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="button-bg"></div>
+              </Link>
             </div>
-            <div className="insight-card">
-              <div className="insight-photo soon">Coming soon</div>
-              <div className="insight-body">
-                <div className="insight-date">TBD</div>
-                <div className="insight-title">Our first design partner story.</div>
+            <div className="last-ressources-grid">
+              <div className="big-article-list-wrapper">
+                <div role="list" className="big-article-list">
+                  <div role="listitem" className="big-article-item-wrapper">
+                    <Link className="big-article w-inline-block" href="/resources/launching-day1">
+                      <div className="big-article-content">
+                        <p className="heading-4">Turn Sales Skills into Measurable Revenue Performance</p>
+                        <div className="last-articles-item-info">
+                          <p className="ressource-date text-white">April 2, 2026</p>
+                          <img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/68e52eefd451bf0a6ad01e3a_Frame%202147225023.svg" alt="" className="big-article-btn" />
+                        </div>
+                      </div>
+                      <div className="big-article-bg-wrapper day1-gradient">
+                        <div className="big-article-bg-logo">
+                          <Image src="/images/Logo.png" alt="Day1" width={48} height={48} />
+                        </div>
+                        <div className="big-article-bg-filter"></div>
+                      </div>
+                    </Link>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="insight-card">
-              <div className="insight-photo soon">Coming soon</div>
-              <div className="insight-body">
-                <div className="insight-date">TBD</div>
-                <div className="insight-title">Inside the AI buyer training loop.</div>
+              <div className="last-articles-wrapper">
+                <div role="list" className="last-articles-grid">
+                  <div role="listitem" className="last-articles-item-wrapper">
+                    <Link className="articles-item w-inline-block" href="/resources/design-partner">
+                      <div className="spacer-s">
+                        <div className="last-articles-item-thumbnail-wrapper day1-thumb">
+                          <Image src="/images/Logo.png" alt="Day1" width={80} height={80} className="last-articles-item-thumbnail" />
+                        </div>
+                        <p className="paragraph extra-large">Our first design partner story</p>
+                      </div>
+                      <div className="last-articles-item-info">
+                        <p className="ressource-date">June 22, 2026</p>
+                        <p className="button-link">Learn more</p>
+                      </div>
+                    </Link>
+                  </div>
+                  <div role="listitem" className="last-articles-item-wrapper">
+                    <Link className="articles-item w-inline-block" href="/resources/ai-buyer-training">
+                      <div className="spacer-s">
+                        <div className="last-articles-item-thumbnail-wrapper day1-thumb alt">
+                          <Image src="/images/Logo.png" alt="Day1" width={80} height={80} className="last-articles-item-thumbnail" />
+                        </div>
+                        <p className="paragraph extra-large">Inside the AI buyer training loop</p>
+                      </div>
+                      <div className="last-articles-item-info">
+                        <p className="ressource-date">June 11, 2026</p>
+                        <p className="button-link">Learn more</p>
+                      </div>
+                    </Link>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -403,8 +715,14 @@ export function LandingPage() {
             <h2>Be one of the first teams running Day1.</h2>
             <p>We're building this with early design partners — come shape it with us.</p>
             <div className="cta-actions">
-              <Link className="btn btn-primary" href="/book-demo">Book a demo</Link>
-              <Link className="btn btn-outline" href="/contact">Talk to us</Link>
+              {user ? (
+                <Link className="btn btn-primary" href="/dashboard">Go to Dashboard →</Link>
+              ) : (
+                <>
+                  <Link className="btn btn-primary" href="/book-demo">Book a demo</Link>
+                  <Link className="btn btn-outline" href="/contact">Talk to us</Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -444,37 +762,6 @@ export function LandingPage() {
           </div>
         </div>
       </section>
-
-      <footer>
-        <div className="wrap">
-          <div className="footer-top">
-            <div className="footer-brand">
-              <div className="logo">
-                <Link href="/" onClick={scrollToTop}>
-                  <img src="/images/Logo.png" alt="Day1" style={{ height: 36, width: "auto" }} />
-                </Link>
-              </div>
-              <p>AI field intelligence for sales teams. Turn every call into team-wide readiness.</p>
-            </div>
-            <div>
-              <h4>Company</h4>
-              <Link className={pathname === "/about" ? "active" : ""} href="/about">About us</Link>
-              <Link className={pathname === "/book-demo" ? "active" : ""} href="/book-demo">Book a demo</Link>
-              <Link className={pathname === "/contact" ? "active" : ""} href="/contact">Contact</Link>
-            </div>
-            <div>
-              <h4>Legal</h4>
-              <Link className={pathname === "/terms" ? "active" : ""} href="/terms">Terms of service</Link>
-              <Link className={pathname === "/privacy" ? "active" : ""} href="/privacy">Privacy policy</Link>
-              <Link className={pathname === "/security" ? "active" : ""} href="/security">Security</Link>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <span>© 2026 Day1. All rights reserved.</span>
-            <span>Singapore</span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

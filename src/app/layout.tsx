@@ -1,26 +1,8 @@
 import type { Metadata } from "next";
-import { Inter, Fraunces, JetBrains_Mono, Poppins } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeInit } from "@/components/ThemeInit";
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
-const poppins = Poppins({
-  variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-});
-
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
@@ -85,7 +67,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${poppins.variable} ${fraunces.variable} ${jetbrainsMono.variable} h-full antialiased overflow-x-hidden`}
+      className={`${jetbrainsMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

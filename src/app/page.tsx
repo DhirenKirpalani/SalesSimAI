@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LandingPage } from "@/components/landing/LandingPage";
+import { PageLayout } from "@/components/landing/PageLayout";
 
 export const metadata: Metadata = {
   title: "Day1 | AI Field Intelligence for Sales Teams",
@@ -64,7 +65,9 @@ export default function Home() {
           }),
         }}
       />
-      <LandingPage />
+      <PageLayout>
+        <LandingPage />
+      </PageLayout>
     </>
   );
 }

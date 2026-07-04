@@ -6,6 +6,7 @@ import { StatCard } from "@/components/cards/StatCard";
 import { PerformanceChart } from "@/components/charts/PerformanceChart";
 import { ScoreDistributionChart } from "@/components/charts/ScoreDistributionChart";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -15,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Mic2, Trophy, TrendingUp, Clock, ArrowRight, Zap, Loader2 } from "lucide-react";
+import { Mic2, Trophy, TrendingUp, Clock, ArrowRight, Zap, Loader2, LucideIcon, ShieldAlert, Lightbulb, Briefcase, Building2 } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -77,6 +78,42 @@ function getGreeting(): string {
   return "Good evening";
 }
 
+interface TopListCardProps {
+  title: string;
+  items: string[];
+  icon: LucideIcon;
+  emptyText: string;
+}
+
+function TopListCard({ title, items, icon: Icon, emptyText }: TopListCardProps) {
+  return (
+    <Card className="rounded-2xl border bg-card shadow-sm hover:shadow-md transition-shadow h-full">
+      <CardContent className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary">
+            <Icon className="w-4 h-4" />
+          </div>
+          <h3 className="font-semibold text-sm">{title}</h3>
+        </div>
+        {items.length === 0 ? (
+          <p className="text-xs text-muted-foreground">{emptyText}</p>
+        ) : (
+          <ol className="space-y-2.5">
+            {items.map((item, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-muted text-muted-foreground text-[10px] font-medium flex items-center justify-center mt-0.5">
+                  {i + 1}
+                </span>
+                <span className="text-foreground/90 leading-relaxed">{item}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   const [sessions, setSessions] = useState<UnifiedSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,6 +121,12 @@ export default function DashboardPage() {
   const [organization, setOrganization] = useState<string | null>(null);
   const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [intelligence, setIntelligence] = useState<{
+    objections: string[];
+    insights: string[];
+    useCases: string[];
+    industries: string[];
+  }>({ objections: [], insights: [], useCases: [], industries: [] });
 
   useEffect(() => {
     let cancelled = false;
@@ -121,11 +164,35 @@ export default function DashboardPage() {
       if (profile?.organization_id) {
         const { data: org } = await supabase
           .from("organizations")
-          .select("name, logo_url")
+          .select("name, logo_url, profile_data")
           .eq("id", profile.organization_id)
           .single();
         if (org?.name) setOrganization(org.name);
         if (org?.logo_url) setOrgLogoUrl(org.logo_url);
+        if (org?.profile_data && typeof org.profile_data === "object") {
+          const data = org.profile_data as Record<string, unknown>;
+          const objections = ((data.common_objections as Array<{ objection?: string }>) ?? [])
+            .map((o) => o.objection)
+            .filter((o): o is string => !!o);
+          const insights = ((data.pain_points_solved as string[]) ?? []).filter(Boolean);
+          const useCases = ((data.target_customer_segments as Array<{ use_case?: string }>) ?? [])
+            .map((s) => s.use_case)
+            .filter((s): s is string => !!s);
+          const industries = new Set<string>([
+            ...((data.industries_served as string[]) ?? []).filter(Boolean),
+            ...((data.buyer_personas as Array<{ industry?: string }>) ?? [])
+              .map((p) => p.industry)
+              .filter((p): p is string => !!p),
+          ]);
+          if (!cancelled) {
+            setIntelligence({
+              objections: objections.slice(0, 5),
+              insights: insights.slice(0, 5),
+              useCases: useCases.slice(0, 5),
+              industries: Array.from(industries).slice(0, 5),
+            });
+          }
+        }
       }
 
       const heygenSessions: UnifiedSession[] = (heygenData ?? []).map((s) => ({
@@ -202,6 +269,57 @@ export default function DashboardPage() {
             Quick Start
           </Button>
         </Link>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0 }}
+        >
+          <TopListCard
+            title="Top 5 Objections"
+            items={intelligence.objections}
+            icon={ShieldAlert}
+            emptyText="No objections found yet — extract company context to populate."
+          />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05 }}
+        >
+          <TopListCard
+            title="Top 5 Insights"
+            items={intelligence.insights}
+            icon={Lightbulb}
+            emptyText="No insights found yet — extract company context to populate."
+          />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+        >
+          <TopListCard
+            title="Top 5 Use Cases"
+            items={intelligence.useCases}
+            icon={Briefcase}
+            emptyText="No use cases found yet — extract company context to populate."
+          />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.15 }}
+        >
+          <TopListCard
+            title="Top 5 Industries"
+            items={intelligence.industries}
+            icon={Building2}
+            emptyText="No industries found yet — extract company context to populate."
+          />
+        </motion.div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
