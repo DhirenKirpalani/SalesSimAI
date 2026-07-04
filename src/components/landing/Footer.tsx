@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { useThemeStore } from "@/stores/useThemeStore";
 
 const footerLinks = [
   { label: "Privacy", href: "/privacy" },
@@ -14,6 +16,8 @@ const footerLinks = [
 
 export function Footer() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { darkMode } = useThemeStore();
+  const logoSrc = darkMode ? "/images/Logo.png" : "/images/Logo-footer.png";
 
   useEffect(() => {
     const supabase = createClient();
@@ -60,9 +64,16 @@ export function Footer() {
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }
               }}
-              className="font-serif text-[1rem] font-bold text-[var(--background)] hover:opacity-80 transition-opacity no-underline"
+              className="inline-flex items-center hover:opacity-80 transition-opacity no-underline"
             >
-              SalesSim<span className="text-[var(--primary)]">.</span>
+              <Image
+                src={logoSrc}
+                alt="SalesSim"
+                width={150}
+                height={40}
+                className="h-10 w-auto"
+                priority
+              />
             </Link>
             <div className="flex gap-8 text-[0.78rem] text-[#6B7A99]">
               {footerLinks.map((link) => (
@@ -72,7 +83,7 @@ export function Footer() {
               ))}
             </div>
             <p className="text-[0.72rem] text-[#6B7A99]">
-              © {new Date().getFullYear()} SalesSim
+              © {new Date().getFullYear()} Day1
             </p>
           </div>
         </div>

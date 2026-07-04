@@ -202,7 +202,7 @@ async function fetchPageRaw(url: string): Promise<string> {
   const timeout = setTimeout(() => controller.abort(), 5000);
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; SalesSimAI/1.0)" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; day1AI/1.0)" },
       signal: controller.signal,
     });
     clearTimeout(timeout);

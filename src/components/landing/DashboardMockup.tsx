@@ -18,7 +18,7 @@ export function DashboardMockup() {
   return (
     <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] overflow-hidden shadow-[0_2px_20px_rgba(11,15,26,0.07)] max-w-full">
       <div className="bg-[var(--foreground)] px-5 py-3 flex items-center justify-between">
-        <span className="font-mono text-[0.7rem] text-[#6B7A99]">SalesSim / dashboard</span>
+        <span className="font-mono text-[0.7rem] text-[#6B7A99]">Day1 / Dashboard</span>
         <div className="flex gap-1.5">
           <span className="w-[9px] h-[9px] rounded-full bg-[#FF5F57]" />
           <span className="w-[9px] h-[9px] rounded-full bg-[#FFBD2E]" />

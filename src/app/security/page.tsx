@@ -4,8 +4,8 @@ import { Metadata } from "next";
 import { Shield, Lock, Users, FileCheck } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Security | SalesSim",
-  description: "How SalesSim keeps your conversations and content secure.",
+  title: "Security | Day1",
+  description: "How Day1 keeps your conversations and content secure.",
 };
 
 const securityItems = [
@@ -41,7 +41,7 @@ export default function SecurityPage() {
             Trust
           </span>
           <h1 className="font-serif text-3xl sm:text-4xl lg:text-5xl leading-[1.15] tracking-tight text-foreground mb-4">
-            Security at SalesSim
+            Security at Day1
           </h1>
           <p className="text-base sm:text-lg text-muted-foreground leading-relaxed max-w-2xl mb-12">
             Your conversations and content are the foundation of your business. We protect them with enterprise-grade security, strict access controls, and continuous monitoring.

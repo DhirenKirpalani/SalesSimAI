@@ -3,8 +3,8 @@ import { Footer } from "@/components/landing/Footer";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy | SalesSim",
-  description: "How SalesSim collects, uses, and protects your data.",
+  title: "Privacy Policy | Day1",
+  description: "How Day1 collects, uses, and protects your data.",
 };
 
 export default function PrivacyPage() {
@@ -22,7 +22,7 @@ export default function PrivacyPage() {
           <div className="prose prose-sm max-w-none text-muted-foreground">
             <p className="mb-4">Last updated: June 2026</p>
             <p className="mb-6">
-              SalesSim AI is committed to protecting your privacy. This policy explains how we collect, use, and safeguard your information when you use our platform.
+              Day1 is committed to protecting your privacy. This policy explains how we collect, use, and safeguard your information when you use our platform.
             </p>
             <h2 className="text-lg font-semibold text-foreground mt-8 mb-3">Information we collect</h2>
             <p className="mb-4">
@@ -30,7 +30,7 @@ export default function PrivacyPage() {
             </p>
             <h2 className="text-lg font-semibold text-foreground mt-8 mb-3">How we use your data</h2>
             <p className="mb-4">
-              We use your data to deliver and improve SalesSim, provide customer support, and ensure security. We do not sell your data to third parties.
+              We use your data to deliver and improve Day1, provide customer support, and ensure security. We do not sell your data to third parties.
             </p>
             <h2 className="text-lg font-semibold text-foreground mt-8 mb-3">Data security</h2>
             <p className="mb-4">

@@ -23,9 +23,12 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SalesSim AI — Practice Sales Conversations with AI Buyers",
+  title: "Day1 — Practice Sales Conversations with AI Buyers",
   description:
     "Train against realistic prospects, improve objection handling, and increase close rates with AI-powered sales simulations.",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({

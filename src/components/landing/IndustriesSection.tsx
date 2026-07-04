@@ -27,7 +27,7 @@ export function IndustriesSection() {
           Built for your sector's conversations.
         </h2>
         <p className="text-[0.95rem] text-[#8A99B8] max-w-[480px] leading-[1.75] mb-10">
-          Every industry has its own objections, compliance requirements, and buyer dynamics. SalesSim is configured for the conversations your team actually has.
+          Every industry has its own objections, compliance requirements, and buyer dynamics. Day1 is configured for the conversations your team actually has.
         </p>
 
         <div className="flex overflow-x-auto border-b border-[#2A3650] mb-10 pb-px">
