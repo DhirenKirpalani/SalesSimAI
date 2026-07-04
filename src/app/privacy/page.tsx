@@ -1,15 +1,21 @@
 import { LandingNavbar } from "@/components/landing/LandingNavbar";
 import { Footer } from "@/components/landing/Footer";
+import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy | Day1",
-  description: "How Day1 collects, uses, and protects your data.",
+  title: "Privacy Policy",
+  description:
+    "Read the Day1 privacy policy to learn how we collect, use, and protect your data and conversation content.",
+  alternates: {
+    canonical: "https://www.day1app.io/privacy",
+  },
 };
 
 export default function PrivacyPage() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
+      <BreadcrumbJsonLd items={[{ label: "Home", path: "/" }, { label: "Privacy Policy", path: "/privacy" }]} />
       <LandingNavbar />
       <main className="flex-1 py-20 lg:py-28">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">

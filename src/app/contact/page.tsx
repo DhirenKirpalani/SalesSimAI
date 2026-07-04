@@ -1,5 +1,6 @@
 import { LandingNavbar } from "@/components/landing/LandingNavbar";
 import { Footer } from "@/components/landing/Footer";
+import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd";
 import { Metadata } from "next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,13 +8,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Mail, MapPin, Phone } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Contact | Day1",
-  description: "Get in touch with the Day1 team.",
+  title: "Contact",
+  description:
+    "Get in touch with the Day1 team for sales, support, or partnership questions. Book a demo or send us a message.",
+  alternates: {
+    canonical: "https://www.day1app.io/contact",
+  },
 };
 
 export default function ContactPage() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
+      <BreadcrumbJsonLd items={[{ label: "Home", path: "/" }, { label: "Contact", path: "/contact" }]} />
       <LandingNavbar />
       <main className="flex-1 py-20 lg:py-28">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">

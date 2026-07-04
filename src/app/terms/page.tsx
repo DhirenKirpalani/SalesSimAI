@@ -1,15 +1,21 @@
 import { LandingNavbar } from "@/components/landing/LandingNavbar";
 import { Footer } from "@/components/landing/Footer";
+import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Terms of Service | Day1",
-  description: "Terms and conditions for using the Day1 platform.",
+  title: "Terms of Service",
+  description:
+    "Read the Day1 terms of service to understand the rules and conditions for using our AI sales training platform.",
+  alternates: {
+    canonical: "https://www.day1app.io/terms",
+  },
 };
 
 export default function TermsPage() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
+      <BreadcrumbJsonLd items={[{ label: "Home", path: "/" }, { label: "Terms of Service", path: "/terms" }]} />
       <LandingNavbar />
       <main className="flex-1 py-20 lg:py-28">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
