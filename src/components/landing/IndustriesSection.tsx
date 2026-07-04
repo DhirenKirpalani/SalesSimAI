@@ -34,8 +34,9 @@ export function IndustriesSection() {
           {sectorTabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`text-[0.8rem] font-semibold px-6 py-3 border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id ? "text-[var(--background)] border-b-[var(--primary)]" : "text-[#6B7A99] border-b-transparent"}`}
+              onClick={() => !tab.soon && setActiveTab(tab.id)}
+              disabled={tab.soon}
+              className={`text-[0.8rem] font-semibold px-6 py-3 border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id ? "text-[var(--background)] border-b-[var(--primary)]" : "text-[#6B7A99] border-b-transparent"} ${tab.soon ? "cursor-default opacity-60 hover:opacity-60" : "hover:text-[var(--background)]"}`}
             >
               {tab.label}
               {tab.soon && <span className="text-[0.65rem] ml-1 opacity-60">Soon</span>}
