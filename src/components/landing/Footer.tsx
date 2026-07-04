@@ -8,10 +8,11 @@ import { createClient } from "@/lib/supabase/client";
 import { useThemeStore } from "@/stores/useThemeStore";
 
 const footerLinks = [
+  { label: "About us", href: "/about" },
+  { label: "Contact", href: "/contact" },
   { label: "Privacy", href: "/privacy" },
   { label: "Terms", href: "/terms" },
   { label: "Security", href: "/security" },
-  { label: "Contact", href: "/contact" },
 ];
 
 export function Footer() {
