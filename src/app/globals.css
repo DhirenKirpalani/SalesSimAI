@@ -263,8 +263,9 @@
 .landing-page a{color:inherit; text-decoration:none;}
 .landing-page img{max-width:100%; display:block;}
 .landing-page .wrap{max-width:1200px; margin:0 auto; padding:0 24px;}
-.landing-page section{padding:100px 0;}
-@media (max-width:760px){ .landing-page section{padding:60px 0;} }
+.landing-page section{padding:40px 0;}
+@media (max-width:760px){ .landing-page section{padding:28px 0;} }
+.landing-page section:not(#hero) > .wrap{will-change:transform;}
 .landing-page .reveal{opacity:0; transform:translateY(40px); transition:opacity .8s ease, transform .8s ease;}
 .landing-page .reveal.visible{opacity:1; transform:translateY(0);}
 .landing-page .hero.reveal{opacity:1; transform:translateY(0);}
@@ -292,10 +293,11 @@
 .marketing-header .header-logo{display:flex; align-items:center; font-size:20px; color:var(--text); text-decoration:none;}
 .marketing-header .header-logo img{height:36px; width:auto;}
 .marketing-header .header-nav{display:flex; align-items:center; gap:8px;}
-.marketing-header .header-link{display:inline-flex; align-items:center; gap:6px; padding:8px 14px; font-size:14.5px; font-weight:600; color:var(--text-muted); background:transparent; border:none; cursor:pointer; border-radius:8px; transition:color .18s ease, background .18s ease; position:relative;}
-.marketing-header .header-link:hover{color:var(--text); background:rgba(0,0,0,0.03);}
-.marketing-header .header-link.active{color:var(--text); background:transparent;}
-.marketing-header .header-link.active::after{content:''; position:absolute; bottom:2px; left:14px; right:14px; height:3px; background:var(--accent); border-radius:3px;}
+.marketing-header .header-link{display:inline-flex; align-items:center; gap:6px; padding:8px 14px; font-size:14.5px; font-weight:600; color:var(--text-muted); background:transparent; border:none; cursor:pointer; border-radius:8px; transition:color .18s ease; position:relative;}
+.marketing-header .header-link:hover{color:var(--text);}
+.marketing-header .header-link.active{color:var(--text);}
+.marketing-header .header-link::after{content:''; position:absolute; bottom:0; left:0; width:0; height:2px; background:var(--accent); transition:width .18s ease;}
+.marketing-header .header-link:hover::after,.marketing-header .header-link.active::after{width:100%;}
 .marketing-header .header-chevron{transition:transform .2s ease;}
 .marketing-header .header-dropdown:hover .header-chevron{transform:rotate(180deg);}
 .marketing-header .header-dropdown{position:relative;}

@@ -93,7 +93,7 @@ export function LandingPage() {
   }, []);
 
   useEffect(() => {
-    const sections = ["hero", "features", "process", "usecases", "insights", "faq"];
+    const sections = ["hero", "features", "process", "usecases", "faq"];
     const updateActiveSection = () => {
       const scrollPos = window.scrollY + 120;
       let current = "";
@@ -153,6 +153,37 @@ export function LandingPage() {
     });
     return () => {
       handlers.forEach((handler, q) => q.removeEventListener("click", handler));
+    };
+  }, []);
+
+  // Subtle parallax: each section's content shifts slightly as it scrolls through the viewport
+  useEffect(() => {
+    const wraps = document.querySelectorAll(".landing-page section:not(#hero) > .wrap");
+    let rafId: number;
+
+    const updateParallax = () => {
+      const viewportHeight = window.innerHeight;
+      wraps.forEach((wrap) => {
+        const section = wrap.parentElement as HTMLElement;
+        if (!section) return;
+        const rect = section.getBoundingClientRect();
+        const progress = (viewportHeight - rect.top) / (viewportHeight + rect.height);
+        const offset = (progress - 0.5) * -50;
+        (wrap as HTMLElement).style.transform = `translateY(${offset}px)`;
+      });
+    };
+
+    const handleScroll = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(updateParallax);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    updateParallax();
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (rafId) cancelAnimationFrame(rafId);
     };
   }, []);
 
@@ -451,8 +482,8 @@ export function LandingPage() {
                   <div className="w-embed ent-hero-svg" dangerouslySetInnerHTML={{ __html: flagSvg }} />
                 </div>
                 <div className="container-card-content big">
-                  <div className="heading-4">25+ languages<br/>available</div>
-                  <div className="paragraph text-medium-grey">Deploy Day1 worldwide. 25+ languages available to train your local teams with the same level of excellence.</div>
+                  <div className="heading-4">4 languages<br/>available</div>
+                  <div className="paragraph text-medium-grey">English, Bahasa Indonesia, Malay, and Singaporean English — tailored for teams across Southeast Asia.</div>
                 </div>
               </div>
               <div className="card-persona big">
@@ -461,7 +492,7 @@ export function LandingPage() {
                 </div>
                 <div className="container-card-content big">
                   <div className="heading-4">Security<br/>and Compliance</div>
-                  <div className="paragraph text-medium-grey">ISO 27001, GDPR, European hosting. Your data and your customers' data are protected at the highest level.</div>
+                  <div className="paragraph text-medium-grey">End-to-end encryption, role-based access controls, and isolated organization data. SOC 2 and ISO 27001 certifications are in progress.</div>
                 </div>
               </div>
               <div className="card-persona big">
@@ -631,7 +662,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section id="insights">
+      {/* <section id="insights">
         <div className="wrap">
           <div className="spacer-l">
             <div className="last-ressources-header">
@@ -707,7 +738,7 @@ export function LandingPage() {
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       <section id="demo">
         <div className="wrap">

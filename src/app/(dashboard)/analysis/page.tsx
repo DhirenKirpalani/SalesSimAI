@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, Suspense, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ScoreCard } from "@/components/cards/ScoreCard";
+import { StatCard } from "@/components/cards/StatCard";
 import { RadarScoreChart } from "@/components/charts/RadarScoreChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,8 @@ import {
   ChevronRight,
   MessageSquare,
   AlertCircle,
+  BarChart3,
+  Trophy,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
@@ -225,13 +228,28 @@ function AnalysisContent() {
 
   // Session list view
   if (!sessionId) {
+    const analyzedSessions = sessions.filter((s) => s.analysis?.overall_score !== undefined);
+    const scores = analyzedSessions.map((s) => s.analysis!.overall_score);
+    const avgScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+    const bestScore = scores.length ? Math.max(...scores) : null;
+    const totalMins = Math.round(sessions.reduce((sum, s) => sum + (s.duration_s ?? 0), 0) / 60);
+
     return (
       <div className="space-y-6 max-w-4xl mx-auto">
         <div>
           <PageHeaderLogo />
           <h1 className="text-2xl font-bold tracking-tight">Analysis</h1>
-          <p className="text-sm text-muted-foreground mt-1">Select a completed session to view your AI-generated MEDDIC analysis.</p>
+          <p className="text-sm text-muted-foreground mt-1">AI-generated MEDDIC insights across your practice sessions. Select a session to dive deeper.</p>
         </div>
+
+        {sessions.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <StatCard label="Avg MEDDIC" value={avgScore ?? "—"} icon={TrendingUp} trend="neutral" />
+            <StatCard label="Best MEDDIC" value={bestScore ?? "—"} icon={Trophy} trend="neutral" />
+            <StatCard label="Sessions Analyzed" value={analyzedSessions.length} icon={BarChart3} trend="neutral" />
+            <StatCard label="Practice Time" value={`${totalMins}m`} icon={Clock} trend="neutral" />
+          </div>
+        )}
 
         {sessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
@@ -353,7 +371,7 @@ function AnalysisContent() {
               : error}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => router.push("/simulation")} className="rounded-xl gap-1">
+        <Button variant="outline" size="sm" onClick={() => router.push(noMessages ? "/simulation" : "/analysis")} className="rounded-xl gap-1">
           {noMessages ? "Start a Simulation" : "Back to Analysis"}
         </Button>
       </div>
