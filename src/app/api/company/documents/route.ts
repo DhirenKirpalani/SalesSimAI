@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { embedText } from "@/lib/vector-store";
 import { extractTextFromBuffer } from "@/lib/extract-text";
+import { createHash } from "crypto";
 
 function serviceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -159,6 +160,7 @@ async function requireAdmin(supabase: Awaited<ReturnType<typeof createClient>>) 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const CHUNK_SIZE = 3000; // ~3000 chars per chunk (roughly 750 tokens)
 const CHUNK_OVERLAP = 200;
+const SEMANTIC_DUPLICATE_THRESHOLD = 0.92; // cosine similarity threshold for near-duplicate chunks
 
 const DOCUMENT_TYPES = [
   "icp",
@@ -169,6 +171,81 @@ const DOCUMENT_TYPES = [
   "process_methodology",
   "transcript",
 ];
+
+// ── Deduplication helpers ──────────────────────────────────────────────────
+
+function sha256Buffer(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+function sha256Text(text: string): string {
+  return createHash("sha256").update(text).digest("hex");
+}
+
+async function findExistingFileByHash(
+  svc: ReturnType<typeof serviceSupabase>,
+  orgId: string,
+  fileHash: string
+): Promise<{ id: string; name: string } | null> {
+  const { data, error } = await svc
+    .from("company_documents")
+    .select("id, name")
+    .eq("organization_id", orgId)
+    .eq("file_hash", fileHash)
+    .maybeSingle();
+  if (error) console.error("[findExistingFileByHash] error:", error);
+  return data ?? null;
+}
+
+async function findExistingContentByHash(
+  svc: ReturnType<typeof serviceSupabase>,
+  orgId: string,
+  contentHash: string
+): Promise<{ id: string; name: string } | null> {
+  const { data, error } = await svc
+    .from("company_documents")
+    .select("id, name")
+    .eq("organization_id", orgId)
+    .eq("content_hash", contentHash)
+    .maybeSingle();
+  if (error) console.error("[findExistingContentByHash] error:", error);
+  return data ?? null;
+}
+
+async function findExistingChunkByHash(
+  svc: ReturnType<typeof serviceSupabase>,
+  chunkHash: string
+): Promise<boolean> {
+  const { data, error } = await svc
+    .from("company_document_chunks")
+    .select("id", { count: "exact", head: true })
+    .eq("chunk_hash", chunkHash);
+  if (error) {
+    console.error("[findExistingChunkByHash] error:", error);
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
+}
+
+async function findSemanticallySimilarChunks(
+  svc: ReturnType<typeof serviceSupabase>,
+  orgId: string,
+  embedding: number[],
+  threshold: number,
+  limit: number
+): Promise<{ id: string; similarity: number }[]> {
+  const { data, error } = await svc.rpc("match_company_docs", {
+    query_embedding: embedding,
+    match_threshold: threshold,
+    match_count: limit,
+    filter_org_id: orgId,
+  });
+  if (error) {
+    console.error("[findSemanticallySimilarChunks] error:", error);
+    return [];
+  }
+  return (data ?? []).map((row: any) => ({ id: row.id, similarity: row.similarity }));
+}
 
 async function classifyDocumentType(text: string, fileName: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -283,9 +360,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status });
     }
     const { user, orgId, orgName } = adminCheck;
+    const svc = serviceSupabase();
 
     let totalChunks = 0;
+    let totalSkippedChunks = 0;
     const insertedDocs: any[] = [];
+    const skippedFiles: { name: string; reason: string; existingDocumentId?: string }[] = [];
 
     for (const file of files) {
       const name = file.name;
@@ -304,6 +384,30 @@ export async function POST(req: NextRequest) {
       const textContent = await extractTextFromBuffer(fileBuffer, name, mimeType);
       if (!textContent.trim()) {
         return NextResponse.json({ error: `No text content extracted from ${name}` }, { status: 400 });
+      }
+
+      // ── File-level deduplication ─────────────────────────────────────────────
+      const fileHash = sha256Buffer(fileBuffer);
+      const existingFile = await findExistingFileByHash(svc, orgId, fileHash);
+      if (existingFile) {
+        skippedFiles.push({
+          name,
+          reason: "duplicate_file",
+          existingDocumentId: existingFile.id,
+        });
+        continue;
+      }
+
+      // ── Content-level deduplication ────────────────────────────────────────
+      const contentHash = sha256Text(textContent.trim());
+      const existingContent = await findExistingContentByHash(svc, orgId, contentHash);
+      if (existingContent) {
+        skippedFiles.push({
+          name,
+          reason: "duplicate_content",
+          existingDocumentId: existingContent.id,
+        });
+        continue;
       }
 
       // In bulk mode, let AI classify the document type based on the text
@@ -333,6 +437,8 @@ export async function POST(req: NextRequest) {
           doc_type: productType,
           document_type: effectiveDocumentType,
           file_path: filePath,
+          file_hash: fileHash,
+          content_hash: contentHash,
           created_by: user.id,
         })
         .select()
@@ -346,32 +452,65 @@ export async function POST(req: NextRequest) {
       // Embed each chunk and store them in the chunks table
       const chunkRows: any[] = [];
       for (let i = 0; i < chunks.length; i++) {
+        const chunkHash = sha256Text(chunks[i]);
+
+        // ── Exact chunk-level deduplication ─────────────────────────────────
+        const existingChunkHash = await findExistingChunkByHash(svc, chunkHash);
+        if (existingChunkHash) {
+          totalSkippedChunks++;
+          continue;
+        }
+
         const embedding = await embedText(chunks[i]);
+
+        // ── Semantic chunk-level deduplication ──────────────────────────────
+        const similarChunks = await findSemanticallySimilarChunks(
+          svc,
+          orgId,
+          embedding,
+          SEMANTIC_DUPLICATE_THRESHOLD,
+          1
+        );
+        if (similarChunks.length > 0) {
+          totalSkippedChunks++;
+          continue;
+        }
+
         chunkRows.push({
           document_id: docRecord.id,
           content: chunks[i],
           embedding: embedding as unknown as string,
           chunk_index: i,
+          chunk_hash: chunkHash,
         });
       }
 
-      const { error: chunkErr } = await supabase
-        .from("company_document_chunks")
-        .insert(chunkRows);
+      if (chunkRows.length > 0) {
+        const { error: chunkErr } = await supabase
+          .from("company_document_chunks")
+          .insert(chunkRows);
 
-      if (chunkErr) {
-        console.error("[api/company/documents] chunk insert error:", chunkErr);
-        return NextResponse.json({ error: "Failed to store document chunks" }, { status: 500 });
+        if (chunkErr) {
+          console.error("[api/company/documents] chunk insert error:", chunkErr);
+          return NextResponse.json({ error: "Failed to store document chunks" }, { status: 500 });
+        }
       }
 
       totalChunks += chunkRows.length;
-      insertedDocs.push(docRecord);
+      insertedDocs.push({
+        ...docRecord,
+        totalChunks: chunks.length,
+        newChunks: chunkRows.length,
+        skippedChunks: chunks.length - chunkRows.length,
+      });
     }
 
     return NextResponse.json({
       success: true,
       chunks: totalChunks,
+      skippedChunks: totalSkippedChunks,
       documents: insertedDocs,
+      skippedFiles,
     });
   } catch (err) {
     console.error("[api/company/documents POST]", err);
@@ -382,9 +521,13 @@ export async function POST(req: NextRequest) {
 /**
  * GET /api/company/documents
  * List documents for the user's organization (one row per uploaded file)
+ * Optional: ?document_type=competitive returns content for that type
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const documentType = searchParams.get("document_type") ?? undefined;
+
     const supabase = await createClient();
     const adminCheck = await requireOrgMember(supabase);
     if ("error" in adminCheck) {
@@ -394,11 +537,16 @@ export async function GET() {
 
     // Use service role to bypass RLS so all org members can read documents
     const svc = serviceSupabase();
-    const { data: rows } = await svc
+    let query = svc
       .from("company_documents")
-      .select("id, name, doc_type, document_type, file_path, created_at, created_by")
-      .eq("organization_id", orgId)
-      .order("created_at", { ascending: false });
+      .select("id, name, doc_type, document_type, file_path, created_at, created_by, content")
+      .eq("organization_id", orgId);
+
+    if (documentType) {
+      query = query.eq("document_type", documentType);
+    }
+
+    const { data: rows } = await query.order("created_at", { ascending: false });
 
     // Enrich with creator info
     const creatorIds = [...new Set((rows ?? []).map((d) => d.created_by).filter(Boolean))];

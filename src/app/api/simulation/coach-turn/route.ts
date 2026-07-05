@@ -115,7 +115,18 @@ export async function POST(req: NextRequest) {
     const completedSteps = Array.isArray(stepsCompleted)
       ? stepsCompleted.map((c, i) => (c ? i : -1)).filter((i) => i >= 0)
       : [];
-    const nextStepIndex = typeof currentStep === "number" ? currentStep : completedSteps.length;
+
+    const framework = [
+      { index: 0, name: "Intro + Agenda", goal: "Set the agenda and understand buyer goals" },
+      { index: 1, name: "Current Process", goal: "Understand how the buyer does things today" },
+      { index: 2, name: "Breakdown Points", goal: "Identify where the current process breaks or causes pain" },
+      { index: 3, name: "Impact", goal: "Connect the pain to business outcomes" },
+      { index: 4, name: "Cost Quantification", goal: "Quantify the cost in time, money, or risk" },
+      { index: 5, name: "Previous Attempts", goal: "Understand what the buyer has already tried" },
+      { index: 6, name: "Future State", goal: "Paint the ideal solved state" },
+      { index: 7, name: "Stakeholders", goal: "Map the buying committee" },
+      { index: 8, name: "Blockers", goal: "Surface objections and risks" },
+    ];
 
     const systemPrompt = `You are a concise, accurate sales coach observing a live sales call. Your job is to help the seller improve ONE thing on the very last thing they said.
 
@@ -131,10 +142,13 @@ SESSION STATE:
 - Trust: ${state?.trust_level ?? 30}/100
 - Mood: ${state?.buyer_mood ?? 0}
 - Facts uncovered: ${factsFound.length ? factsFound.join(", ") : "none"}
-- Coaching steps already covered: ${completedSteps.length ? completedSteps.join(", ") : "none"}
-- Next recommended coaching step index: ${nextStepIndex}
 
-PRODUCT KNOWLEDGE BASE (use to fact-check seller claims):
+DISCOVERY FRAMEWORK (use to guide progression, but infer coverage from the actual conversation, not just the step numbers):
+${framework.map((f) => `${f.index}. ${f.name}: ${f.goal}`).join("\n")}
+
+Heuristic steps already covered: ${completedSteps.length ? completedSteps.join(", ") : "none"}. Treat these as hints, not hard rules. If the conversation shows a step is actually covered, mark it covered. If the conversation shows a step is NOT covered even though it is listed, still treat it as uncovered.
+
+PRODUCT KNOWLEDGE BASE (use to fact-check seller claims and answer product questions):
 ${scenario.seller_description || "No product knowledge base provided."}${docContext}
 
 SCORING RUBRIC (checkpoints the seller should hit):
@@ -144,19 +158,21 @@ CONVERSATION SO FAR:
 ${history || "(start of call)"}
 
 Instructions:
-1. Look only at the LATEST exchange below.
+1. Use the full conversation history to understand what has already been discussed and answered.
 2. Decide if the seller's response was good, missed the mark, or needs a warning. Base this on the rubric and the buyer's actual words.
-3. If the buyer asked a question, raised an objection, or expressed concern, the next suggestion must directly address that point first. Do not change the subject or jump to a later rubric step until the buyer's immediate concern is handled.
-4. If the buyer did not raise a new concern, suggest the next logical step forward in the rubric, skipping nothing that is still pending.
-5. Never suggest going back to a step that is already marked as covered above.
-6. If the seller said something factually wrong about the product, list it in product_corrections. Otherwise leave that array empty.
-7. If no rubric checkpoint is clearly hit this turn, set checkpoint_hit and checkpoint_name to null.
-8. Be concise. Do not lecture. Do not contradict the rubric or the conversation history. Do not suggest actions the seller already took.
+3. If the buyer asked a question, raised an objection, or expressed concern, the next suggestion must directly address that point first. Use the product knowledge base if needed.
+4. If the buyer already answered or revealed information that satisfies a pending framework step, mark that step as covered (include in already_covered) and move to the NEXT logical step. Do not ask a question whose answer the buyer already gave.
+5. If the buyer did not raise a new concern, suggest the next logical step forward in the framework, skipping nothing that is still pending.
+6. Never suggest going back to a step that is already covered or that the buyer has already answered.
+7. If the seller said something factually wrong about the product, list it in product_corrections. Otherwise leave that array empty.
+8. If no rubric checkpoint is clearly hit this turn, set checkpoint_hit and checkpoint_name to null.
+9. Be concise. Do not lecture. Do not contradict the rubric or the conversation history. Do not suggest actions the seller already took.
 
 Examples of good responses:
 - Seller: "We cover the Philippines." Buyer: "Are you sure?" → nudge: "Confirm Philippines coverage with specifics." suggested_next: "Share the countries and compliance details you cover."
 - Seller: "Tell me about your current process." Buyer: "We do it manually." → nudge: "Good discovery question." suggested_next: "Ask what breaks down most in that manual process."
 - Seller: "Our pricing is $99." (knowledge base says $199) → nudge: "Pricing correction needed." suggested_next: "Clarify the correct pricing before continuing." product_corrections: [{claim:"$99", correction:"$199 per month", severity:"error", topic:"pricing"}]
+- Seller: "Got it. No, that's definitely not ideal." Buyer: "Exactly. So, how does Aspire handle those kinds of urgent payroll glitches compared to what I'm dealing with now?" → nudge: "Buyer wants proof of handling." suggested_next: "Explain Aspire's urgent payroll process and SLA, then ask how their current vendor handles escalations."
 
 Return ONLY valid JSON:
 {

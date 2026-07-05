@@ -21,6 +21,7 @@ interface CoachingOverlayProps {
   checkpoints?: Checkpoint[];
   hideToggle?: boolean;
   suggestedNextQuestionOverride?: string;
+  coachingLoading?: boolean;
 }
 
 export function CoachingOverlay({
@@ -33,6 +34,7 @@ export function CoachingOverlay({
   checkpoints,
   hideToggle,
   suggestedNextQuestionOverride,
+  coachingLoading,
 }: CoachingOverlayProps) {
   const [showCheckpoints, setShowCheckpoints] = useState(false);
   const steps = getCoachingSteps(state.scenarioType);
@@ -135,15 +137,22 @@ export function CoachingOverlay({
           </div>
 
           {/* Suggested question — highlighted */}
-          {(suggestedNextQuestionOverride || state.suggestedNextQuestion) && (
+          {(suggestedNextQuestionOverride || state.suggestedNextQuestion || coachingLoading) && (
             <div className="bg-emerald-500/10 rounded-xl p-2.5 border border-emerald-500/20 space-y-1">
               <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-emerald-400 font-medium">
                 <MessageSquare className="w-3 h-3" />
                 Try This
               </div>
-              <p className="text-xs text-emerald-100 leading-relaxed">
-                {suggestedNextQuestionOverride || state.suggestedNextQuestion}
-              </p>
+              {coachingLoading ? (
+                <div className="flex items-center gap-2 text-xs text-emerald-100/70">
+                  <span className="w-3.5 h-3.5 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
+                  Getting contextual suggestion...
+                </div>
+              ) : (
+                <p className="text-xs text-emerald-100 leading-relaxed">
+                  {suggestedNextQuestionOverride || state.suggestedNextQuestion}
+                </p>
+              )}
             </div>
           )}
 

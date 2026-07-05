@@ -21,9 +21,9 @@ async function fetchTranscriptText(
 ): Promise<{ granola: string; documents: string }> {
   const svc = serviceSupabase();
 
-  // Fetch granola notes (real sales calls) for this product type
+  // Fetch imported calls (real sales calls) for this product type
   const { data: notes } = await svc
-    .from("granola_notes")
+    .from("calls")
     .select("title, summary, summary_text, transcript")
     .eq("organization_id", orgId)
     .eq("product_type", productType)

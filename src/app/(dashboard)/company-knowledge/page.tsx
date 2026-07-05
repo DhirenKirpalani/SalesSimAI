@@ -369,7 +369,15 @@ export default function CompanyKnowledgePage() {
       const data = await res.json();
       if (res.ok) {
         setUploadStatus("success");
-        setUploadMessage(`Uploaded ${selectedFiles.length} file(s), ${data.chunks} chunk(s)`);
+        const parts: string[] = [];
+        parts.push(`Uploaded ${selectedFiles.length} file(s)`);
+        if (data.chunks > 0) parts.push(`${data.chunks} new chunk(s)`);
+        if (data.skippedChunks > 0) parts.push(`${data.skippedChunks} duplicate chunk(s) skipped`);
+        if (data.skippedFiles?.length > 0) {
+          const reasons = data.skippedFiles.map((f: any) => f.name).join(", ");
+          parts.push(`${data.skippedFiles.length} duplicate file(s) skipped: ${reasons}`);
+        }
+        setUploadMessage(parts.join(" · "));
         setSelectedFiles([]);
         fetchDocs();
       } else {
