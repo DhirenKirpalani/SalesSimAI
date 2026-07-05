@@ -3,9 +3,10 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Plug, Link2, CheckCircle2, type LucideIcon } from "lucide-react";
-import type React from "react";
+import React, { useEffect, useState } from "react";
 import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 function GranolaIcon({ className }: { className?: string }) {
   return (
@@ -313,6 +314,37 @@ function ConnectorCard({ connector }: { connector: Connector }) {
 }
 
 export default function IntegrationsPage() {
+  const [granolaConnected, setGranolaConnected] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function checkGranola() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", user.id)
+        .single();
+      const orgId = profile?.organization_id;
+      if (!orgId) {
+        setLoading(false);
+        return;
+      }
+      const { count } = await supabase
+        .from("calls")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId);
+      setGranolaConnected((count ?? 0) > 0);
+      setLoading(false);
+    }
+    checkGranola();
+  }, []);
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
@@ -332,9 +364,9 @@ export default function IntegrationsPage() {
             icon: GranolaIcon,
             iconBg: "bg-[#B2C248]/20",
             iconColor: "text-[#1E1E1E]",
-            connected: true,
+            connected: !loading && granolaConnected,
             href: "/integrations/granola",
-            actionLabel: "Manage calls",
+            actionLabel: granolaConnected ? "Manage calls" : "Connect",
           }}
         />
         <ConnectorCard

@@ -9,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { UrlChipInput } from "@/components/ui/UrlChipInput";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -29,8 +28,6 @@ import {
   Loader2,
   Upload,
   Trash2,
-  Users,
-  Mail,
   Building2,
   FileText,
   CheckCircle,
@@ -45,6 +42,7 @@ import {
 } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { useRouter } from "next/navigation";
+import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
 
 interface Organization {
   id: string;
@@ -114,7 +112,6 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
 export default function CompanyKnowledgePage() {
   const router = useRouter();
   const { isAdmin, loading: roleLoading } = useRole();
-  const [activeTab, setActiveTab] = useState("documents");
   const [loading, setLoading] = useState(true);
 
   // Org state
@@ -582,7 +579,6 @@ export default function CompanyKnowledgePage() {
         setMembers([]);
         setIsOrgAdmin(false);
         setDeleteOrgOpen(false);
-        setActiveTab("documents");
       } else {
         const data = await res.json();
         setDeleteOrgError(data.error || "Failed to delete organization");
@@ -706,46 +702,15 @@ export default function CompanyKnowledgePage() {
   return (
     <div className="max-w-4xl mx-auto py-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            {org?.logo_url ? (
-              <img
-                src={org.logo_url}
-                alt={org.name}
-                className="h-8 object-contain"
-              />
-            ) : (
-              <>
-                <Building2 className="w-6 h-6" />
-                {org?.name}
-              </>
-            )}
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {isOrgAdmin ? "Admin" : "Member"} · Plan: {org?.plan}
-          </p>
-        </div>
-        <Badge className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">{members.length} member{members.length !== 1 ? "s" : ""}</Badge>
+      <div>
+        <PageHeaderLogo />
+        <h1 className="text-2xl font-bold tracking-tight">Knowledge Base</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Manage documents, URLs, and AI-extracted context for {org?.name || "this workspace"}.
+        </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full sm:max-w-md sm:mx-0 flex flex-wrap sm:flex-nowrap h-auto p-1 gap-1">
-          <TabsTrigger value="documents" className="flex-1 min-w-[110px] text-xs sm:text-sm">
-            Knowledge Base
-          </TabsTrigger>
-          <TabsTrigger value="members" className="flex-1 min-w-[80px] text-xs sm:text-sm">
-            Members
-          </TabsTrigger>
-          {isOrgAdmin && (
-            <TabsTrigger value="settings" className="flex-1 min-w-[80px] text-xs sm:text-sm">
-              Settings
-            </TabsTrigger>
-          )}
-        </TabsList>
-
-        {/* ── Knowledge Base Tab ─────────────────────────────────────── */}
-        <TabsContent value="documents" className="space-y-4">
+      <div className="space-y-4">
           {/* Website Extraction — admin only */}
           {isOrgAdmin && <Card>
             <CardHeader>
@@ -1230,306 +1195,7 @@ export default function CompanyKnowledgePage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </TabsContent>
-
-        {/* ── Members Tab ────────────────────────────────────────────── */}
-        <TabsContent value="members" className="space-y-4">
-          {/* Invite Section (Admin only) */}
-          {isOrgAdmin && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Mail className="w-4 h-4" />
-                  Invite Team Member
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <form onSubmit={handleInvite} className="flex gap-3">
-                  <Input
-                    type="email"
-                    placeholder="colleague@company.com"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button type="submit" disabled={inviteLoading || !inviteEmail.trim()}>
-                    {inviteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Invite"}
-                  </Button>
-                </form>
-
-                {inviteStatus !== "idle" && (
-                  <div
-                    className={`flex items-center gap-2 text-sm ${
-                      inviteStatus === "success" ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
-                    {inviteStatus === "success" ? (
-                      <CheckCircle className="w-4 h-4" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4" />
-                    )}
-                    {inviteMessage}
-                  </div>
-                )}
-
-                {invites.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Pending Invites
-                    </p>
-                    {invites.map((inv) => (
-                      <div
-                        key={inv.id}
-                        className="flex items-center justify-between p-2 rounded-md bg-muted/50"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-sm">{inv.email}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(inv.created_at).toLocaleDateString()}
-                          </span>
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            title="Copy invite link"
-                            onClick={() => {
-                              const link = `${window.location.origin}/invite/${inv.id}`;
-                              navigator.clipboard.writeText(link);
-                              setCopiedInviteId(inv.id);
-                              setTimeout(() => setCopiedInviteId(null), 2000);
-                            }}
-                          >
-                            {copiedInviteId === inv.id ? (
-                              <Check className="w-3 h-3 text-emerald-500" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Members List */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Users className="w-4 h-4" />
-                Team Members
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {members.map((m) => (
-                  <div
-                    key={m.id}
-                    className="flex items-center justify-between p-3 rounded-lg border"
-                  >
-                    <div>
-                      <p className="text-sm font-medium">
-                        {m.full_name || m.email.split("@")[0]}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {m.position || "No position"} · {m.email}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {isOrgAdmin && org?.created_by !== m.id && (
-                        <>
-                          <Select
-                            value={m.role || "user"}
-                            onValueChange={(v) => handleUpdateMemberRole(m.id, v ?? "user")}
-                          >
-                            <SelectTrigger className="min-w-[130px] h-8 text-xs px-2.5 bg-background border hover:bg-accent hover:border-primary/30 transition-colors gap-2">
-                              <span className="text-muted-foreground">Role:</span>
-                              <SelectValue className="capitalize" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="user">User</SelectItem>
-                              <SelectItem value="admin">Admin</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveMember(m.id)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50 h-7 px-2"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </>
-                      )}
-                      {org?.created_by === m.id && (
-                        <Badge variant="secondary" className="text-xs">
-                          Owner
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ── Settings Tab ───────────────────────────────────────────── */}
-        {isOrgAdmin && (
-          <TabsContent value="settings" className="space-y-4">
-            {/* Branding */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Building2 className="w-4 h-4" />
-                  Branding
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <form onSubmit={handleSaveSettings} className="space-y-4">
-                  {/* Logo */}
-                  <div>
-                    <Label className="text-xs mb-1 block">Company Logo</Label>
-                    <div className="flex items-center gap-3">
-                      {logoUrl && (
-                        <img
-                          src={logoUrl}
-                          alt="Logo preview"
-                          className="w-12 h-12 rounded-lg object-contain border shrink-0"
-                        />
-                      )}
-                      <input
-                        ref={logoInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleLogoFileSelect}
-                        className="hidden"
-                      />
-                      <div
-                        onClick={() => logoInputRef.current?.click()}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md border border-input bg-background text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
-                      >
-                        <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
-                        <span className="truncate flex-1">
-                          {logoUrl ? "Change logo" : "Click to choose a file"}
-                        </span>
-                        {logoUrl && (
-                          <span
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setLogoUrl("");
-                              if (logoInputRef.current) logoInputRef.current.value = "";
-                            }}
-                            className="ml-auto text-muted-foreground hover:text-red-500 cursor-pointer shrink-0"
-                          >
-                            <X className="w-3 h-3" />
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Upload a PNG/JPG logo. It will be shown on the company page.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-3 pt-2">
-                    <Button type="submit" disabled={savingSettings}>
-                      {savingSettings ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        "Save Settings"
-                      )}
-                    </Button>
-                    {settingsStatus !== "idle" && (
-                      <div
-                        className={`flex items-center gap-2 text-sm ${
-                          settingsStatus === "success" ? "text-green-600" : "text-red-600"
-                        }`}
-                      >
-                        {settingsStatus === "success" ? (
-                          <CheckCircle className="w-4 h-4" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4" />
-                        )}
-                        {settingsMessage}
-                      </div>
-                    )}
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-
-            {/* ── Danger Zone ─────────────────────────────────────────────────── */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base text-red-600">
-                  <AlertCircle className="w-4 h-4" />
-                  Danger Zone
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium">Delete Organization</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Permanently delete this organization. All members will be unlinked and all data will be lost.
-                      This action cannot be undone.
-                    </p>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={deletingOrg}
-                    onClick={handleDeleteOrg}
-                  >
-                    {deletingOrg ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-4 h-4 mr-1" />
-                    )}
-                    Delete
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* ── Delete Confirmation Dialog ─────────────────────────────────── */}
-            <Dialog open={deleteOrgOpen} onOpenChange={setDeleteOrgOpen}>
-              <DialogContent className="max-w-sm">
-                <DialogHeader>
-                  <DialogTitle className="text-base">Delete organization?</DialogTitle>
-                  <DialogDescription>
-                    This will permanently remove the organization. All members will be unlinked and all data will be lost. This action cannot be undone.
-                  </DialogDescription>
-                </DialogHeader>
-                {deleteOrgError && (
-                  <div className="text-sm text-red-600 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
-                    {deleteOrgError}
-                  </div>
-                )}
-                <DialogFooter className="gap-2">
-                  <Button variant="outline" className="rounded-xl" onClick={() => setDeleteOrgOpen(false)} disabled={deletingOrg}>
-                    Cancel
-                  </Button>
-                  <Button variant="destructive" className="rounded-xl gap-1" onClick={confirmDeleteOrg} disabled={deletingOrg}>
-                    {deletingOrg ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-3.5 h-3.5" />
-                    )}
-                    Delete
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </TabsContent>
-        )}
-      </Tabs>
+      </div>
     </div>
   );
 }

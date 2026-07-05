@@ -42,6 +42,7 @@ export default function ProfilePage() {
         .single();
 
     let organizationName: string | null = null;
+    let organizationPosition: string | null = null;
     if (data?.organization_id) {
       const { data: org } = await supabase
         .from("organizations")
@@ -49,17 +50,29 @@ export default function ProfilePage() {
         .eq("id", data.organization_id)
         .single();
       organizationName = org?.name ?? null;
+
+      const { data: membership } = await supabase
+        .from("organization_members")
+        .select("position")
+        .eq("organization_id", data.organization_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      organizationPosition = membership?.position ?? null;
     }
 
       if (data) {
-        setProfile({ ...data, company: organizationName ?? data.company });
+        setProfile({
+          ...data,
+          company: organizationName ?? data.company,
+          position: organizationPosition ?? data.position ?? null,
+        });
       } else {
         setProfile({
           full_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
           email: user.email || "",
           role: "user",
           company: organizationName ?? user.user_metadata?.company ?? null,
-          position: user.user_metadata?.position || null,
+          position: organizationPosition ?? (user.user_metadata?.position || null),
         });
       }
       setLoading(false);
@@ -81,21 +94,35 @@ export default function ProfilePage() {
       return;
     }
 
-    const { error } = await supabase
+    const { data: userProfile } = await supabase
       .from("profiles")
-      .update({
-        full_name: profile.full_name,
-        position: profile.position,
-      })
+      .select("organization_id")
+      .eq("id", user.id)
+      .single();
+    const activeOrgId = userProfile?.organization_id;
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ full_name: profile.full_name })
       .eq("id", user.id);
 
-    if (error) {
+    let memberError = null;
+    if (activeOrgId) {
+      const { error } = await supabase
+        .from("organization_members")
+        .update({ position: profile.position })
+        .eq("organization_id", activeOrgId)
+        .eq("user_id", user.id);
+      memberError = error;
+    }
+
+    if (profileError || memberError) {
       setStatus("error");
     } else {
       setStatus("success");
       // Also update auth metadata so navbar initials stay in sync
       await supabase.auth.updateUser({
-        data: { full_name: profile.full_name, position: profile.position },
+        data: { full_name: profile.full_name },
       });
     }
     setSaving(false);
@@ -158,7 +185,7 @@ export default function ProfilePage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="company" className="text-xs font-medium">Company</Label>
+              <Label htmlFor="company" className="text-xs font-medium">Workspace</Label>
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl border bg-muted/30 text-sm text-muted-foreground">
                 <span>{profile?.company || "—"}</span>
                 <span className="text-[10px] text-muted-foreground/60">(from organization)</span>

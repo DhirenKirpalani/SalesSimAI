@@ -431,10 +431,17 @@ export async function POST(req: NextRequest) {
       const { data: { user } } = await serverSupabase.auth.getUser();
       if (user) {
         const svcSupabase = serviceSupabase();
+        const { data: scenario } = await svcSupabase
+          .from(scenarioTable ?? "custom_scenarios")
+          .select("organization_id")
+          .eq("id", scenarioId ?? "")
+          .maybeSingle();
+        const organizationId = scenario?.organization_id ?? null;
         const { data: dbRow } = await svcSupabase
           .from("heygen_sessions")
           .insert({
             user_id: user.id,
+            organization_id: organizationId,
             scenario_id: scenarioId ?? null,
             scenario_table: scenarioTable ?? null,
             scenario_name: scenarioName,
@@ -450,6 +457,7 @@ export async function POST(req: NextRequest) {
             .from("simulation_sessions")
             .insert({
               user_id: user.id,
+              organization_id: organizationId,
               scenario_id: scenarioId,
               scenario_table: scenarioTable,
               scenario_name: scenarioName,

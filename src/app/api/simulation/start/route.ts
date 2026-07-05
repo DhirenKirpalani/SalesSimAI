@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     const { data: scenario, error: scenarioError } = await supabase
       .from(scenarioTable)
-      .select("id, name, duration")
+      .select("id, name, duration, organization_id")
       .eq("id", scenarioId)
       .single();
 
@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
       .from("simulation_sessions")
       .insert({
         user_id: user.id,
+        organization_id: (scenario as { organization_id?: string | null }).organization_id ?? null,
         scenario_id: scenarioId,
         scenario_table: scenarioTable,
         scenario_name: scenario.name ?? "Simulation",

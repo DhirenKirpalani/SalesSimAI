@@ -74,9 +74,10 @@ async function createOrgFolder(orgId: string, orgName: string): Promise<string> 
 
 /**
  * GET /api/company/org
- * Returns the current user's organization + members
+ * Returns the current user's organization + members.
+ * Query param `id` can be used to fetch a specific organization.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -84,34 +85,94 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const requestedId = searchParams.get("id");
+    const slug = searchParams.get("slug");
+
     const { data: profile } = await supabase
       .from("profiles")
       .select("organization_id, role")
       .eq("id", user.id)
       .single();
 
-    if (!profile?.organization_id) {
+    const svc = serviceSupabase();
+    let organizationId = profile?.organization_id ?? null;
+
+    if (requestedId || slug) {
+      let resolvedId = requestedId;
+
+      if (slug) {
+        const { data: orgBySlug } = await svc
+          .from("organizations")
+          .select("id")
+          .eq("slug", slug)
+          .maybeSingle();
+        if (!orgBySlug) {
+          return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+        }
+        resolvedId = orgBySlug.id;
+      }
+
+      if (!resolvedId) {
+        return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+      }
+
+      // Verify membership in the requested organization (with fallback to active profile org)
+      const { data: membership } = await svc
+        .from("organization_members")
+        .select("id")
+        .eq("organization_id", resolvedId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!membership && profile?.organization_id !== resolvedId) {
+        return NextResponse.json({ error: "Not a member of this organization" }, { status: 403 });
+      }
+      organizationId = resolvedId;
+    }
+
+    if (!organizationId) {
       return NextResponse.json({ organization: null, members: [] });
     }
 
     const { data: org } = await supabase
       .from("organizations")
       .select("*")
-      .eq("id", profile.organization_id)
+      .eq("id", organizationId)
       .single();
 
-    const [{ data: members }, { data: creator }] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("id, full_name, email, position, role, created_at")
-        .eq("organization_id", profile.organization_id)
-        .order("created_at", { ascending: true }),
-      supabase.from("profiles").select("id, full_name, email").eq("id", org?.created_by ?? "").maybeSingle(),
-    ]);
+    if (!org) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
 
-    const isAdmin = org?.created_by === user.id || profile.role === "admin";
+    // Fetch members from the organization_members junction table joined with profiles
+    const { data: memberships } = await svc
+      .from("organization_members")
+      .select("role, position, profiles(id, full_name, email, position, created_at)")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: true });
 
-    return NextResponse.json({ organization: org, members: members ?? [], isAdmin, creator });
+    const members = (memberships ?? []).map((m) => {
+      const p = Array.isArray(m.profiles) ? (m.profiles[0] as Record<string, unknown> | undefined) : (m.profiles as Record<string, unknown> | undefined);
+      return {
+        id: (p?.id as string) ?? "",
+        full_name: (p?.full_name as string | null) ?? null,
+        email: (p?.email as string | null) ?? null,
+        position: (m.position as string | null) ?? (p?.position as string | null) ?? null,
+        role: m.role,
+        created_at: (p?.created_at as string) ?? new Date().toISOString(),
+      };
+    });
+
+    const { data: creator } = await svc
+      .from("profiles")
+      .select("id, full_name, email")
+      .eq("id", org.created_by ?? "")
+      .maybeSingle();
+
+    const isAdmin = org.created_by === user.id || (profile?.role === "admin" && profile?.organization_id === organizationId);
+
+    return NextResponse.json({ organization: org, members, isAdmin, creator });
   } catch (err) {
     console.error("[api/company/org GET]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -121,9 +182,11 @@ export async function GET() {
 /**
  * PATCH /api/company/org
  * Update organization settings (logo, theme, email_domain, etc.)
+ * Body may include { organizationId } to target a specific org.
  */
 export async function PATCH(req: NextRequest) {
   try {
+    const updates = await req.json();
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
@@ -136,23 +199,24 @@ export async function PATCH(req: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    if (!profile?.organization_id) {
+    const targetOrgId = updates.organizationId || profile?.organization_id;
+
+    if (!targetOrgId) {
       return NextResponse.json({ error: "Not in an organization" }, { status: 400 });
     }
 
-    // Verify admin
+    // Verify admin (creator or global admin if it's their active org)
     const { data: org } = await supabase
       .from("organizations")
       .select("created_by")
-      .eq("id", profile.organization_id)
+      .eq("id", targetOrgId)
       .single();
 
-    const isOrgAdmin = org?.created_by === user.id || profile.role === "admin";
+    const isOrgAdmin = org?.created_by === user.id || (profile?.role === "admin" && profile?.organization_id === targetOrgId);
     if (!isOrgAdmin) {
       return NextResponse.json({ error: "Only admin can update organization" }, { status: 403 });
     }
 
-    const updates = await req.json();
     const allowedFields = ["name", "logo_url", "theme_color", "email_domain", "profile_data", "source_urls"];
     const filtered: Record<string, unknown> = {};
     for (const key of allowedFields) {
@@ -168,7 +232,7 @@ export async function PATCH(req: NextRequest) {
     const { data: updated, error } = await svc
       .from("organizations")
       .update(filtered)
-      .eq("id", profile.organization_id)
+      .eq("id", targetOrgId)
       .select()
       .single();
 
@@ -186,36 +250,35 @@ export async function PATCH(req: NextRequest) {
 
 /**
  * DELETE /api/company/org
- * Delete the organization and unlink all members (admin only).
- * Preserves each user's role in profiles.
+ * Delete an organization by ID and unlink all members (creator only).
+ * Body: { organizationId: string }
  */
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
   try {
+    const { organizationId } = await req.json().catch(() => ({})) as { organizationId?: string };
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("organization_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile?.organization_id) {
-      return NextResponse.json({ error: "Not in an organization" }, { status: 400 });
+    if (!organizationId) {
+      return NextResponse.json({ error: "Organization ID is required" }, { status: 400 });
     }
 
-    // Verify admin
+    // Verify creator
     const { data: org } = await supabase
       .from("organizations")
       .select("created_by")
-      .eq("id", profile.organization_id)
+      .eq("id", organizationId)
       .single();
 
-    if (org?.created_by !== user.id) {
-      return NextResponse.json({ error: "Only admin can delete organization" }, { status: 403 });
+    if (!org) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+
+    if (org.created_by !== user.id) {
+      return NextResponse.json({ error: "Only the workspace creator can delete it" }, { status: 403 });
     }
 
     // Use service role client to bypass RLS for destructive mutations
@@ -225,18 +288,28 @@ export async function DELETE() {
     const { error: unlinkErr } = await svc
       .from("profiles")
       .update({ organization_id: null })
-      .eq("organization_id", profile.organization_id);
+      .eq("organization_id", organizationId);
 
     if (unlinkErr) {
       console.error("[api/company/org DELETE] unlink members error:", unlinkErr);
       return NextResponse.json({ error: "Failed to unlink members" }, { status: 500 });
     }
 
+    // Delete membership records
+    const { error: memberErr } = await svc
+      .from("organization_members")
+      .delete()
+      .eq("organization_id", organizationId);
+
+    if (memberErr) {
+      console.error("[api/company/org DELETE] membership cleanup error:", memberErr);
+    }
+
     // Delete the organization
     const { error: delErr } = await svc
       .from("organizations")
       .delete()
-      .eq("id", profile.organization_id);
+      .eq("id", organizationId);
 
     if (delErr) {
       console.error("[api/company/org DELETE] delete org error:", delErr);
@@ -267,10 +340,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Generate a unique slug from the name
+    const baseSlug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").replace(/-+/g, "-") || "org";
+    let slug = baseSlug;
+    let counter = 1;
+    const svc = serviceSupabase();
+    while (true) {
+      const { data: existing } = await svc
+        .from("organizations")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (!existing) break;
+      counter++;
+      slug = `${baseSlug}-${counter}`;
+    }
+
     // Create org
     const { data: org, error: orgErr } = await supabase
       .from("organizations")
-      .insert({ name: name.trim(), created_by: user.id })
+      .insert({ name: name.trim(), created_by: user.id, slug })
       .select()
       .single();
 
@@ -278,8 +367,6 @@ export async function POST(req: NextRequest) {
       console.error("[api/company/org POST] create org error:", orgErr);
       return NextResponse.json({ error: "Failed to create organization" }, { status: 500 });
     }
-
-    const svc = serviceSupabase();
 
     // Record membership in the junction table (admin since they created it)
     const { error: memberErr } = await svc

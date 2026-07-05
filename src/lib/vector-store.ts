@@ -226,6 +226,7 @@ export async function buildCompanyRagContextWithClient(
       match_threshold: opts?.minSimilarity ?? 0.65,
       match_count: opts?.limit ?? 5,
       filter_org_id: organizationId,
+      filter_doc_type: opts?.docType ?? null,
     });
     if (error) {
       console.error("[buildCompanyRagContextWithClient] RPC error:", error);
