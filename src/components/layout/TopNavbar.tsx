@@ -119,6 +119,8 @@ export function TopNavbar() {
   const [initials, setInitials] = useState("U");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationLimit, setNotificationLimit] = useState(10);
+  const [hasMoreNotifications, setHasMoreNotifications] = useState(true);
   const readIdsRef = useRef<Set<string>>(new Set());
   const [acceptingInvite, setAcceptingInvite] = useState<string | null>(null);
   const [acceptedInvites, setAcceptedInvites] = useState<Set<string>>(new Set());
@@ -250,6 +252,7 @@ export function TopNavbar() {
 
     const load = async () => {
       if (!userId) return;
+      const limit = notificationLimit;
       const { data: userProfile } = await supabase
         .from("profiles")
         .select("organization_id")
@@ -260,7 +263,7 @@ export function TopNavbar() {
         .from("custom_scenarios")
         .select("id, name, created_at")
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(limit);
       if (organizationId) {
         scenarioQuery = scenarioQuery.or(`organization_id.eq.${organizationId},user_id.eq.${userId}`);
       } else {
@@ -273,14 +276,14 @@ export function TopNavbar() {
           .eq("user_id", userId)
           .not("ended_at", "is", null)
           .order("ended_at", { ascending: false })
-          .limit(10),
+          .limit(limit),
         supabase
           .from("simulation_sessions")
           .select("id, scenario_name, overall_score:analysis->overall_score, created_at, ended_at")
           .eq("user_id", userId)
           .not("ended_at", "is", null)
           .order("ended_at", { ascending: false })
-          .limit(10),
+          .limit(limit),
         scenarioQuery,
         fetch("/api/company/org/my-invite").then((r) => r.json()).catch(() => ({ invites: [] })),
       ]);
@@ -289,6 +292,11 @@ export function TopNavbar() {
       scenariosCache = scenarios ?? [];
       invitesCache = (inviteRes?.invites ?? []).filter((inv: any) => !acceptedInvites.has(inv.id));
       setNotifications(buildNotifications(sessionsCache, voiceTextSessionsCache, scenariosCache, invitesCache, readIdsRef.current));
+      setHasMoreNotifications(
+        sessionsCache.length === limit ||
+        voiceTextSessionsCache.length === limit ||
+        scenariosCache.length === limit
+      );
     };
 
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -357,7 +365,7 @@ export function TopNavbar() {
       if (pollInterval) clearInterval(pollInterval);
       if (channel) supabase.removeChannel(channel);
     };
-  }, [buildNotifications, acceptedInvites]);
+  }, [buildNotifications, acceptedInvites, notificationLimit]);
 
   async function handleAcceptInvite(inviteId: string, notifId: string) {
     setAcceptingInvite(inviteId);
@@ -413,10 +421,12 @@ export function TopNavbar() {
             </nav>
           </SheetContent>
         </Sheet>
+        <Logo />
       </div>
 
-      <Logo className="hidden md:block" />
-      <Logo className="md:hidden" />
+      <div className="hidden md:block">
+        <Logo />
+      </div>
 
       <div className="flex-1" />
 
@@ -476,7 +486,7 @@ export function TopNavbar() {
           <Separator />
           <ScrollArea className="h-[calc(100vh-8rem)]">
             <div className="flex flex-col">
-              {notifications.map((n) => (
+              {notifications.slice(0, notificationLimit).map((n) => (
                 <div
                   key={n.id}
                   onClick={() => n.type !== "invite" && markAsRead(n.id)}
@@ -530,6 +540,14 @@ export function TopNavbar() {
                   )}
                 </div>
               ))}
+              {hasMoreNotifications && (
+                <button
+                  onClick={() => setNotificationLimit((prev) => prev + 10)}
+                  className="w-full py-3 text-center text-sm font-medium text-primary hover:bg-accent transition-colors"
+                >
+                  View more
+                </button>
+              )}
             </div>
           </ScrollArea>
         </SheetContent>

@@ -267,20 +267,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user already belongs to an org
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("organization_id")
-      .eq("id", user.id)
-      .single();
-
-    if (profile?.organization_id) {
-      return NextResponse.json(
-        { error: "You already belong to an organization" },
-        { status: 409 }
-      );
-    }
-
     // Create org
     const { data: org, error: orgErr } = await supabase
       .from("organizations")
@@ -293,7 +279,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to create organization" }, { status: 500 });
     }
 
-    // Link user to org
+    const svc = serviceSupabase();
+
+    // Record membership in the junction table (admin since they created it)
+    const { error: memberErr } = await svc
+      .from("organization_members")
+      .insert({ organization_id: org.id, user_id: user.id, role: "admin" });
+
+    if (memberErr) {
+      console.error("[api/company/org POST] membership error:", memberErr);
+      // Continue — the org is usable even if membership recording fails, but log it
+    }
+
+    // Link user to the new org as their active workspace
     const { error: updateErr } = await supabase
       .from("profiles")
       .update({ organization_id: org.id })

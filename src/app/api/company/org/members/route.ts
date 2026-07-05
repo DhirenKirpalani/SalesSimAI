@@ -54,17 +54,28 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Cannot remove yourself" }, { status: 400 });
     }
 
-    // Remove member from org — use service role to bypass RLS
+    // Remove membership record — use service role to bypass RLS
     const svc = serviceSupabase();
-    const { error } = await svc
+    const { error: memberError } = await svc
+      .from("organization_members")
+      .delete()
+      .eq("organization_id", adminProfile.organization_id)
+      .eq("user_id", targetUserId);
+
+    if (memberError) {
+      console.error("[api/company/org/members DELETE] membership error:", memberError);
+      return NextResponse.json({ error: "Failed to remove member" }, { status: 500 });
+    }
+
+    // If their active org was this one, clear it
+    const { error: profileError } = await svc
       .from("profiles")
       .update({ organization_id: null })
       .eq("id", targetUserId)
       .eq("organization_id", adminProfile.organization_id);
 
-    if (error) {
-      console.error("[api/company/org/members DELETE] error:", error);
-      return NextResponse.json({ error: "Failed to remove member" }, { status: 500 });
+    if (profileError) {
+      console.error("[api/company/org/members DELETE] profile error:", profileError);
     }
 
     return NextResponse.json({ success: true });

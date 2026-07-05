@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+
+function serviceSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createSupabaseClient(url, key);
+}
 
 /**
  * POST /api/company/org/invite
@@ -51,15 +58,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check if user already in this org
-    const { data: existing } = await supabase
+    // Check if a user with this email is already a member of this org
+    const svc = serviceSupabase();
+    const { data: existingProfiles } = await svc
       .from("profiles")
-      .select("id")
+      .select("id, organization_members!inner(organization_id)")
       .eq("email", email.trim().toLowerCase())
-      .eq("organization_id", profile.organization_id)
-      .maybeSingle();
+      .eq("organization_members.organization_id", profile.organization_id)
+      .limit(1);
 
-    if (existing) {
+    if ((existingProfiles ?? []).length > 0) {
       return NextResponse.json({ error: "User already in organization" }, { status: 409 });
     }
 
