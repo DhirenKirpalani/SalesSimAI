@@ -100,8 +100,8 @@ create table if not exists public.company_documents (
   content text not null default '',          -- kept empty; chunks store the text
   doc_type text not null default 'eor'     -- payment | eor | cards (product type)
     check (doc_type in ('payment','eor','cards')),
-  document_type text not null default 'icp' -- icp | value_prop | competitive | objection_handling | product_pricing | process_methodology
-    check (document_type in ('icp','value_prop','competitive','objection_handling','product_pricing','process_methodology')),
+  document_type text not null default 'icp' -- icp | value_prop | competitive | objection_handling | product_pricing | process_methodology | transcript
+    check (document_type in ('icp','value_prop','competitive','objection_handling','product_pricing','process_methodology','transcript')),
   file_path text,                            -- original file in storage bucket
   created_by uuid references auth.users(id),
   created_at timestamptz not null default now()

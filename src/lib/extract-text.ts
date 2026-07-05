@@ -118,7 +118,13 @@ export async function extractTextFromBuffer(
   ) {
     return extractPptx(buffer);
   }
-  if (type?.includes("text/") || name.endsWith(".txt") || name.endsWith(".md")) {
+  if (
+    type?.includes("text/") ||
+    name.endsWith(".txt") ||
+    name.endsWith(".md") ||
+    name.endsWith(".vtt") ||
+    name.endsWith(".srt")
+  ) {
     return buffer.toString("utf-8").trim();
   }
   if (name.endsWith(".json") || name.endsWith(".csv")) {

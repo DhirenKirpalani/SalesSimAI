@@ -14,6 +14,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface GranolaNote {
   id: string;
@@ -26,7 +33,20 @@ interface GranolaNote {
   owner: { name?: string; email?: string } | null;
   attendees: Array<{ name?: string; email?: string }> | null;
   web_url: string | null;
+  product_type: string | null;
 }
+
+const PRODUCT_TYPE_LABELS: Record<string, string> = {
+  payment: "Payment",
+  eor: "EoR",
+  cards: "Cards",
+};
+
+const PRODUCT_TYPE_COLORS: Record<string, string> = {
+  payment: "bg-blue-100 text-blue-800",
+  eor: "bg-purple-100 text-purple-800",
+  cards: "bg-green-100 text-green-800",
+};
 
 export default function IntegrationsPage() {
   const [notes, setNotes] = useState<GranolaNote[]>([]);
@@ -35,6 +55,7 @@ export default function IntegrationsPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [result, setResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [selectedProductType, setSelectedProductType] = useState<string>("all");
 
   async function loadNotes() {
     try {
@@ -94,7 +115,35 @@ export default function IntegrationsPage() {
     }
   }
 
+  async function updateNoteProductType(noteId: string, productType: string) {
+    try {
+      const res = await fetch(`/api/granola/notes/${noteId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_type: productType }),
+      });
+      if (!res.ok) throw new Error("Failed to update product type");
+      setNotes((prev) =>
+        prev.map((n) => (n.id === noteId ? { ...n, product_type: productType } : n))
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update product type";
+      setResult({ type: "error", message });
+    }
+  }
+
   const dialogOpen = !!deleteTargetId;
+
+  const filteredNotes = selectedProductType === "all"
+    ? notes
+    : notes.filter((n) => n.product_type === selectedProductType);
+
+  const productTypeCounts = {
+    all: notes.length,
+    payment: notes.filter((n) => n.product_type === "payment").length,
+    eor: notes.filter((n) => n.product_type === "eor").length,
+    cards: notes.filter((n) => n.product_type === "cards").length,
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -159,25 +208,49 @@ export default function IntegrationsPage() {
           <CardTitle className="text-sm font-medium text-muted-foreground">
             Imported calls
           </CardTitle>
+          <div className="flex flex-wrap gap-2 pt-3">
+            {(["all", "payment", "eor", "cards"] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => setSelectedProductType(type)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                  selectedProductType === type
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-input hover:bg-accent hover:text-accent-foreground"
+                }`}
+              >
+                {type === "all" ? "All" : PRODUCT_TYPE_LABELS[type]}
+                <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] ${
+                  selectedProductType === type ? "bg-primary-foreground/20" : "bg-muted"
+                }`}>
+                  {productTypeCounts[type]}
+                </span>
+              </button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
             </div>
-          ) : notes.length === 0 ? (
+          ) : filteredNotes.length === 0 ? (
             <div className="text-center py-10">
               <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                 <FileText className="w-5 h-5 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium">No calls imported yet</p>
+              <p className="text-sm font-medium">
+                {notes.length === 0 ? "No calls imported yet" : "No calls for this product type"}
+              </p>
               <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
-                Click "Import calls" to pull your meeting history. You will be able to review transcripts and turn real objections into practice.
+                {notes.length === 0
+                  ? "Click \"Import calls\" to pull your meeting history. You will be able to review transcripts and turn real objections into practice."
+                  : "Try selecting a different product type or import more calls."}
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {notes.map((note) => (
+              {filteredNotes.map((note) => (
                 <div
                   key={note.id}
                   className="rounded-xl border p-4 hover:bg-muted/40 transition-colors flex items-start justify-between gap-4"
@@ -202,6 +275,19 @@ export default function IntegrationsPage() {
                     )}
                   </Link>
                   <div className="flex items-center gap-2 shrink-0">
+                    <Select
+                      value={note.product_type || "payment"}
+                      onValueChange={(v) => updateNoteProductType(note.id, v ?? "payment")}
+                    >
+                      <SelectTrigger className="h-8 text-xs w-[100px] rounded-xl px-2.5">
+                        <SelectValue>{PRODUCT_TYPE_LABELS[note.product_type || "payment"]}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="payment">Payment</SelectItem>
+                        <SelectItem value="eor">EoR</SelectItem>
+                        <SelectItem value="cards">Cards</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <Link href={`/integrations/${note.id}`}>
                       <Button variant="ghost" size="sm" className="rounded-xl gap-1 text-xs h-8 px-2">
                         View
