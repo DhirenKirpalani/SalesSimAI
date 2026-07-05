@@ -170,9 +170,16 @@ export async function GET(req: NextRequest) {
       .eq("id", org.created_by ?? "")
       .maybeSingle();
 
-    const isAdmin = org.created_by === user.id || (profile?.role === "admin" && profile?.organization_id === organizationId);
+    const { data: myMembership } = await svc
+      .from("organization_members")
+      .select("role")
+      .eq("organization_id", organizationId)
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-    return NextResponse.json({ organization: org, members, isAdmin, creator });
+    const isAdmin = org.created_by === user.id || myMembership?.role === "admin";
+
+    return NextResponse.json({ organization: org, members, isAdmin, creator, currentUserId: user.id });
   } catch (err) {
     console.error("[api/company/org GET]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

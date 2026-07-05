@@ -46,21 +46,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing scenarioId or scenarioTable" }, { status: 400 });
     }
 
-    const { data: scenario, error: scenarioError } = await supabase
-      .from(scenarioTable)
-      .select("id, name, duration, organization_id")
-      .eq("id", scenarioId)
-      .single();
+    const [{ data: scenario, error: scenarioError }, { data: profile }] = await Promise.all([
+      supabase.from(scenarioTable).select("id, name, duration, organization_id").eq("id", scenarioId).single(),
+      supabase.from("profiles").select("organization_id").eq("id", user.id).single(),
+    ]);
 
     if (scenarioError || !scenario) {
       return NextResponse.json({ error: "Scenario not found" }, { status: 404 });
     }
 
+    const organizationId = (scenario as { organization_id?: string | null }).organization_id ?? profile?.organization_id ?? null;
+
     const { data: session, error: sessionError } = await supabase
       .from("simulation_sessions")
       .insert({
         user_id: user.id,
-        organization_id: (scenario as { organization_id?: string | null }).organization_id ?? null,
+        organization_id: organizationId,
         scenario_id: scenarioId,
         scenario_table: scenarioTable,
         scenario_name: scenario.name ?? "Simulation",

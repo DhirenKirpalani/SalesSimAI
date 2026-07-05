@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
 
         const { data: scenario, error: scenarioError } = await supabase
           .from(session.scenario_table)
-          .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product, scenario_type, difficulty, duration, product_type")
+          .select("custom_persona, preset_persona_id, context_note, seller_description, name, seller_company, seller_product, scenario_type, difficulty, duration, product_type, organization_id")
           .eq("id", session.scenario_id)
           .single();
 
@@ -84,6 +84,9 @@ export async function POST(req: NextRequest) {
           controller.close();
           return;
         }
+
+        const scenarioOrgId = (scenario as { organization_id?: string | null }).organization_id ?? null;
+        const ragOrganizationId = scenarioOrgId ?? profile?.organization_id ?? null;
 
         // Resolve persona
         let persona: CustomPersona = scenario.custom_persona as CustomPersona;
@@ -123,9 +126,12 @@ export async function POST(req: NextRequest) {
 
         // Company RAG — fetch relevant docs from the org's knowledge base
         let companyRag = "";
-        if (profile?.organization_id) {
+        if (ragOrganizationId) {
           try {
-            companyRag = await buildCompanyRagContext(transcript.trim(), profile.organization_id, { limit: 3 });
+            companyRag = await buildCompanyRagContext(transcript.trim(), ragOrganizationId, {
+              limit: 3,
+              docType: scenario.product_type ?? undefined,
+            });
           } catch (e) {
             console.warn("[voice-turn] company RAG failed:", e);
           }
