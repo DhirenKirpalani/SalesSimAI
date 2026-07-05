@@ -21,17 +21,18 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createClient();
 
-    const [
-      { data: { user }, error: authError },
-      { data: scenario, error: scenarioError },
-    ] = await Promise.all([
-      supabase.auth.getUser(),
-      supabase.from(scenarioTable).select("id, name, duration").eq("id", scenarioId).single(),
-    ]);
-
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const [
+      { data: scenario, error: scenarioError },
+      { data: profile },
+    ] = await Promise.all([
+      supabase.from(scenarioTable).select("id, name, duration, organization_id").eq("id", scenarioId).single(),
+      supabase.from("profiles").select("organization_id").eq("id", user.id).single(),
+    ]);
 
     if (scenarioError || !scenario) {
       return NextResponse.json({ error: "Scenario not found" }, { status: 404 });
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     const effectiveVoiceAvatarImageUrl = voiceAvatarImageUrl ?? null;
     const effectiveElevenlabsVoiceId = elevenlabsVoiceId ?? null;
 
-    const organizationId = (scenario as { organization_id?: string | null }).organization_id ?? null;
+    const organizationId = (scenario as { organization_id?: string | null }).organization_id ?? profile?.organization_id ?? null;
 
     const { data: session, error: sessionError } = await supabase
       .from("simulation_sessions")

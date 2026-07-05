@@ -72,6 +72,7 @@ interface Organization {
 interface WorkspaceManagementProps {
   organizationId: string;
   isOrgAdmin: boolean;
+  currentUserId?: string;
   initialLogoUrl?: string | null;
   onLogoChange?: (url: string) => void;
   mode?: "full" | "members" | "settings";
@@ -80,6 +81,7 @@ interface WorkspaceManagementProps {
 export function WorkspaceManagement({
   organizationId,
   isOrgAdmin,
+  currentUserId,
   initialLogoUrl,
   onLogoChange,
   mode = "full",
@@ -361,7 +363,7 @@ export function WorkspaceManagement({
                   <p className="text-xs text-muted-foreground">{m.position || "No position"} · {m.email}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {isOrgAdmin && org?.created_by !== m.id && (
+                  {isOrgAdmin && org?.created_by !== m.id && currentUserId !== m.id && (
                     <>
                       <Select value={m.role || "user"} onValueChange={(v) => handleUpdateMemberRole(m.id, v ?? "user")}>
                         <SelectTrigger className="min-w-[130px] h-8 text-xs px-2.5 bg-background border hover:bg-accent hover:border-primary/30 transition-colors gap-2">
@@ -385,6 +387,12 @@ export function WorkspaceManagement({
                   )}
                   {org?.created_by === m.id && (
                     <Badge variant="secondary" className="text-xs">Owner</Badge>
+                  )}
+                  {!isOrgAdmin && (
+                    <Badge variant="secondary" className="text-xs capitalize">{m.role || "Member"}</Badge>
+                  )}
+                  {isOrgAdmin && currentUserId === m.id && org?.created_by !== m.id && (
+                    <Badge variant="secondary" className="text-xs capitalize">{m.role || "Member"}</Badge>
                   )}
                 </div>
               </div>

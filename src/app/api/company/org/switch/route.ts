@@ -18,13 +18,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    console.log("[api/company/org/switch POST] switching", { userId: user.id, organizationId });
+
     // Verify membership (with fallback for pre-migration / legacy orgs)
-    const { data: membership } = await supabase
+    const { data: membership, error: membershipError } = await supabase
       .from("organization_members")
       .select("id")
       .eq("organization_id", organizationId)
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (membershipError) {
+      console.error("[api/company/org/switch POST] membership lookup error:", membershipError);
+    }
+    console.log("[api/company/org/switch POST] membership found:", membership);
 
     let canSwitch = !!membership;
 
@@ -34,6 +41,7 @@ export async function POST(req: NextRequest) {
         supabase.from("profiles").select("organization_id").eq("id", user.id).single(),
         supabase.from("organizations").select("created_by").eq("id", organizationId).single(),
       ]);
+      console.log("[api/company/org/switch POST] fallback check:", { profile, org });
       canSwitch = profile?.organization_id === organizationId || org?.created_by === user.id;
     }
 

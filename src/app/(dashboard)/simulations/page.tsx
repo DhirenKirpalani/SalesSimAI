@@ -71,7 +71,8 @@ export default function SimulationsPage() {
     if (organizationId) {
       query = query.eq("organization_id", organizationId);
     }
-    const { data } = await query;
+    const { data, error } = await query;
+    if (error) console.error("[SimulationsPage] load error:", error);
 
     const mapped: SessionSummary[] = (data ?? []).map((s) => {
       const coachingArr = s.simulation_coaching as Array<{ overall_score?: number }> | null;

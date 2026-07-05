@@ -34,6 +34,7 @@ interface WorkspaceDetails {
   members: Member[];
   isAdmin: boolean;
   creator?: { id: string; full_name: string | null; email: string | null } | null;
+  currentUserId?: string;
 }
 
 export default function WorkspaceDetailPage() {
@@ -178,13 +179,15 @@ export default function WorkspaceDetailPage() {
             <Users className="w-4 h-4" />
             Members
           </TabsTrigger>
-          <TabsTrigger
-            value="settings"
-            className="w-full sm:w-auto sm:flex-none h-auto gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/80 data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm data-active:hover:bg-primary"
-          >
-            <Settings className="w-4 h-4" />
-            Settings
-          </TabsTrigger>
+          {data.isAdmin && (
+            <TabsTrigger
+              value="settings"
+              className="w-full sm:w-auto sm:flex-none h-auto gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/80 data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm data-active:hover:bg-primary"
+            >
+              <Settings className="w-4 h-4" />
+              Settings
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4 pt-3">
@@ -239,18 +242,22 @@ export default function WorkspaceDetailPage() {
           <WorkspaceManagement
             organizationId={org.id}
             isOrgAdmin={data.isAdmin}
+            currentUserId={data.currentUserId}
             mode="members"
           />
         </TabsContent>
 
-        <TabsContent value="settings" className="space-y-4 pt-3">
-          <WorkspaceManagement
-            organizationId={org.id}
-            isOrgAdmin={data.isAdmin}
-            initialLogoUrl={org.logo_url}
-            mode="settings"
-          />
-        </TabsContent>
+        {data.isAdmin && (
+          <TabsContent value="settings" className="space-y-4 pt-3">
+            <WorkspaceManagement
+              organizationId={org.id}
+              isOrgAdmin={data.isAdmin}
+              currentUserId={data.currentUserId}
+              initialLogoUrl={org.logo_url}
+              mode="settings"
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
