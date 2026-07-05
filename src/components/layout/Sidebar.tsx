@@ -12,7 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   BookOpen,
-  Phone,
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -22,10 +22,10 @@ const navItems = [
   { label: "Scenarios", href: "/scenarios", icon: Library },
   { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
-  { label: "Company Knowledge", href: "/company-knowledge", icon: BookOpen },
-  { label: "Call Library", href: "/integrations", icon: Phone },
+  { label: "Knowledge Base", href: "/company-knowledge", icon: BookOpen },
   { label: "Profile", href: "/profile", icon: User },
   { label: "Admin", href: "/admin", icon: ShieldCheck, adminOnly: true },
+  { label: "Integration", href: "/integrations", icon: Plug },
 ];
 
 export function Sidebar() {

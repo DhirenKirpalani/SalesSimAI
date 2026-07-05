@@ -21,8 +21,8 @@ export async function GET() {
     }
 
     const { data: notes, error } = await supabase
-      .from("granola_notes")
-      .select("id, external_id, title, summary, summary_text, summary_markdown, created_at, updated_at, imported_at, owner, attendees, web_url, product_type, user_id")
+      .from("calls")
+      .select("id, external_id, title, summary, summary_text, summary_markdown, created_at, updated_at, imported_at, owner, attendees, web_url, product_type, user_id, source")
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false })
       .limit(100);

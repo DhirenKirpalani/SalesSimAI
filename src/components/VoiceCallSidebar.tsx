@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { Building2, Target, DollarSign, Trophy, AlertCircle, Lightbulb, ChevronDown, Route } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Building2, Target, DollarSign, Trophy, AlertCircle, Lightbulb, ChevronDown, Route, Swords } from "lucide-react";
 
 interface CallStep {
   id: number;
   label: string;
   hint: string;
+}
+
+interface Competitor {
+  name: string;
+  strengths: string[];
+  weaknesses: string[];
+  ourEdge: string[];
+  notes: string[];
 }
 
 interface VoiceCallSidebarProps {
@@ -19,6 +27,12 @@ interface VoiceCallSidebarProps {
   buyerPainPoints?: string[];
   callSteps?: CallStep[];
   currentStep?: number;
+}
+
+interface CompetitiveDoc {
+  id: string;
+  name: string;
+  content: string;
 }
 
 function parseBulletPoints(text: string | null | undefined): string[] {
@@ -53,6 +67,165 @@ function extractSection(text: string | null | undefined, headers: string[]): str
   return null;
 }
 
+type CompetitorSection = "strengths" | "weaknesses" | "ourEdge" | "notes";
+
+function parseCompetitors(text: string | null | undefined): Competitor[] | null {
+  if (!text) return null;
+  const raw = text.replace(/\r\n/g, "\n");
+  const competitors: Competitor[] = [];
+  let current: Competitor | null = null;
+  let currentSection: CompetitorSection = "notes";
+
+  const flushCurrent = () => {
+    if (current && (current.notes.length > 0 || current.strengths.length > 0 || current.weaknesses.length > 0 || current.ourEdge.length > 0)) {
+      competitors.push(current);
+    }
+  };
+
+  const lines = raw.split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    const lower = trimmed.toLowerCase();
+
+    // Detect competitor name as a heading or labeled line
+    const nameMatch = trimmed.match(/^#{0,4}\s*(?:competitor:?\s*)?(.+)$/i) ||
+      trimmed.match(/^\d+\.\s*(?:competitor:?\s*)?(.+)$/i) ||
+      trimmed.match(/^(.+?):\s*(?:competitor|competitor\s+analysis)?\s*$/i);
+
+    const sectionPatterns: { key: CompetitorSection; regex: RegExp }[] = [
+      { key: "strengths", regex: /^(strengths?|pros?|advantages?|what they do well):?\s*/i },
+      { key: "weaknesses", regex: /^(weaknesses?|cons?|gaps?|limitations?):?\s*/i },
+      { key: "ourEdge", regex: /^(our\s*(edge|advantage)|why\s*(we| Aspire)|how\s*we\s*win|differentiation):?\s*/i },
+    ];
+
+    let sectionHit: { key: CompetitorSection; remaining: string } | null = null;
+    for (const { key, regex } of sectionPatterns) {
+      const m = trimmed.match(regex);
+      if (m) {
+        sectionHit = { key, remaining: trimmed.replace(regex, "").trim() };
+        break;
+      }
+    }
+
+    if (sectionHit) {
+      currentSection = sectionHit.key;
+      if (sectionHit.remaining) {
+        current?.[sectionHit.key].push(sectionHit.remaining);
+      }
+      continue;
+    }
+
+    // If line looks like a competitor name (no label prefix) and we already have content, start a new card
+    if (nameMatch && !trimmed.match(/^[-*]/)) {
+      const candidateName = nameMatch[1].trim();
+      const isGenericHeader = /^(competitive|overview|summary|analysis|intelligence|context)$/i.test(candidateName);
+      if (!isGenericHeader) {
+        flushCurrent();
+        current = {
+          name: candidateName,
+          strengths: [],
+          weaknesses: [],
+          ourEdge: [],
+          notes: [],
+        };
+        currentSection = "notes";
+        continue;
+      }
+    }
+
+    // Remove bullet marker
+    const clean = trimmed.replace(/^[-*•]\s*/, "").trim();
+    if (!clean) continue;
+
+    if (!current) {
+      current = {
+        name: "Competitive Landscape",
+        strengths: [],
+        weaknesses: [],
+        ourEdge: [],
+        notes: [],
+      };
+    }
+
+    // Auto-classify bullet if it contains keywords
+    const lowerClean = clean.toLowerCase();
+    if (lowerClean.includes("strength") || lowerClean.includes("stronger") || lowerClean.includes("better at")) {
+      current.strengths.push(clean);
+    } else if (lowerClean.includes("weakness") || lowerClean.includes("lack") || lowerClean.includes("worse")) {
+      current.weaknesses.push(clean);
+    } else if (lowerClean.includes("we ") || lowerClean.includes("our ") || lowerClean.includes("advantage")) {
+      current.ourEdge.push(clean);
+    } else {
+      current[currentSection].push(clean);
+    }
+  }
+
+  flushCurrent();
+  return competitors.length > 0 ? competitors : null;
+}
+
+function CompetitorCard({ competitor }: { competitor: Competitor }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-2.5">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-white">
+        <Swords className="w-3.5 h-3.5 text-amber-400" />
+        {competitor.name}
+      </div>
+      {competitor.strengths.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Their strengths</p>
+          <ul className="space-y-1">
+            {competitor.strengths.map((s, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                <span className="w-1 h-1 rounded-full bg-slate-500 mt-1.5 shrink-0" />
+                <span className="leading-relaxed">{s}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {competitor.weaknesses.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Their weaknesses</p>
+          <ul className="space-y-1">
+            {competitor.weaknesses.map((w, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                <span className="w-1 h-1 rounded-full bg-red-500 mt-1.5 shrink-0" />
+                <span className="leading-relaxed">{w}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {competitor.ourEdge.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-emerald-500 font-semibold">Our edge</p>
+          <ul className="space-y-1">
+            {competitor.ourEdge.map((e, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-emerald-100">
+                <span className="w-1 h-1 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                <span className="leading-relaxed">{e}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {competitor.notes.length > 0 && !competitor.strengths.length && !competitor.weaknesses.length && !competitor.ourEdge.length && (
+        <ul className="space-y-1">
+          {competitor.notes.map((n, i) => (
+            <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+              <span className="w-1 h-1 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+              <span className="leading-relaxed">{n}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function VoiceCallSidebar({
   sellerCompany,
   sellerProduct,
@@ -66,6 +239,29 @@ export function VoiceCallSidebar({
 }: VoiceCallSidebarProps) {
   const [showAll, setShowAll] = useState(false);
   const [showCallStructure, setShowCallStructure] = useState(false);
+  const [competitiveDocs, setCompetitiveDocs] = useState<CompetitiveDoc[]>([]);
+  const [loadingCompetitive, setLoadingCompetitive] = useState(false);
+
+  useEffect(() => {
+    async function loadCompetitiveDocs() {
+      setLoadingCompetitive(true);
+      try {
+        const res = await fetch("/api/company/documents?document_type=competitive");
+        if (!res.ok) return;
+        const data = await res.json();
+        const docs: CompetitiveDoc[] = (data.documents ?? [])
+          .filter((d: any) => d.content?.trim())
+          .map((d: any) => ({ id: d.id, name: d.name, content: d.content }));
+        setCompetitiveDocs(docs);
+      } catch (e) {
+        console.error("[VoiceCallSidebar] failed to load competitive docs:", e);
+      } finally {
+        setLoadingCompetitive(false);
+      }
+    }
+    loadCompetitiveDocs();
+  }, []);
+
   const sellingPoints = parseSentences(sellerDescription);
   const visiblePoints = showAll ? sellingPoints : sellingPoints.slice(0, 5);
   const keyFeatures = parseBulletPoints(
@@ -76,9 +272,16 @@ export function VoiceCallSidebar({
     extractSection(contextNote, ["Pricing", "Price", "Fees", "Cost"]) ??
     extractSection(sellerDescription, ["Pricing", "Price", "Fees", "Cost"]);
 
-  const competitive =
+  const competitiveSection =
     extractSection(contextNote, ["Competitive Intelligence", "Competitive Advantage", "Competitive advantage", "Why us"]) ??
     extractSection(sellerDescription, ["Competitive", "Advantage", "Why us"]);
+
+  const competitors = parseCompetitors(competitiveSection);
+  const hasCompetitive = competitors !== null || competitiveDocs.length > 0;
+  const kbCompetitors = competitiveDocs
+    .map((d) => parseCompetitors(d.content))
+    .filter((c): c is Competitor[] => c !== null)
+    .flat();
 
   return (
     <div className="h-full flex flex-col bg-[#0B0E14] border-r border-white/10 overflow-hidden">
@@ -156,15 +359,22 @@ export function VoiceCallSidebar({
         )}
 
         {/* Competitive intelligence */}
-        {competitive && (
+        {hasCompetitive && (
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
               <Trophy className="w-3.5 h-3.5" />
-              Competitive Edge
+              Competitive Intelligence
             </div>
-            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-              <p className="text-xs text-slate-300 leading-relaxed">{competitive}</p>
+            <div className="space-y-3">
+              {[...(competitors ?? []), ...kbCompetitors].map((competitor, i) => (
+                <CompetitorCard key={i} competitor={competitor} />
+              ))}
             </div>
+            {competitiveSection && !competitors && kbCompetitors.length === 0 && (
+              <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                <p className="text-xs text-slate-300 leading-relaxed">{competitiveSection}</p>
+              </div>
+            )}
           </div>
         )}
 

@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowLeft, Clock, Users, MessageSquare, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, ArrowLeft, Clock, Users, MessageSquare, FileText, ChevronDown, ChevronUp, Phone } from "lucide-react";
 import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
 import { Badge } from "@/components/ui/badge";
 
@@ -26,6 +26,7 @@ interface Note {
   attendees: Array<{ name?: string; email?: string }> | null;
   created_at: string | null;
   web_url: string | null;
+  source: string | null;
 }
 
 interface Analysis {
@@ -85,7 +86,7 @@ export default function CallDetailPage() {
         <p className="text-red-500">{error || "Note not found"}</p>
         <Link href="/integrations">
           <Button variant="outline" size="sm" className="rounded-xl gap-2">
-            <ArrowLeft className="w-4 h-4" /> Back to Call Library
+            <ArrowLeft className="w-4 h-4" /> Back to Integration
           </Button>
         </Link>
       </div>
@@ -96,7 +97,7 @@ export default function CallDetailPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
         <PageHeaderLogo />
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Link href="/integrations">
             <Button variant="ghost" size="sm" className="rounded-xl gap-1 px-2">
               <ArrowLeft className="w-4 h-4" />
@@ -104,6 +105,10 @@ export default function CallDetailPage() {
             </Button>
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">{note.title || "Untitled call"}</h1>
+          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full bg-primary/10 text-primary">
+            <Phone className="w-3 h-3" />
+            {note.source || "Granola"}
+          </span>
         </div>
         <p className="text-sm text-muted-foreground mt-1">
           Review the transcript, summary, and AI analysis.

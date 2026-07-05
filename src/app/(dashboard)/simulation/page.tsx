@@ -442,6 +442,7 @@ function HeyGenTestInner() {
   // Live nudge bubbles — persistent coaching feedback log that accumulates after each turn
   const [liveNudges, setLiveNudges] = useState<Nudge[]>([]);
   const [suggestedNextOverride, setSuggestedNextOverride] = useState<string | null>(null);
+  const [coachingLoading, setCoachingLoading] = useState(false);
   const nudgeIdRef = useRef(0);
   const lastNudgeSignatureRef = useRef<string | null>(null);
 
@@ -1054,6 +1055,7 @@ function HeyGenTestInner() {
       coachingAnalyzeRef.current(message, buyerMsg);
       if (sessionId && buyerMsg) {
         lastAnalyzedPairRef.current = `${message}|${buyerMsg}`;
+        setCoachingLoading(true);
         fetch("/api/simulation/coach-turn", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1064,7 +1066,13 @@ function HeyGenTestInner() {
             currentStep: coaching.state.currentStep,
             stepsCompleted: coaching.state.stepsCompleted,
           }),
-        }).then((r) => r.json()).then(appendCoachTurnNudges).catch(() => {});
+        })
+          .then((r) => r.json())
+          .then((result) => {
+            appendCoachTurnNudges(result);
+          })
+          .catch(() => {})
+          .finally(() => setCoachingLoading(false));
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -1638,6 +1646,7 @@ function HeyGenTestInner() {
     if (coachDebounceRef.current) clearTimeout(coachDebounceRef.current);
     coachDebounceRef.current = setTimeout(() => {
       coachDebounceRef.current = null;
+      setCoachingLoading(true);
       coachingAnalyzeRef.current(sellerText!, buyerText!);
       fetch("/api/simulation/coach-turn", {
         method: "POST",
@@ -1649,7 +1658,11 @@ function HeyGenTestInner() {
           currentStep: coaching.state.currentStep,
           stepsCompleted: coaching.state.stepsCompleted,
         }),
-      }).then((r) => r.json()).then(appendCoachTurnNudges).catch(() => {});
+      })
+        .then((r) => r.json())
+        .then(appendCoachTurnNudges)
+        .catch(() => {})
+        .finally(() => setCoachingLoading(false));
     }, 1500);
   }, [voiceCall.transcript, transcript, callMode, appendCoachTurnNudges, voiceSessionId]);
 
@@ -2311,6 +2324,7 @@ function HeyGenTestInner() {
                     : undefined
                 }
                 suggestedNextQuestionOverride={suggestedNextOverride ?? undefined}
+                coachingLoading={coachingLoading}
               />
             </div>
           </div>

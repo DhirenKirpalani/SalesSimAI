@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
         const noteSummary = detail.summary ?? detail.summary_text ?? null;
         const productType = classifyProductType(noteTitle, noteSummary);
 
-        const { error: upsertError } = await supabase.from("granola_notes").upsert(
+        const { error: upsertError } = await supabase.from("calls").upsert(
           {
             user_id: user.id,
             organization_id: organizationId,
@@ -107,6 +107,7 @@ export async function POST(req: NextRequest) {
             calendar_event: detail.calendar_event ?? null,
             web_url: detail.web_url ?? null,
             product_type: productType,
+            source: "granola",
             created_at: detail.created_at ? new Date(detail.created_at).toISOString() : null,
             updated_at: detail.updated_at ? new Date(detail.updated_at).toISOString() : null,
             raw_data: detail,
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest) {
               import_batch: new Date().toISOString(),
             },
           },
-          { onConflict: "external_id" }
+          { onConflict: "source, external_id" }
         );
 
         if (upsertError) {

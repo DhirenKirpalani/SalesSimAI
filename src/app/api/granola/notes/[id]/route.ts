@@ -24,7 +24,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     }
 
     const { data: note, error } = await supabase
-      .from("granola_notes")
+      .from("calls")
       .select("*")
       .eq("id", id)
       .eq("organization_id", orgId)
@@ -53,7 +53,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           const detail = await detailRes.json();
           transcript = detail.transcript ?? null;
           await supabase
-            .from("granola_notes")
+            .from("calls")
             .update({ transcript, raw_data: { ...note.raw_data, ...detail } })
             .eq("id", id);
         }
@@ -100,7 +100,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     const { data: note, error } = await supabase
-      .from("granola_notes")
+      .from("calls")
       .update({ product_type })
       .eq("id", id)
       .eq("organization_id", orgId)
@@ -141,7 +141,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     }
 
     const { error } = await supabase
-      .from("granola_notes")
+      .from("calls")
       .delete()
       .eq("id", id)
       .eq("organization_id", orgId);

@@ -15,6 +15,7 @@ interface VoiceCallRightSidebarProps {
   setCoachingOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
   checkpoints?: Checkpoint[];
   suggestedNextQuestionOverride?: string;
+  coachingLoading?: boolean;
 }
 
 export function VoiceCallRightSidebar({
@@ -23,6 +24,7 @@ export function VoiceCallRightSidebar({
   setCoachingOpen,
   checkpoints,
   suggestedNextQuestionOverride,
+  coachingLoading,
 }: VoiceCallRightSidebarProps) {
   return (
     <div className="h-full flex flex-col bg-[#0B0E14] border-l border-white/10 overflow-hidden">
@@ -43,6 +45,7 @@ export function VoiceCallRightSidebar({
               checkpoints={checkpoints}
               hideToggle
               suggestedNextQuestionOverride={suggestedNextQuestionOverride}
+              coachingLoading={coachingLoading}
             />
           </div>
         </div>
