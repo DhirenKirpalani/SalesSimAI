@@ -3,6 +3,18 @@ import { createClient } from "@/lib/supabase/server";
 
 const GRANOLA_API_BASE = "https://public-api.granola.ai";
 
+function classifyProductType(title: string, summary?: string | null): string {
+  const text = `${title} ${summary ?? ""}`.toLowerCase();
+  const eorKeywords = ["eor", "employer of record", "hire", "hiring", "global team", "remote employee", "local entity", "contractor", "workforce", "talent"];
+  const cardsKeywords = ["card", "cards", "corporate card", "expense card", "payment card", "spend card", "virtual card"];
+  const paymentKeywords = ["payment", "payroll", "payout", "invoice", "billing", "merchant", "checkout", "transfer", "remittance", "gateway"];
+
+  if (eorKeywords.some((k) => text.includes(k))) return "eor";
+  if (cardsKeywords.some((k) => text.includes(k))) return "cards";
+  if (paymentKeywords.some((k) => text.includes(k))) return "payment";
+  return "payment";
+}
+
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.GRANOLA_API_KEY;
@@ -76,13 +88,17 @@ export async function POST(req: NextRequest) {
 
         const detail = await detailRes.json();
 
+        const noteTitle = detail.title ?? "";
+        const noteSummary = detail.summary ?? detail.summary_text ?? null;
+        const productType = classifyProductType(noteTitle, noteSummary);
+
         const { error: upsertError } = await supabase.from("granola_notes").upsert(
           {
             user_id: user.id,
             organization_id: organizationId,
             external_id: detail.id,
-            title: detail.title ?? null,
-            summary: detail.summary ?? detail.summary_text ?? null,
+            title: noteTitle || null,
+            summary: noteSummary,
             summary_text: detail.summary_text ?? detail.summary ?? null,
             summary_markdown: detail.summary_markdown ?? null,
             transcript: detail.transcript ?? null,
@@ -90,6 +106,7 @@ export async function POST(req: NextRequest) {
             attendees: detail.attendees ?? null,
             calendar_event: detail.calendar_event ?? null,
             web_url: detail.web_url ?? null,
+            product_type: productType,
             created_at: detail.created_at ? new Date(detail.created_at).toISOString() : null,
             updated_at: detail.updated_at ? new Date(detail.updated_at).toISOString() : null,
             raw_data: detail,

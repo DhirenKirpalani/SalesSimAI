@@ -167,6 +167,7 @@ const DOCUMENT_TYPES = [
   "objection_handling",
   "product_pricing",
   "process_methodology",
+  "transcript",
 ];
 
 async function classifyDocumentType(text: string, fileName: string): Promise<string> {
@@ -196,10 +197,11 @@ Read the file name and text, then classify the document into exactly one bucket:
 - Objection Handling: Objection handling, common objections, rebuttals
 - Product/Pricing: Product features, pricing, packages, tiers
 - Process/Methodology: Sales process, methodology, playbooks, workflows
+- Transcript: Real sales call transcript, meeting transcript, or conversation record
 
 Respond with only a JSON object:
 {
-  "bucket": "exactly one of: ICP, Value Prop, Competitive, Objection Handling, Product/Pricing, Process/Methodology",
+  "bucket": "exactly one of: ICP, Value Prop, Competitive, Objection Handling, Product/Pricing, Process/Methodology, Transcript",
   "confidence": 0.0-1.0,
   "summary": "one sentence about what the document contains"
 }
@@ -229,6 +231,7 @@ No other text.`,
       "Objection Handling": "objection_handling",
       "Product/Pricing": "product_pricing",
       "Process/Methodology": "process_methodology",
+      Transcript: "transcript",
     };
     const mapped = bucketMap[result.bucket];
     if (mapped && DOCUMENT_TYPES.includes(mapped)) return mapped;
@@ -269,7 +272,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid productType" }, { status: 400 });
     }
 
-    const allowedDocumentTypes = ["icp", "value_prop", "competitive", "objection_handling", "product_pricing", "process_methodology"];
+    const allowedDocumentTypes = ["icp", "value_prop", "competitive", "objection_handling", "product_pricing", "process_methodology", "transcript"];
     if (!bulkUpload && !allowedDocumentTypes.includes(documentType)) {
       return NextResponse.json({ error: "Invalid documentType" }, { status: 400 });
     }

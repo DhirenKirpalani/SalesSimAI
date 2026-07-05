@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Mic2, Trophy, TrendingUp, Clock, ArrowRight, Zap, Loader2, LucideIcon, ShieldAlert, Lightbulb, Briefcase, Building2 } from "lucide-react";
+import { Mic2, Trophy, TrendingUp, Clock, ArrowRight, Zap, Loader2, LucideIcon, ShieldAlert, Lightbulb, Briefcase, Building2, Wallet, Users, CreditCard, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -86,28 +86,43 @@ interface TopListCardProps {
 }
 
 function TopListCard({ title, items, icon: Icon, emptyText }: TopListCardProps) {
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
-    <Card className="rounded-2xl border bg-card shadow-sm hover:shadow-md transition-shadow h-full">
+    <Card className="rounded-2xl border bg-card shadow-sm hover:shadow-md transition-shadow">
       <CardContent className="p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary">
-            <Icon className="w-4 h-4" />
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary">
+              <Icon className="w-4 h-4" />
+            </div>
+            <h3 className="font-semibold text-sm">{title}</h3>
           </div>
-          <h3 className="font-semibold text-sm">{title}</h3>
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
+            aria-label={collapsed ? "Expand" : "Collapse"}
+          >
+            {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+          </button>
         </div>
-        {items.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{emptyText}</p>
-        ) : (
-          <ol className="space-y-2.5">
-            {items.map((item, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-muted text-muted-foreground text-[10px] font-medium flex items-center justify-center mt-0.5">
-                  {i + 1}
-                </span>
-                <span className="text-foreground/90 leading-relaxed">{item}</span>
-              </li>
-            ))}
-          </ol>
+        {!collapsed && (
+          <div className="pt-2 max-h-[200px] overflow-y-auto pr-1">
+            {items.length === 0 ? (
+              <p className="text-xs text-muted-foreground">{emptyText}</p>
+            ) : (
+              <ol className="space-y-2.5">
+                {items.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-muted text-muted-foreground text-[10px] font-medium flex items-center justify-center mt-0.5">
+                      {i + 1}
+                    </span>
+                    <span className="text-foreground/90 leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -127,6 +142,37 @@ export default function DashboardPage() {
     useCases: string[];
     industries: string[];
   }>({ objections: [], insights: [], useCases: [], industries: [] });
+  const [selectedProductType, setSelectedProductType] = useState("payment");
+  const [intelligenceLoading, setIntelligenceLoading] = useState(false);
+
+  const PRODUCT_TYPE_LABELS: Record<string, string> = {
+    payment: "Payment",
+    eor: "EoR",
+    cards: "Cards",
+  };
+
+  async function fetchIntelligence(productType: string) {
+    setIntelligenceLoading(true);
+    try {
+      const res = await fetch(`/api/dashboard/intelligence?productType=${encodeURIComponent(productType)}`);
+      if (!res.ok) throw new Error("Failed to load intelligence");
+      const data = await res.json();
+      setIntelligence({
+        objections: data.objections ?? [],
+        insights: data.insights ?? [],
+        useCases: data.useCases ?? [],
+        industries: data.industries ?? [],
+      });
+    } catch (err) {
+      console.error("[dashboard] intelligence fetch failed:", err);
+    } finally {
+      setIntelligenceLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchIntelligence(selectedProductType);
+  }, [selectedProductType]);
 
   useEffect(() => {
     let cancelled = false;
@@ -164,35 +210,11 @@ export default function DashboardPage() {
       if (profile?.organization_id) {
         const { data: org } = await supabase
           .from("organizations")
-          .select("name, logo_url, profile_data")
+          .select("name, logo_url")
           .eq("id", profile.organization_id)
           .single();
         if (org?.name) setOrganization(org.name);
         if (org?.logo_url) setOrgLogoUrl(org.logo_url);
-        if (org?.profile_data && typeof org.profile_data === "object") {
-          const data = org.profile_data as Record<string, unknown>;
-          const objections = ((data.common_objections as Array<{ objection?: string }>) ?? [])
-            .map((o) => o.objection)
-            .filter((o): o is string => !!o);
-          const insights = ((data.pain_points_solved as string[]) ?? []).filter(Boolean);
-          const useCases = ((data.target_customer_segments as Array<{ use_case?: string }>) ?? [])
-            .map((s) => s.use_case)
-            .filter((s): s is string => !!s);
-          const industries = new Set<string>([
-            ...((data.industries_served as string[]) ?? []).filter(Boolean),
-            ...((data.buyer_personas as Array<{ industry?: string }>) ?? [])
-              .map((p) => p.industry)
-              .filter((p): p is string => !!p),
-          ]);
-          if (!cancelled) {
-            setIntelligence({
-              objections: objections.slice(0, 5),
-              insights: insights.slice(0, 5),
-              useCases: useCases.slice(0, 5),
-              industries: Array.from(industries).slice(0, 5),
-            });
-          }
-        }
       }
 
       const heygenSessions: UnifiedSession[] = (heygenData ?? []).map((s) => ({
@@ -271,7 +293,35 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h2 className="font-semibold text-sm">Sales Intelligence</h2>
+        <div className="flex flex-wrap gap-1 p-1 bg-muted/50 rounded-full w-fit">
+          {([
+            { type: "payment", icon: Wallet },
+            { type: "eor", icon: Users },
+            { type: "cards", icon: CreditCard },
+          ] as const).map(({ type, icon: Icon }) => {
+            const active = selectedProductType === type;
+            return (
+              <button
+                key={type}
+                onClick={() => setSelectedProductType(type)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  active
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background"
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {PRODUCT_TYPE_LABELS[type]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -281,7 +331,7 @@ export default function DashboardPage() {
             title="Top 5 Objections"
             items={intelligence.objections}
             icon={ShieldAlert}
-            emptyText="No objections found yet — extract company context to populate."
+            emptyText={intelligenceLoading ? "Analyzing transcripts..." : "No objections found yet — import or upload transcripts for this product."}
           />
         </motion.div>
         <motion.div
@@ -293,7 +343,7 @@ export default function DashboardPage() {
             title="Top 5 Insights"
             items={intelligence.insights}
             icon={Lightbulb}
-            emptyText="No insights found yet — extract company context to populate."
+            emptyText={intelligenceLoading ? "Analyzing transcripts..." : "No insights found yet — import or upload transcripts for this product."}
           />
         </motion.div>
         <motion.div
@@ -305,7 +355,7 @@ export default function DashboardPage() {
             title="Top 5 Use Cases"
             items={intelligence.useCases}
             icon={Briefcase}
-            emptyText="No use cases found yet — extract company context to populate."
+            emptyText={intelligenceLoading ? "Analyzing transcripts..." : "No use cases found yet — import or upload transcripts for this product."}
           />
         </motion.div>
         <motion.div
@@ -317,7 +367,7 @@ export default function DashboardPage() {
             title="Top 5 Industries"
             items={intelligence.industries}
             icon={Building2}
-            emptyText="No industries found yet — extract company context to populate."
+            emptyText={intelligenceLoading ? "Analyzing transcripts..." : "No industries found yet — import or upload transcripts for this product."}
           />
         </motion.div>
       </div>

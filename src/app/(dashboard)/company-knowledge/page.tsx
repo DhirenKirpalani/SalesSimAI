@@ -41,6 +41,7 @@ import {
   Sparkles,
   Copy,
   Check,
+  MessageSquare,
 } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { useRouter } from "next/navigation";
@@ -107,6 +108,7 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   objection_handling: "Objection Handling",
   product_pricing: "Product/Pricing",
   process_methodology: "Process/Methodology",
+  transcript: "Transcript",
 };
 
 export default function CompanyKnowledgePage() {
@@ -147,6 +149,14 @@ export default function CompanyKnowledgePage() {
   const [bulkResults, setBulkResults] = useState<{ name: string; document_type: string }[]>([]);
   const [bulkStepIndex, setBulkStepIndex] = useState(0);
   const bulkFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Transcript upload
+  const [transcriptProductType, setTranscriptProductType] = useState("payment");
+  const [transcriptFiles, setTranscriptFiles] = useState<File[]>([]);
+  const [transcriptUploading, setTranscriptUploading] = useState(false);
+  const [transcriptUploadStatus, setTranscriptUploadStatus] = useState<"idle" | "success" | "error">("idle");
+  const [transcriptUploadMessage, setTranscriptUploadMessage] = useState("");
+  const transcriptFileInputRef = useRef<HTMLInputElement>(null);
 
   const BULK_UPLOAD_STEPS = [
     "Extracting text",
@@ -434,6 +444,59 @@ export default function CompanyKnowledgePage() {
     } finally {
       setBulkUploading(false);
       if (bulkFileInputRef.current) bulkFileInputRef.current.value = "";
+    }
+  }
+
+  // ── Upload Transcript ───────────────────────────────────────────────
+  function handleTranscriptFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    setTranscriptFiles(files);
+    setTranscriptUploadStatus("idle");
+    setTranscriptUploadMessage("");
+  }
+
+  function handleTranscriptClearFiles() {
+    setTranscriptFiles([]);
+    setTranscriptUploadStatus("idle");
+    setTranscriptUploadMessage("");
+    if (transcriptFileInputRef.current) transcriptFileInputRef.current.value = "";
+  }
+
+  async function handleTranscriptUpload() {
+    if (transcriptFiles.length === 0) return;
+
+    setTranscriptUploading(true);
+    setTranscriptUploadStatus("idle");
+
+    const formData = new FormData();
+    formData.append("productType", transcriptProductType);
+    formData.append("documentType", "transcript");
+    for (const file of transcriptFiles) {
+      formData.append("files", file);
+    }
+
+    try {
+      const res = await fetch("/api/company/documents", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setTranscriptUploadStatus("success");
+        setTranscriptUploadMessage(`Uploaded ${transcriptFiles.length} transcript(s), ${data.chunks} chunk(s)`);
+        setTranscriptFiles([]);
+        fetchDocs();
+      } else {
+        setTranscriptUploadStatus("error");
+        setTranscriptUploadMessage(data.error || "Upload failed");
+      }
+    } catch {
+      setTranscriptUploadStatus("error");
+      setTranscriptUploadMessage("Upload failed");
+    } finally {
+      setTranscriptUploading(false);
+      if (transcriptFileInputRef.current) transcriptFileInputRef.current.value = "";
     }
   }
 
@@ -964,6 +1027,105 @@ export default function CompanyKnowledgePage() {
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>}
+
+          {/* Transcript Upload — admin only */}
+          {isOrgAdmin && <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <MessageSquare className="w-4 h-4" />
+                Upload Transcript
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Upload transcripts from real sales calls to enrich your knowledge base. Accepted formats: TXT, VTT, SRT, PDF, DOCX, MD.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
+                <div className="flex-1">
+                  <Label className="text-xs mb-1.5 block">Product Type</Label>
+                  <Select value={transcriptProductType} onValueChange={(v) => setTranscriptProductType(v ?? "payment")}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select type">
+                        {PRODUCT_TYPE_LABELS[transcriptProductType] || "Select type"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="payment">Payment</SelectItem>
+                      <SelectItem value="eor">EoR</SelectItem>
+                      <SelectItem value="cards">Cards</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-[2]">
+                  <Label className="text-xs mb-1.5 block">File</Label>
+                  <input
+                    ref={transcriptFileInputRef}
+                    type="file"
+                    accept=".txt,.vtt,.srt,.pdf,.docx,.md,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    multiple
+                    onChange={handleTranscriptFilePick}
+                    className="hidden"
+                  />
+                  <div
+                    onClick={() => transcriptFileInputRef.current?.click()}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-md border border-input bg-background text-sm transition-colors cursor-pointer hover:bg-accent hover:text-accent-foreground ${
+                      transcriptUploading ? "opacity-50" : ""
+                    }`}
+                  >
+                    <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="truncate flex-1">
+                      {transcriptFiles.length === 0
+                        ? "Click to choose transcript files"
+                        : `${transcriptFiles.length} file(s) selected`}
+                    </span>
+                    {transcriptFiles.length > 0 && (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTranscriptClearFiles();
+                        }}
+                        className="ml-auto text-muted-foreground hover:text-red-500 cursor-pointer shrink-0"
+                      >
+                        <X className="w-3 h-3" />
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <Button
+                  onClick={handleTranscriptUpload}
+                  disabled={transcriptFiles.length === 0 || transcriptUploading}
+                  className="w-full sm:w-auto sm:min-w-[100px]"
+                >
+                  {transcriptUploading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-1" />
+                      Upload
+                    </>
+                  )}
+                </Button>
+
+                {transcriptUploadStatus !== "idle" && (
+                  <div
+                    className={`flex items-center gap-2 text-sm ${
+                      transcriptUploadStatus === "success" ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {transcriptUploadStatus === "success" ? (
+                      <CheckCircle className="w-4 h-4" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4" />
+                    )}
+                    {transcriptUploadMessage}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>}
 
