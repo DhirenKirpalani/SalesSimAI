@@ -14,7 +14,7 @@ function serviceSupabase() {
  */
 export async function POST(req: NextRequest) {
   try {
-    const { email } = await req.json();
+    const { email, organizationId } = await req.json() as { email?: string; organizationId?: string };
     if (!email?.trim()) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
@@ -32,7 +32,8 @@ export async function POST(req: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    if (!profile?.organization_id) {
+    const targetOrgId = organizationId || profile?.organization_id;
+    if (!targetOrgId) {
       return NextResponse.json({ error: "You are not in an organization" }, { status: 400 });
     }
 
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     const { data: org } = await supabase
       .from("organizations")
       .select("created_by, email_domain")
-      .eq("id", profile.organization_id)
+      .eq("id", targetOrgId)
       .single();
 
     if (org?.created_by !== user.id) {
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
       .from("profiles")
       .select("id, organization_members!inner(organization_id)")
       .eq("email", email.trim().toLowerCase())
-      .eq("organization_members.organization_id", profile.organization_id)
+      .eq("organization_members.organization_id", targetOrgId)
       .limit(1);
 
     if ((existingProfiles ?? []).length > 0) {
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
     const { data: invite, error: inviteErr } = await supabase
       .from("organization_invites")
       .insert({
-        organization_id: profile.organization_id,
+        organization_id: targetOrgId,
         email: email.trim().toLowerCase(),
         invited_by: user.id,
       })
@@ -100,10 +101,10 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * GET /api/company/org/invite
+ * GET /api/company/org/invite?organizationId=...
  * List pending invites for the admin's org
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -111,13 +112,17 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const requestedId = searchParams.get("organizationId");
+
     const { data: profile } = await supabase
       .from("profiles")
       .select("organization_id")
       .eq("id", user.id)
       .single();
 
-    if (!profile?.organization_id) {
+    const targetOrgId = requestedId || profile?.organization_id;
+    if (!targetOrgId) {
       return NextResponse.json({ invites: [] });
     }
 
@@ -125,7 +130,7 @@ export async function GET() {
     const { data: org } = await supabase
       .from("organizations")
       .select("created_by")
-      .eq("id", profile.organization_id)
+      .eq("id", targetOrgId)
       .single();
 
     if (org?.created_by !== user.id) {
@@ -135,7 +140,7 @@ export async function GET() {
     const { data: invites } = await supabase
       .from("organization_invites")
       .select("id, email, status, created_at, accepted_at")
-      .eq("organization_id", profile.organization_id)
+      .eq("organization_id", targetOrgId)
       .eq("status", "pending")
       .order("created_at", { ascending: false });
 

@@ -25,6 +25,7 @@ import {
   Building2,
   Loader2,
   Check,
+  Plus,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -52,6 +53,7 @@ const baseMobileNavItems = [
   { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
   { label: "Company Knowledge", href: "/company-knowledge", icon: BookOpen },
+  { label: "Workspace", href: "/workspace", icon: Building2 },
   { label: "Profile", href: "/profile", icon: User },
 ];
 
@@ -124,6 +126,9 @@ export function TopNavbar() {
   const readIdsRef = useRef<Set<string>>(new Set());
   const [acceptingInvite, setAcceptingInvite] = useState<string | null>(null);
   const [acceptedInvites, setAcceptedInvites] = useState<Set<string>>(new Set());
+  const [workspaces, setWorkspaces] = useState<{ id: string; name: string; role: string; logo_url?: string | null }[]>([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
+  const [switchingWorkspaceId, setSwitchingWorkspaceId] = useState<string | null>(null);
 
   const { isAdmin } = useRole();
 
@@ -387,6 +392,42 @@ export function TopNavbar() {
     }
   }
 
+  // Load workspaces for the profile dropdown switcher
+  useEffect(() => {
+    fetch("/api/company/org/list")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.organizations)) {
+          setWorkspaces(data.organizations);
+          setActiveWorkspaceId(data.activeOrganizationId ?? null);
+        }
+      })
+      .catch((err) => console.error("[TopNavbar] fetch workspaces error:", err));
+  }, []);
+
+  async function handleSwitchWorkspace(workspaceId: string) {
+    if (workspaceId === activeWorkspaceId) return;
+    setSwitchingWorkspaceId(workspaceId);
+    try {
+      const res = await fetch("/api/company/org/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: workspaceId }),
+      });
+      if (res.ok) {
+        setActiveWorkspaceId(workspaceId);
+        window.location.reload();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        console.error("[TopNavbar] switch workspace error:", err);
+      }
+    } catch (err) {
+      console.error("[TopNavbar] switch workspace error:", err);
+    } finally {
+      setSwitchingWorkspaceId(null);
+    }
+  }
+
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6">
       <div className="flex items-center gap-3 md:hidden">
@@ -559,7 +600,39 @@ export function TopNavbar() {
             <AvatarFallback className="text-xs bg-primary/10 text-primary">{initials}</AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" sideOffset={8}>
+        <DropdownMenuContent align="end" sideOffset={8} className="w-64">
+          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Workspaces
+          </div>
+          {workspaces.map((workspace) => {
+            const isActive = workspace.id === activeWorkspaceId;
+            return (
+              <DropdownMenuItem
+                key={workspace.id}
+                onClick={() => handleSwitchWorkspace(workspace.id)}
+                disabled={switchingWorkspaceId === workspace.id}
+                className="flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  {workspace.logo_url ? (
+                    <img src={workspace.logo_url} alt="" className="w-4 h-4 object-contain rounded" />
+                  ) : (
+                    <Building2 className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  <span className="truncate">{workspace.name}</span>
+                </div>
+                {isActive && <Check className="w-4 h-4 text-primary shrink-0 ml-2" />}
+                {switchingWorkspaceId === workspace.id && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0 ml-2" />}
+              </DropdownMenuItem>
+            );
+          })}
+          {isAdmin && (
+            <DropdownMenuItem onClick={() => router.push("/workspace")}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add workspace
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => router.push("/profile")}>
             <User className="mr-2 h-4 w-4" />
             Profile

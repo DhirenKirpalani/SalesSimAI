@@ -13,6 +13,7 @@ import {
   ChevronRight,
   BookOpen,
   Plug,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -23,6 +24,7 @@ const navItems = [
   { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
   { label: "Knowledge Base", href: "/company-knowledge", icon: BookOpen },
+  { label: "Workspace", href: "/workspace", icon: Building2 },
   { label: "Profile", href: "/profile", icon: User },
   { label: "Admin", href: "/admin", icon: ShieldCheck, adminOnly: true },
   { label: "Integration", href: "/integrations", icon: Plug },

@@ -74,39 +74,57 @@ export default function AdminPage() {
     const supabase = createClient();
 
     async function load() {
-      // Platform stats
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setMembersLoading(false); return; }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, organization_id")
+        .eq("id", user.id)
+        .single();
+      if (profile?.full_name) {
+        setFirstName(profile.full_name.split(" ")[0]);
+      }
+      const organizationId = profile?.organization_id ?? null;
+
+      // Workspace stats
+      const orgFilter = organizationId ? { organization_id: organizationId } : {};
       const [custom, platform, sessions] = await Promise.all([
-        supabase.from("custom_scenarios").select("id", { count: "exact", head: true }),
-        supabase.from("platform_scenarios").select("id", { count: "exact", head: true }),
-        supabase.from("heygen_sessions").select("id", { count: "exact", head: true }).not("ended_at", "is", null),
+        supabase.from("custom_scenarios").select("id", { count: "exact", head: true }).match(orgFilter),
+        supabase.from("platform_scenarios").select("id", { count: "exact", head: true }).match(orgFilter),
+        supabase
+          .from("heygen_sessions")
+          .select("id", { count: "exact", head: true })
+          .not("ended_at", "is", null)
+          .match(orgFilter),
       ]);
       setStats({
         scenarios: (custom.count ?? 0) + (platform.count ?? 0),
         simulations: sessions.count ?? 0,
       });
 
-      // User greeting
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).single();
-        if (profile?.full_name) {
-          setFirstName(profile.full_name.split(" ")[0]);
-        }
-      }
-
       // Org members performance
-      const { data: orgData } = await supabase.from("profiles").select("organization_id").eq("id", user?.id ?? "").single();
-      if (!orgData?.organization_id) {
+      if (!organizationId) {
         setMembersLoading(false);
         return;
       }
 
-      const { data: memberProfiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, email")
-        .eq("organization_id", orgData.organization_id);
+      const { data: memberships } = await supabase
+        .from("organization_members")
+        .select("role, user_id, profiles(id, full_name, email)")
+        .eq("organization_id", organizationId);
 
-      if (!memberProfiles?.length) {
+      type MembershipRow = {
+        user_id: string;
+        profiles?: { id?: string; full_name?: string | null; email?: string | null } | { id?: string; full_name?: string | null; email?: string | null }[];
+      };
+
+      const memberProfiles = (memberships ?? []).map((m: MembershipRow) => {
+        const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
+        return { id: p?.id ?? m.user_id, full_name: p?.full_name ?? null, email: p?.email ?? null };
+      }).filter((m) => m.id);
+
+      if (!memberProfiles.length) {
         setMembersLoading(false);
         return;
       }
@@ -118,11 +136,13 @@ export default function AdminPage() {
             .from("heygen_sessions")
             .select("analysis, duration_s, ended_at")
             .eq("user_id", m.id)
+            .eq("organization_id", organizationId)
             .not("ended_at", "is", null),
           supabase
             .from("simulation_sessions")
             .select("duration_s, ended_at, simulation_coaching(overall_score)")
             .eq("user_id", m.id)
+            .eq("organization_id", organizationId)
             .eq("status", "completed"),
         ]);
 
@@ -152,8 +172,8 @@ export default function AdminPage() {
 
         memberPerf.push({
           id: m.id,
-          name: m.full_name || m.email.split("@")[0],
-          email: m.email,
+          name: m.full_name || m.email?.split("@")[0] || "",
+          email: m.email || "",
           simulations: heygen.length + sims.length,
           avgScore: allScores.length ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0,
           bestScore: allScores.length ? Math.max(...allScores) : 0,

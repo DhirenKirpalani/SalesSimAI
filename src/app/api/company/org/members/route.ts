@@ -9,13 +9,14 @@ function serviceSupabase() {
 }
 
 /**
- * DELETE /api/company/org/members?userId={userId}
+ * DELETE /api/company/org/members?userId={userId}&organizationId={organizationId}
  * Remove a member from the organization (admin only)
  */
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const targetUserId = searchParams.get("userId");
+    const organizationId = searchParams.get("organizationId");
     if (!targetUserId) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 });
     }
@@ -33,7 +34,8 @@ export async function DELETE(req: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    if (!adminProfile?.organization_id) {
+    const targetOrgId = organizationId || adminProfile?.organization_id;
+    if (!targetOrgId) {
       return NextResponse.json({ error: "Not in an organization" }, { status: 400 });
     }
 
@@ -41,10 +43,10 @@ export async function DELETE(req: NextRequest) {
     const { data: org } = await supabase
       .from("organizations")
       .select("created_by")
-      .eq("id", adminProfile.organization_id)
+      .eq("id", targetOrgId)
       .single();
 
-    const isOrgAdmin = org?.created_by === user.id || adminProfile.role === "admin";
+    const isOrgAdmin = org?.created_by === user.id || adminProfile?.role === "admin";
     if (!isOrgAdmin) {
       return NextResponse.json({ error: "Only admin can remove members" }, { status: 403 });
     }
@@ -59,7 +61,7 @@ export async function DELETE(req: NextRequest) {
     const { error: memberError } = await svc
       .from("organization_members")
       .delete()
-      .eq("organization_id", adminProfile.organization_id)
+      .eq("organization_id", targetOrgId)
       .eq("user_id", targetUserId);
 
     if (memberError) {
@@ -72,7 +74,7 @@ export async function DELETE(req: NextRequest) {
       .from("profiles")
       .update({ organization_id: null })
       .eq("id", targetUserId)
-      .eq("organization_id", adminProfile.organization_id);
+      .eq("organization_id", targetOrgId);
 
     if (profileError) {
       console.error("[api/company/org/members DELETE] profile error:", profileError);
@@ -87,11 +89,11 @@ export async function DELETE(req: NextRequest) {
 
 /**
  * PATCH /api/company/org/members
- * Update a member's role (admin only)
+ * Update a member's role in the organization_members table (admin only)
  */
 export async function PATCH(req: NextRequest) {
   try {
-    const { userId, role } = await req.json();
+    const { userId, role, organizationId } = await req.json() as { userId?: string; role?: string; organizationId?: string };
     if (!userId || !role || !["admin", "user"].includes(role)) {
       return NextResponse.json({ error: "userId and valid role required" }, { status: 400 });
     }
@@ -108,28 +110,29 @@ export async function PATCH(req: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    if (!adminProfile?.organization_id) {
+    const targetOrgId = organizationId || adminProfile?.organization_id;
+    if (!targetOrgId) {
       return NextResponse.json({ error: "Not in an organization" }, { status: 400 });
     }
 
     const { data: org } = await supabase
       .from("organizations")
       .select("created_by")
-      .eq("id", adminProfile.organization_id)
+      .eq("id", targetOrgId)
       .single();
 
-    const isOrgAdmin = org?.created_by === user.id || adminProfile.role === "admin";
+    const isOrgAdmin = org?.created_by === user.id || adminProfile?.role === "admin";
     if (!isOrgAdmin) {
       return NextResponse.json({ error: "Only admin can update roles" }, { status: 403 });
     }
 
-    // Update role — use service role to bypass RLS
+    // Update role in the membership table — use service role to bypass RLS
     const svc = serviceSupabase();
     const { error } = await svc
-      .from("profiles")
+      .from("organization_members")
       .update({ role: role as "admin" | "user" })
-      .eq("id", userId)
-      .eq("organization_id", adminProfile.organization_id);
+      .eq("organization_id", targetOrgId)
+      .eq("user_id", userId);
 
     if (error) {
       console.error("[api/company/org/members PATCH] error:", error);

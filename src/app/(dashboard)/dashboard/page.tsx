@@ -182,23 +182,28 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
 
-      const [{ data: heygenData }, { data: voiceData }, { data: profile }] = await Promise.all([
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, organization_id, role")
+        .eq("id", user.id)
+        .single();
+      const organizationId = profile?.organization_id ?? null;
+
+      const orgFilter = organizationId ? { organization_id: organizationId } : {};
+      const [{ data: heygenData }, { data: voiceData }] = await Promise.all([
         supabase
           .from("heygen_sessions")
           .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
           .eq("user_id", user.id)
+          .match(orgFilter)
           .order("started_at", { ascending: false }),
         supabase
           .from("simulation_sessions")
           .select("id, scenario_id, scenario_table, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
           .eq("user_id", user.id)
           .eq("status", "completed")
+          .match(orgFilter)
           .order("started_at", { ascending: false }),
-        supabase
-          .from("profiles")
-          .select("full_name, organization_id, role")
-          .eq("id", user.id)
-          .single(),
       ]);
 
       if (profile?.full_name) {

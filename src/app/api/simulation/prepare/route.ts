@@ -40,10 +40,13 @@ export async function POST(req: NextRequest) {
     const effectiveVoiceAvatarImageUrl = voiceAvatarImageUrl ?? null;
     const effectiveElevenlabsVoiceId = elevenlabsVoiceId ?? null;
 
+    const organizationId = (scenario as { organization_id?: string | null }).organization_id ?? null;
+
     const { data: session, error: sessionError } = await supabase
       .from("simulation_sessions")
       .insert({
         user_id: user.id,
+        organization_id: organizationId,
         scenario_id: scenarioId,
         scenario_table: scenarioTable,
         scenario_name: scenario.name ?? scenarioName ?? "Simulation",

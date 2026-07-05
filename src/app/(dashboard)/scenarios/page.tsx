@@ -41,7 +41,9 @@ export default function ScenariosPage() {
       .select("*")
       .order("created_at", { ascending: false });
     if (organizationId) {
-      query = query.or(`organization_id.eq.${organizationId},user_id.eq.${user.id}`);
+      // Only show scenarios belonging to the current workspace.
+      // Unscoped legacy scenarios (organization_id null) created by this user are also shown.
+      query = query.or(`organization_id.eq.${organizationId},and(organization_id.is.null,user_id.eq.${user.id})`);
     } else {
       query = query.eq("user_id", user.id);
     }

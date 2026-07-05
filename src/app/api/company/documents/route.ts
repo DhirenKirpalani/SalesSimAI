@@ -239,6 +239,7 @@ async function findSemanticallySimilarChunks(
     match_threshold: threshold,
     match_count: limit,
     filter_org_id: orgId,
+    filter_doc_type: null,
   });
   if (error) {
     console.error("[findSemanticallySimilarChunks] error:", error);

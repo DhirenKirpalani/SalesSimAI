@@ -86,12 +86,23 @@ function AnalysisContent() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
-    const { data } = await supabase
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("id", user.id)
+      .single();
+    const organizationId = profile?.organization_id ?? null;
+
+    let query = supabase
       .from("simulation_sessions")
       .select("id, scenario_name, call_mode, analysis, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
       .eq("user_id", user.id)
       .eq("status", "completed")
       .order("started_at", { ascending: false });
+    if (organizationId) {
+      query = query.eq("organization_id", organizationId);
+    }
+    const { data } = await query;
 
     const mapped: SessionSummary[] = (data ?? []).map((s) => {
       const coachingArr = s.simulation_coaching as Array<{ overall_score?: number }> | null;
