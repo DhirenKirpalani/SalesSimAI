@@ -9,8 +9,6 @@ import {
   BarChart3,
   User,
   ShieldCheck,
-  ChevronLeft,
-  ChevronRight,
   BookOpen,
   Plug,
   Building2,
@@ -32,15 +30,17 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const { isAdmin } = useRole();
 
   const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <aside
+      onMouseEnter={() => setCollapsed(false)}
+      onMouseLeave={() => setCollapsed(true)}
       className={cn(
-        "hidden md:flex flex-col border-r bg-card transition-all duration-300 ease-in-out sticky top-16 h-[calc(100vh-4rem)] z-40",
+        "hidden md:flex flex-col border-r bg-card transition-all duration-300 ease-in-out sticky top-16 h-[calc(100vh-4rem)] z-40 overflow-hidden",
         collapsed ? "w-16" : "w-60"
       )}
     >
@@ -60,22 +60,19 @@ export function Sidebar() {
               title={collapsed ? item.label : undefined}
             >
               <item.icon className={cn("w-4 h-4 shrink-0", active && "text-primary")} />
-              {!collapsed && <span>{item.label}</span>}
+              <span
+                className={cn(
+                  "text-sm whitespace-nowrap transition-all duration-300 ease-in-out overflow-hidden",
+                  collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+                )}
+              >
+                {item.label}
+              </span>
             </Link>
           );
         })}
       </nav>
 
-      <div className="border-t p-2">
-        <button
-          onClick={() => setCollapsed((v) => !v)}
-          className="flex items-center justify-center w-full py-2 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          {!collapsed && <span className="ml-2 text-sm">Collapse</span>}
-        </button>
-      </div>
     </aside>
   );
 }
