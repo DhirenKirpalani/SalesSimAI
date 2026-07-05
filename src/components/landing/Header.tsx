@@ -73,7 +73,7 @@ export function Header({ isActive, scrollToSection, scrollToTop, user, loading }
 
           <a href="/" onClick={handleScroll("usecases")} className={`header-link ${isActive("#usecases") ? "active" : ""}`}>Use cases</a>
 
-          <a href="/" onClick={handleScroll("insights")} className={`header-link ${isActive("#insights") ? "active" : ""}`}>Resources</a>
+          {/* <a href="/" onClick={handleScroll("insights")} className={`header-link ${isActive("#insights") ? "active" : ""}`}>Resources</a> */}
 
           <a href="/" onClick={handleScroll("faq")} className={`header-link ${isActive("#faq") ? "active" : ""}`}>FAQ</a>
 

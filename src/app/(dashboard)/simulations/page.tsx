@@ -96,7 +96,7 @@ export default function SimulationsPage() {
         <PageHeaderLogo />
         <h1 className="text-2xl font-bold tracking-tight">Simulations</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          All your completed practice sessions. Click any session to review the analysis.
+          Your practice session history — every run, its date, duration, and analysis status.
         </p>
       </div>
 
