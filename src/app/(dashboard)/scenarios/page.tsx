@@ -41,13 +41,14 @@ export default function ScenariosPage() {
       .select("*")
       .order("created_at", { ascending: false });
     if (organizationId) {
-      // Only show scenarios belonging to the current workspace.
-      // Unscoped legacy scenarios (organization_id null) created by this user are also shown.
-      query = query.or(`organization_id.eq.${organizationId},and(organization_id.is.null,user_id.eq.${user.id})`);
+      query = query.eq("organization_id", organizationId);
     } else {
       query = query.eq("user_id", user.id);
     }
-    const { data } = await query;
+    const { data, error } = await query;
+    if (error) {
+      console.error("[loadCustomScenarios] error:", error);
+    }
     if (data) setCustomScenarios(data as CustomScenario[]);
   }, []);
 

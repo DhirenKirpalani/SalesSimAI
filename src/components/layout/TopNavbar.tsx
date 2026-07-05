@@ -25,7 +25,6 @@ import {
   Building2,
   Loader2,
   Check,
-  Plus,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -626,12 +625,6 @@ export function TopNavbar() {
               </DropdownMenuItem>
             );
           })}
-          {isAdmin && (
-            <DropdownMenuItem onClick={() => router.push("/workspace")}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add workspace
-            </DropdownMenuItem>
-          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => router.push("/profile")}>
             <User className="mr-2 h-4 w-4" />
