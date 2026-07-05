@@ -26,14 +26,16 @@ export async function GET() {
       return NextResponse.json({ invites: [] });
     }
 
-    // Get the user's current org (if any)
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("organization_id")
-      .eq("id", user.id)
-      .single();
-
     const admin = serviceSupabase();
+
+    // Get all orgs the user is already a member of
+    const { data: memberships } = await admin
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id);
+
+    const memberOrgIds = new Set((memberships ?? []).map((m) => m.organization_id));
+
     const { data: invites } = await admin
       .from("organization_invites")
       .select("id, email, status, created_at, organization_id, invited_by, organizations(name)")
@@ -43,7 +45,7 @@ export async function GET() {
 
     // Skip invites to orgs the user is already a member of
     const filteredInvites = (invites ?? []).filter(
-      (inv) => !profile?.organization_id || inv.organization_id !== profile.organization_id
+      (inv) => !memberOrgIds.has(inv.organization_id)
     );
 
     // Fetch inviter names in one batch query

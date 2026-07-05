@@ -46,29 +46,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invite not found or already used" }, { status: 404 });
     }
 
-    // Check if user already in an org
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("organization_id")
-      .eq("id", user.id)
-      .single();
+    // Check if already a member of this org
+    const { data: existingMembership } = await admin
+      .from("organization_members")
+      .select("id")
+      .eq("organization_id", invite.organization_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-    if (profile?.organization_id) {
-      if (profile.organization_id === invite.organization_id) {
-        // Already in the same org — just mark the invite accepted and return success
-        await admin
-          .from("organization_invites")
-          .update({ status: "accepted", accepted_at: new Date().toISOString() })
-          .eq("id", inviteId);
-        return NextResponse.json({ success: true, organization_id: invite.organization_id });
-      }
-      return NextResponse.json(
-        { error: "You already belong to a different organization" },
-        { status: 409 }
-      );
+    if (existingMembership) {
+      // Already a member — just mark the invite accepted and set active org
+      await admin
+        .from("organization_invites")
+        .update({ status: "accepted", accepted_at: new Date().toISOString() })
+        .eq("id", inviteId);
+
+      await admin
+        .from("profiles")
+        .update({ organization_id: invite.organization_id })
+        .eq("id", user.id);
+
+      return NextResponse.json({ success: true, organization_id: invite.organization_id });
     }
 
-    // Join the organization — use service role to bypass RLS
+    // Add membership record
+    const { error: memberErr } = await admin
+      .from("organization_members")
+      .insert({ organization_id: invite.organization_id, user_id: user.id, role: "member" });
+
+    if (memberErr) {
+      console.error("[api/company/org/join] insert membership error:", memberErr);
+      return NextResponse.json({ error: "Failed to join organization" }, { status: 500 });
+    }
+
+    // Set the joined org as the active workspace
     const { error: updateProfileErr } = await admin
       .from("profiles")
       .update({ organization_id: invite.organization_id })
