@@ -2693,7 +2693,7 @@ function HeyGenTestInner() {
               <div className="flex items-center gap-3">
                 {feedback && (
                   <span className="text-xl font-bold text-orange-500">
-                    {feedback.overall_score}<span className="text-sm text-muted-foreground">/100</span>
+                    {feedback.overall_score}<span className="text-sm text-slate-300">/100</span>
                   </span>
                 )}
                 <button

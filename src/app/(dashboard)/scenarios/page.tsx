@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CustomScenario } from "@/types";
 import { createClient } from "@/lib/supabase/client";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Sparkles, FileText } from "lucide-react";
 import { motion } from "framer-motion";
 import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
 
@@ -106,13 +106,41 @@ export default function ScenariosPage() {
             Practice with AI buyers modeled on real fintech stakeholders — CFOs, risk officers, compliance leads, and more.
           </p>
         </div>
-        <Button
-          className="rounded-lg gap-2 flex-shrink-0 bg-orange-500 hover:bg-orange-600 text-white"
-          onClick={() => router.push("/scenarios/create")}
-        >
-          <Plus className="w-4 h-4" />
-          Create Custom
-        </Button>
+        <div className="relative group">
+          <Button
+            className="rounded-lg gap-2 flex-shrink-0 bg-orange-500 hover:bg-orange-600 text-white"
+          >
+            <Plus className="w-4 h-4" />
+            Create Custom
+          </Button>
+          <div className="absolute right-0 top-full mt-2 w-64 bg-card border border-border rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
+            <button
+              onClick={() => router.push("/scenarios/create")}
+              className="w-full flex items-start gap-3 px-4 py-3 hover:bg-muted text-left transition-colors"
+            >
+              <div className="mt-0.5 p-1.5 rounded-lg bg-primary/10 text-primary">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Create manually</p>
+                <p className="text-xs text-muted-foreground">Build every step yourself</p>
+              </div>
+            </button>
+            <div className="h-px bg-border" />
+            <button
+              onClick={() => router.push("/scenarios/create-from-kb")}
+              className="w-full flex items-start gap-3 px-4 py-3 hover:bg-muted text-left transition-colors"
+            >
+              <div className="mt-0.5 p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Create from Knowledge Base</p>
+                <p className="text-xs text-muted-foreground">Auto-generate from uploaded URLs & documents</p>
+              </div>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Search + filters */}

@@ -25,6 +25,7 @@ interface Organization {
   logo_url?: string | null;
   email_domain?: string | null;
   theme_color?: string | null;
+  theme_colors?: { primary: string; background: string; foreground: string; surface: string } | null;
   created_by?: string;
   created_at: string;
 }
@@ -164,17 +165,17 @@ export default function WorkspaceDetailPage() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="w-full sm:w-fit grid grid-cols-3 sm:flex bg-muted/60 border border-border/60 rounded-xl p-1 shadow-sm h-auto gap-1">
+        <TabsList className="w-full sm:w-fit grid grid-cols-3 sm:flex bg-muted/60 border border-border/60 rounded-full p-0 shadow-sm h-auto gap-0">
           <TabsTrigger
             value="overview"
-            className="w-full sm:w-auto sm:flex-none h-auto gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/80 data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm data-active:hover:bg-primary"
+            className="w-full sm:w-auto sm:flex-none h-auto gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-muted/80 data-active:bg-primary data-active:text-primary-foreground data-active:hover:bg-primary data-active:hover:text-primary-foreground"
           >
             <LayoutGrid className="w-4 h-4" />
             Overview
           </TabsTrigger>
           <TabsTrigger
             value="members"
-            className="w-full sm:w-auto sm:flex-none h-auto gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/80 data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm data-active:hover:bg-primary"
+            className="w-full sm:w-auto sm:flex-none h-auto gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-muted/80 data-active:bg-primary data-active:text-primary-foreground data-active:hover:bg-primary data-active:hover:text-primary-foreground"
           >
             <Users className="w-4 h-4" />
             Members
@@ -182,7 +183,7 @@ export default function WorkspaceDetailPage() {
           {data.isAdmin && (
             <TabsTrigger
               value="settings"
-              className="w-full sm:w-auto sm:flex-none h-auto gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:bg-muted/80 data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm data-active:hover:bg-primary"
+              className="w-full sm:w-auto sm:flex-none h-auto gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-muted/80 data-active:bg-primary data-active:text-primary-foreground data-active:hover:bg-primary data-active:hover:text-primary-foreground"
             >
               <Settings className="w-4 h-4" />
               Settings
