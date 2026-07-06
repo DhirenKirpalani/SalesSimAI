@@ -41,6 +41,7 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { applyThemeColors, DEFAULT_THEME_COLORS } from "@/components/layout/ThemeProvider";
 
 interface Member {
   id: string;
@@ -59,6 +60,13 @@ interface Invite {
   accepted_at: string | null;
 }
 
+interface ThemeColors {
+  primary: string;
+  background: string;
+  foreground: string;
+  surface: string;
+}
+
 interface Organization {
   id: string;
   name: string;
@@ -67,6 +75,8 @@ interface Organization {
   created_at: string;
   logo_url?: string | null;
   email_domain?: string | null;
+  theme_color?: string | null;
+  theme_colors?: ThemeColors | null;
 }
 
 interface WorkspaceManagementProps {
@@ -101,6 +111,12 @@ export function WorkspaceManagement({
 
   const [logoUrl, setLogoUrl] = useState(initialLogoUrl ?? "");
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [themeColors, setThemeColors] = useState<ThemeColors>({
+    primary: "#F76918",
+    background: "#F6EFE1",
+    foreground: "#3D1805",
+    surface: "#FFFFFF",
+  });
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsStatus, setSettingsStatus] = useState<"idle" | "success" | "error">("idle");
   const [settingsMessage, setSettingsMessage] = useState("");
@@ -118,6 +134,11 @@ export function WorkspaceManagement({
         setMembers(data.members ?? []);
         if (data.organization?.logo_url) {
           setLogoUrl(data.organization.logo_url);
+        }
+        if (data.organization?.theme_colors) {
+          setThemeColors(data.organization.theme_colors);
+        } else if (data.organization?.theme_color) {
+          setThemeColors((prev) => ({ ...prev, primary: data.organization.theme_color }));
         }
       }
     } catch (e) {
@@ -218,7 +239,7 @@ export function WorkspaceManagement({
       const res = await fetch("/api/company/org", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ logo_url: logoUrl || null, organizationId }),
+        body: JSON.stringify({ logo_url: logoUrl || null, theme_colors: themeColors, organizationId }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -226,6 +247,7 @@ export function WorkspaceManagement({
         setSettingsMessage("Settings saved");
         setOrg(data.organization);
         onLogoChange?.(logoUrl);
+        applyThemeColors(themeColors);
       } else {
         setSettingsStatus("error");
         setSettingsMessage(data.error || "Failed to save settings");
@@ -442,6 +464,9 @@ export function WorkspaceManagement({
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-1">Upload a PNG/JPG logo. It will be shown on the company page.</p>
+            </div>
+
+            <div className="pt-2 border-t">
             </div>
 
             <div className="flex items-center gap-3 pt-2">

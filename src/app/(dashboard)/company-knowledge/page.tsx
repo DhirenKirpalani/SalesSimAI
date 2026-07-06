@@ -52,6 +52,7 @@ interface Organization {
   created_at: string;
   logo_url?: string | null;
   theme_color?: string | null;
+  theme_colors?: { primary: string; background: string; foreground: string; surface: string } | null;
   email_domain?: string | null;
   source_urls?: string[];
   profile_data?: Record<string, unknown> | null;

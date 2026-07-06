@@ -224,7 +224,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Only admin can update organization" }, { status: 403 });
     }
 
-    const allowedFields = ["name", "logo_url", "theme_color", "email_domain", "profile_data", "source_urls"];
+    const allowedFields = ["name", "logo_url", "theme_color", "theme_colors", "email_domain", "profile_data", "source_urls"];
     const filtered: Record<string, unknown> = {};
     for (const key of allowedFields) {
       if (updates[key] !== undefined) filtered[key] = updates[key];
