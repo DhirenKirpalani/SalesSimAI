@@ -1,21 +1,66 @@
+"use client";
+
 import { PageLayout } from "@/components/landing/PageLayout";
 import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd";
-import { Metadata } from "next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar, Mail, Users } from "lucide-react";
-
-export const metadata: Metadata = {
-  title: "Book a Demo",
-  description:
-    "See how Day1 helps B2B fintech sales teams turn every call into live intelligence. Book a personalized demo with our team.",
-  alternates: {
-    canonical: "https://www.day1app.io/book-demo",
-  },
-};
+import { useState, FormEvent, useRef } from "react";
 
 export default function BookDemoPage() {
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setStatus("loading");
+    setErrorMsg("");
+
+    const form = formRef.current;
+    if (!form) {
+      setStatus("error");
+      setErrorMsg("Form not found.");
+      return;
+    }
+
+    const formData = new FormData(form);
+    const payload = {
+      name: String(formData.get("name") ?? "").trim(),
+      email: String(formData.get("email") ?? "").trim(),
+      company: String(formData.get("company") ?? "").trim(),
+      teamSize: String(formData.get("team-size") ?? "").trim(),
+      message: String(formData.get("message") ?? "").trim(),
+    };
+
+    if (!payload.name || !payload.email || !payload.company) {
+      setStatus("error");
+      setErrorMsg("Please fill in name, email, and company.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/book-demo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to send demo request");
+      }
+
+      setStatus("success");
+      form.reset();
+    } catch (err) {
+      console.error("[book-demo] submit error:", err);
+      setStatus("error");
+      setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
+    }
+  };
+
   return (
     <PageLayout>
       <BreadcrumbJsonLd items={[{ label: "Home", path: "/" }, { label: "Book a demo", path: "/book-demo" }]} />
@@ -63,8 +108,8 @@ export default function BookDemoPage() {
                   <h2 className="font-semibold text-[#1B1A1E] mb-1" style={{ fontFamily: "Poppins, sans-serif" }}>Questions first</h2>
                   <p className="text-sm text-[#68646C]">
                     Not ready for a demo? Email us at{" "}
-                    <a href="mailto:hello@day1.com" className="hover:text-[#FF6B45] transition-colors">
-                      hello@day1.com
+                    <a href="mailto:demo@day1app.io" className="hover:text-[#FF6B45] transition-colors">
+                      demo@day1app.io
                     </a>
                     .
                   </p>
@@ -72,32 +117,42 @@ export default function BookDemoPage() {
               </div>
             </div>
 
-            <form className="rounded-2xl border border-[#E7E4DF] bg-white p-6 lg:p-8 shadow-sm space-y-5">
+            <form ref={formRef} onSubmit={handleSubmit} className="rounded-2xl border border-[#E7E4DF] bg-white p-6 lg:p-8 shadow-sm space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label htmlFor="name" className="text-sm font-medium text-[#1B1A1E]">Name</label>
-                  <Input id="name" placeholder="Jane Doe" />
+                  <Input id="name" name="name" placeholder="Jane Doe" required />
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="email" className="text-sm font-medium text-[#1B1A1E]">Work email</label>
-                  <Input id="email" type="email" placeholder="jane@company.com" />
+                  <Input id="email" name="email" type="email" placeholder="jane@company.com" required />
                 </div>
               </div>
               <div className="space-y-2">
                 <label htmlFor="company" className="text-sm font-medium text-[#1B1A1E]">Company</label>
-                <Input id="company" placeholder="Acme Fintech" />
+                <Input id="company" name="company" placeholder="Acme Fintech" required />
               </div>
               <div className="space-y-2">
                 <label htmlFor="team-size" className="text-sm font-medium text-[#1B1A1E]">Team size</label>
-                <Input id="team-size" placeholder="e.g. 20–50 reps" />
+                <Input id="team-size" name="team-size" placeholder="e.g. 20–50 reps" />
               </div>
               <div className="space-y-2">
                 <label htmlFor="message" className="text-sm font-medium text-[#1B1A1E]">What would you like to see?</label>
-                <Textarea id="message" placeholder="Tell us about your current call workflow and main pain points." rows={4} />
+                <Textarea id="message" name="message" placeholder="Tell us about your current call workflow and main pain points." rows={4} />
               </div>
-              <Button type="submit" className="w-full rounded-lg bg-[#FF6B45] hover:bg-[#ff7d55] text-white">
-                Book demo
+              <Button
+                type="submit"
+                disabled={status === "loading"}
+                className="w-full rounded-lg bg-[#FF6B45] hover:bg-[#ff7d55] text-white disabled:opacity-60"
+              >
+                {status === "loading" ? "Sending..." : "Book demo"}
               </Button>
+              {status === "success" && (
+                <p className="text-sm text-green-600">Thanks — we'll be in touch to schedule your demo.</p>
+              )}
+              {status === "error" && (
+                <p className="text-sm text-red-600">{errorMsg || "Something went wrong. Please try again."}</p>
+              )}
             </form>
           </div>
         </div>
