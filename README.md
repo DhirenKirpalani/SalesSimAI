@@ -1,4 +1,4 @@
-# SalesSimAI
+# Day1
 
 AI-powered sales training simulator. Practice discovery calls, objection handling, and negotiations with realistic AI buyer personas tailored to your product and industry.
 
@@ -6,7 +6,7 @@ AI-powered sales training simulator. Practice discovery calls, objection handlin
 
 ## Overview
 
-SalesSimAI helps sales teams and individual reps sharpen their skills through immersive, AI-driven role-play scenarios. Users can either practice with pre-built platform scenarios or create their own custom simulations built around their actual company, product, and target buyers.
+Day1 helps sales teams and individual reps sharpen their skills through immersive, AI-driven role-play scenarios. Users can either practice with pre-built platform scenarios or create their own custom simulations built around their actual company, product, and target buyers.
 
 ---
 

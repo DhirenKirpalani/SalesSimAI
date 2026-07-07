@@ -45,6 +45,30 @@ interface CompanyProfile {
   }>;
 }
 
+interface GeneratedPersona {
+  name: string;
+  jobTitle: string;
+  company: string;
+  industry: string;
+  personality: string;
+  personalityTraits: string;
+  painPoints: string[];
+  painPointsCurrentProcess: string;
+  painPointsImpact: string;
+  goals: string[];
+  companyGoal: string;
+  personalMotivation: string;
+  communicationStyle: string;
+  communicationLanguage: string;
+  priorVendorExperience: string;
+  decisionCriteria: string;
+  hiddenConcern: string;
+  meetingSource: string;
+  budgetStatus: string;
+  timelinePressure: string;
+  sampleDialogues: string;
+}
+
 interface GeneratedScenario {
   seller_company: string;
   seller_product: string;
@@ -54,73 +78,87 @@ interface GeneratedScenario {
   difficulty: string;
   duration: number;
   context_note: string;
-  custom_persona: Record<string, unknown>;
+  custom_persona: GeneratedPersona;
   avatar_name: string;
   avatar_id: string;
   voice_id: string;
+  voice_avatar_image_url?: string;
+  elevenlabs_voice_id?: string;
   evaluation_framework: string;
+  custom_evaluation_framework: string;
   scoring_criteria: string;
 }
 
-const SCENARIO_GENERATION_PROMPT = `You are an expert sales enablement AI. You have a structured company profile extracted from a B2B company's website and documents. Create 3 distinct, highly realistic sales simulation scenarios for a seller to practice against. Each scenario must have a different context, buyer persona, and sales situation — all grounded in the company profile.
+const SCENARIO_GENERATION_PROMPT = `You are an expert sales enablement AI. You have a structured company profile extracted from a B2B company's website and uploaded documents. Create 3 distinct, highly realistic sales simulation scenarios for a seller to practice against. Each scenario must have a different context, buyer persona, and sales situation — all grounded in the company profile and documents.
 
 Return ONLY valid JSON in this exact shape:
 
 {
   "scenarios": [
     {
-      "seller_company": "<company name>",
+      "seller_company": "<company name from profile>",
       "seller_product": "<short product description>",
       "product_type": "<one of: payment, eor, cards>",
-      "seller_description": "<2-3 sentence description for the AI seller to understand what they are selling. Include ideal customer, key value, and differentiation.>",
-      "scenario_type": "<one of: First Discovery Call, Objection Handling, Product Demo, Negotiation, Executive Presentation>",
+      "seller_description": "<2-3 sentence description for the AI seller. Include ideal customer, key value, differentiation, and a specific use case from the profile.>",
+      "scenario_type": "<one of: First Discovery Call, Objection Handling, Product Demo, Negotiation, Executive Presentation, Renewal, Win-Back, Pitch, Product Knowledge Interview, Global EOR Onboarding, Multi-Country Payroll Rollout, Compliance & Benefits Review, Expense & Cards Rollout, Remote Team Expansion>",
       "difficulty": "<Beginner|Intermediate|Advanced|Expert>",
       "duration": <5|10|15|20>,
-      "context_note": "<Detailed scenario briefing for the AI buyer. Include: what the seller represents, buyer situation, goals, pain points, what to ask, what NOT to do.>",
+      "context_note": "<Detailed scenario briefing for the AI buyer. Include: what the seller represents, buyer situation, goals, pain points, what to ask, what NOT to do, and specific company/product references.>",
       "custom_persona": {
         "name": "<first name only>",
-        "jobTitle": "<specific role>",
-        "company": "<real buyer company name — e.g. BloomCommerce, Vertex Logistics, Northwind Payments. Must be different for each scenario.>",
-        "industry": "<industry>",
-        "personality": "<rich personality description>",
-        "painPoints": ["<pain 1>", "<pain 2>"],
-        "goals": ["<goal 1>", "<goal 2>"],
-        "communicationStyle": "<how they speak>",
-        "hiddenConcern": "<what they won't say out loud>",
-        "decisionCriteria": "<how they decide>",
-        "priorVendorExperience": "<what they've tried before>",
-        "budgetStatus": "<budget authority>",
-        "meetingSource": "<how the meeting was booked — e.g. Inbound demo request from website, Warm referral from existing customer, Met at fintech conference, LinkedIn outreach, SDR cold call, Partner introduction>",
-        "sampleDialogues": "Buyer: \"<opening line>\""
+        "jobTitle": "<specific role, e.g. VP of Finance, Global HR Director, CFO>",
+        "company": "<real buyer company name — e.g. BloomCommerce, Vertex Logistics, Northwind Payments. Must be DIFFERENT for each scenario.>",
+        "industry": "<specific industry>",
+        "personality": "<rich personality description, 2-3 sentences>",
+        "personalityTraits": "<3-4 bullet traits that define how this buyer behaves in the call>",
+        "painPoints": ["<specific business pain 1>", "<specific business pain 2>"],
+        "painPointsCurrentProcess": "<describe the painful manual process this buyer endures today. Be specific with tools, time, and frustration.>",
+        "painPointsImpact": "<what the pain costs them — money, time, risk, missed opportunities.>",
+        "goals": ["<specific business goal 1>", "<specific business goal 2>"],
+        "companyGoal": "<what their company is trying to achieve this quarter/year that this purchase relates to.>",
+        "personalMotivation": "<what this buyer personally cares about — their career pressure, KPI, or reputation.>",
+        "communicationStyle": "<how they speak in meetings — direct, skeptical, chatty, formal, numbers-driven, etc.>",
+        "communicationLanguage": "<specific phrases, jargon, or tone they use.>",
+        "priorVendorExperience": "<what they've tried before and why it failed or fell short.>",
+        "decisionCriteria": "<how they will decide — what proof points, process, and stakeholders matter.>",
+        "hiddenConcern": "<what they won't say out loud but is driving their skepticism.>",
+        "meetingSource": "<how the meeting was booked — e.g. Inbound demo request from website, Warm referral from existing customer, Met at fintech conference, LinkedIn outreach, SDR cold call, Partner introduction. Make it specific.>",
+        "budgetStatus": "<budget authority and constraints — e.g. 'Can approve up to $50K; above needs CFO sign-off.'>",
+        "timelinePressure": "<decision timeline — e.g. 'Needs to go live in 6 weeks before APAC expansion.'>",
+        "sampleDialogues": "<2-3 realistic lines the buyer might say at the start of the call or when pushed. Format as Buyer: \"...\" Seller: \"...\" Buyer: \"...\"""
       },
-      "avatar_name": "<matching first name from persona.name>",
-      "evaluation_framework": "<one of: MEDDIC, BANT, SPIN, Challenger, Sandler, ValueSelling, or Standard>",
+      "avatar_name": "<matching first name from custom_persona.name>",
+      "voice_avatar_image_url": "",
+      "elevenlabs_voice_id": "",
+      "evaluation_framework": "<one of: MEDDIC, BANT, SPIN, Challenger, Sandler, ValueSelling, Standard>",
+      "custom_evaluation_framework": "",
       "scoring_criteria": "<5-7 checkpoint rubric the seller will be judged against. Use the chosen framework. Each checkpoint must be a concrete, observable behavior. Format as numbered list.>"
     }
   ]
 }
 
 Rules for the 3 scenarios:
-- Read the company profile deeply. Use the specific products, use cases, pain_points_solved, target_customer_segments, and buyer_personas found in the profile to decide what scenarios to create.
-- Each of the 3 scenarios must be a DIFFERENT scenario_type and must map to a DIFFERENT real use case or product angle from the company profile. Do not default to generic Discovery/ Objection/ Demo unless the profile truly supports only those.
-- Choose scenario types that fit the use cases found on the website. Examples:
-  * If the site highlights "hiring remote teams in APAC" → create a scenario around global EOR/onboarding.
-  * If the site highlights "multi-country payroll consolidation" → create a scenario around payroll consolidation.
-  * If the site highlights "benefits & compliance" → create a scenario around compliance or benefits negotiation.
-  * If the site highlights "expense management" → create a scenario around expense/cards rollout.
-- For each scenario, pick the scenario_type that best fits that use case: First Discovery Call, Objection Handling, Product Demo, Negotiation, Executive Presentation, Renewal, or Win-Back.
-- Ensure the 3 scenarios cover different stages of the sales cycle where possible (e.g. one early discovery, one mid-cycle demo/objection, one late-stage negotiation/executive), but only if the profile supports it.
-- Each scenario must use a DIFFERENT buyer persona (different role, name, personality, goals, pain points, and company). Use the buyer_personas from the profile if available; otherwise infer realistic personas from target_customer_segments.
+- Read BOTH the company profile AND the uploaded documents deeply. Use the specific products, use cases, pain_points_solved, target_customer_segments, and buyer_personas found in the sources to decide what scenarios to create.
+- Each of the 3 scenarios must be a DIFFERENT scenario_type and must map to a DIFFERENT real use case or product angle from the sources. Do not default to generic Discovery/ Objection/ Demo unless the sources truly support only those.
+- Choose scenario types that fit the use cases found. Examples:
+  * If the source highlights "hiring remote teams in APAC" → create a Global EOR Onboarding scenario.
+  * If the source highlights "multi-country payroll consolidation" → create a Multi-Country Payroll Rollout scenario.
+  * If the source highlights "benefits & compliance" → create a Compliance & Benefits Review scenario.
+  * If the source highlights "expense management" → create an Expense & Cards Rollout scenario.
+- Ensure the 3 scenarios cover different stages of the sales cycle where possible (e.g. one early discovery, one mid-cycle demo/objection, one late-stage negotiation/executive), but only if the sources support it.
+- Each scenario must use a DIFFERENT buyer persona (different role, name, personality, goals, pain points, and company). Use the buyer_personas from the profile if available; otherwise infer realistic personas from target_customer_segments and document content.
 - Each scenario must have a DIFFERENT real buyer company name. Do not use generic placeholders like "Their Company" or "Buyer Inc". Use realistic B2B company names relevant to the industry and use case.
 - meetingSource must be realistic and specific to the buyer persona and company.
-- Choose an evaluation framework that fits the scenario type and use case. Discovery = BANT or SPIN. Objection = Challenger or Sandler. Demo/Negotiation/Executive = MEDDIC or ValueSelling.
+- Choose an evaluation framework that fits the scenario type and use case. Discovery = BANT or SPIN. Objection = Challenger or Sandler. Demo/Negotiation/Executive = MEDDIC or ValueSelling. If none fit, use Standard.
 - scoring_criteria must be a concrete rubric with 5-7 observable checkpoints tied to the specific use case and framework. Each checkpoint should describe what the seller must DO or SAY to earn it. Avoid vague phrases like "build rapport".
-- Each context_note must be rich and specific to the company. Reference real competitors, features, use cases, and pain points from the profile. Avoid generic language.
+- Each context_note must be rich and specific. Reference real competitors, features, use cases, and pain points from the sources. Avoid generic language.
 - product_type should be the best guess from: payment (fintech/payroll/expense), eor (global hiring/HR), cards (corporate cards/expense). If unsure, use "payment".
-- Make the buyers skeptical, realistic, and hard to sell to. Do not make them too easy.`;
+- Make the buyers skeptical, realistic, and hard to sell to. Do not make them too easy.
+- Every field in the JSON must be filled with a non-empty value. Leave no blank strings except voice_avatar_image_url and elevenlabs_voice_id which the UI will set later.
+- Use the exact JSON keys shown above. Do not rename them.`;
 
 async function extractProfileFromUrls(urls: string[], reqOrigin: string): Promise<{ profile: CompanyProfile | null; error?: string }> {
-  if (urls.length === 0) return { profile: null, error: "No URLs in knowledge base. Add website URLs in Company Knowledge page first." };
+  if (urls.length === 0) return { profile: null, error: "No URLs in knowledge base." };
   try {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || reqOrigin;
     const res = await fetch(`${baseUrl}/api/company/extract`, {
@@ -136,9 +174,126 @@ async function extractProfileFromUrls(urls: string[], reqOrigin: string): Promis
   }
 }
 
-async function generateScenariosWithLLM(profile: CompanyProfile): Promise<GeneratedScenario[]> {
+const DOCUMENT_EXTRACTION_PROMPT = `You are an expert B2B sales intelligence analyst. You have content from uploaded company documents (sales decks, pitch decks, case studies, product sheets, etc.). Build a COMPREHENSIVE company profile comparable to a manually researched sales playbook.
+
+Return ONLY valid JSON in this exact shape:
+
+{
+  "company_name": "<exact company name or infer from documents>",
+  "tagline": "<specific one-liner>",
+  "website_url": "",
+  "product_deep_dive": {
+    "overview": "<2-3 sentences on what the product does>",
+    "key_features": ["<feature 1>", "<feature 2>", "<feature 3>"],
+    "how_it_works": "<step-by-step customer journey>",
+    "pricing_model": "<how they charge>",
+    "ideal_customer_profile": "<specific customer size, stage, industry>"
+  },
+  "industries_served": ["<industry 1>", "<industry 2>"],
+  "target_customer_segments": [
+    { "segment": "<segment>", "company_size": "<size>", "use_case": "<why they buy>" }
+  ],
+  "pain_points_solved": ["<pain 1>", "<pain 2>", "<pain 3>"],
+  "current_process_problems": ["<before-state 1>", "<before-state 2>"],
+  "value_propositions": ["<value prop 1>", "<value prop 2>"],
+  "common_objections": [
+    { "objection": "<objection>", "underlying_concern": "<concern>", "handling_approach": "<how to handle>" }
+  ],
+  "competitive_landscape": {
+    "primary_competitors": ["<competitor 1>", "<competitor 2>"],
+    "key_differentiators": ["<differentiator 1>", "<differentiator 2>"],
+    "why_customers_switch": "<reason>"
+  },
+  "buyer_personas": [
+    {
+      "name": "<first name only>",
+      "full_role": "<specific title>",
+      "company_type": "<e.g. 'Fast-growing D2C brand, $5M revenue'>",
+      "industry": "<industry>",
+      "age_approx": "<e.g. 35-45>",
+      "personality": "<rich description>",
+      "communication_style": "<how they speak>",
+      "pain_points": ["<pain 1>", "<pain 2>"],
+      "goals": ["<goal 1>", "<goal 2>"],
+      "hidden_concerns": "<what they won't say>",
+      "prior_experience": "<what they've tried>",
+      "budget_authority": "<budget authority>",
+      "decision_timeline": "<timeline>",
+      "decision_criteria": ["<criterion 1>", "<criterion 2>"],
+      "objections_they_raise": ["<objection 1>", "<objection 2>"],
+      "opening_line": "<buyer opening line>",
+      "background_context": "<scene setting>"
+    }
+  ]
+}
+
+Rules:
+- Be SPECIFIC and CONCRETE. Avoid generic phrases.
+- Pain points must describe real activities with tools, time, and frustration.
+- Buyer personas must feel like real people with contradictions and pressures.
+- Include at least 2 detailed buyer personas.
+- If information is missing, infer reasonable specifics from the document context and industry.`;
+
+async function extractProfileFromDocuments(documents: { name: string; content: string }[]): Promise<CompanyProfile | null> {
+  if (documents.length === 0) return null;
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const combinedText = documents.map((d) => `--- ${d.name} ---\n${d.content}`).join("\n\n");
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: DOCUMENT_EXTRACTION_PROMPT },
+          { role: "user", content: `DOCUMENT CONTENT:\n${combinedText.slice(0, 16000)}` },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3,
+        max_tokens: 4000,
+      }),
+    });
+    if (!res.ok) {
+      console.error("[extractProfileFromDocuments] OpenAI error:", await res.text());
+      return null;
+    }
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content ?? "{}";
+    return JSON.parse(content) as CompanyProfile;
+  } catch (e: any) {
+    console.error("[extractProfileFromDocuments] error:", e);
+    return null;
+  }
+}
+
+async function fetchOrgDocuments(supabase: any, organizationId: string): Promise<{ name: string; content: string }[]> {
+  const { data: docs, error } = await supabase
+    .from("company_documents")
+    .select("name, content")
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("[generate-from-kb] document fetch error:", error);
+    return [];
+  }
+  return (docs ?? []).filter((d: any) => typeof d.content === "string" && d.content.trim().length > 50);
+}
+
+async function generateScenariosWithLLM(profile: CompanyProfile, documentsText: string): Promise<GeneratedScenario[]> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
+
+  const userContent = [
+    "COMPANY PROFILE:",
+    JSON.stringify(profile, null, 2),
+    "",
+    "UPLOADED DOCUMENTS:",
+    documentsText || "No documents uploaded.",
+  ].join("\n");
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -150,11 +305,11 @@ async function generateScenariosWithLLM(profile: CompanyProfile): Promise<Genera
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: SCENARIO_GENERATION_PROMPT },
-        { role: "user", content: `COMPANY PROFILE:\n${JSON.stringify(profile, null, 2)}` },
+        { role: "user", content: userContent },
       ],
       response_format: { type: "json_object" },
       temperature: 0.4,
-      max_tokens: 4500,
+      max_tokens: 8000,
     }),
   });
 
@@ -189,30 +344,45 @@ export async function POST(req: NextRequest) {
     const organizationId = userProfile?.organization_id ?? null;
     if (!organizationId) return NextResponse.json({ error: "Not in an organization" }, { status: 400 });
 
-    // Get organization profile and source URLs
+    // Get organization data
     const { data: org } = await supabase
       .from("organizations")
       .select("profile_data, source_urls")
       .eq("id", organizationId)
       .single();
 
+    // Fetch uploaded documents for this org only
+    const documents = await fetchOrgDocuments(supabase, organizationId);
+    const documentsText = documents.map((d) => `--- ${d.name} ---\n${d.content}`).join("\n\n");
+
     let profile = org?.profile_data as CompanyProfile | null;
     let extractedFromUrls = false;
+    let extractedFromDocuments = false;
 
     if (!profile) {
       const urls = (org?.source_urls as string[] | null) ?? [];
-      const reqOrigin = new URL(req.url).origin;
-      const extracted = await extractProfileFromUrls(urls, reqOrigin);
-      if (extracted.error) return NextResponse.json({ error: extracted.error }, { status: 400 });
-      if (!extracted.profile) return NextResponse.json({ error: "Could not extract profile from knowledge base" }, { status: 400 });
-      profile = extracted.profile;
-      extractedFromUrls = true;
+
+      if (urls.length > 0) {
+        const reqOrigin = new URL(req.url).origin;
+        const extracted = await extractProfileFromUrls(urls, reqOrigin);
+        if (extracted.error) return NextResponse.json({ error: extracted.error }, { status: 400 });
+        if (!extracted.profile) return NextResponse.json({ error: "Could not extract profile from website URLs" }, { status: 400 });
+        profile = extracted.profile;
+        extractedFromUrls = true;
+      } else if (documents.length > 0) {
+        const docProfile = await extractProfileFromDocuments(documents);
+        if (!docProfile) return NextResponse.json({ error: "Could not extract profile from uploaded documents" }, { status: 400 });
+        profile = docProfile;
+        extractedFromDocuments = true;
+      } else {
+        return NextResponse.json({ error: "No knowledge base content found. Add website URLs or upload documents first." }, { status: 400 });
+      }
 
       // Save the extracted profile for future use
       await supabase.from("organizations").update({ profile_data: profile }).eq("id", organizationId);
     }
 
-    const generated = await generateScenariosWithLLM(profile);
+    const generated = await generateScenariosWithLLM(profile, documentsText);
     const scenariosWithAvatar = generated.map((s) => ({
       ...s,
       avatar_id: finalAvatarId,
@@ -224,6 +394,8 @@ export async function POST(req: NextRequest) {
       data: scenariosWithAvatar,
       profile,
       extractedFromUrls,
+      extractedFromDocuments,
+      documentsUsed: documents.length,
     });
   } catch (e: any) {
     console.error("[api/scenarios/generate-from-kb] error:", e);
