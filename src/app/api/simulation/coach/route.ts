@@ -253,19 +253,22 @@ Return ONLY valid JSON:
     );
 
     // Persist to simulation_coaching table
-    const { error: insertError } = await serviceDb.from("simulation_coaching").upsert({
-      session_id: sessionId,
-      discovery_score: evaluation.discovery_score,
-      objection_score: evaluation.objection_score,
-      empathy_score: evaluation.empathy_score,
-      overall_score: evaluation.overall_score,
-      missed_opportunities: evaluation.missed_opportunities,
-      recommendations: evaluation.recommendations,
-      discovery_coverage: evaluation.discovery_coverage,
-    });
+    const { error: insertError } = await serviceDb.from("simulation_coaching").upsert(
+      {
+        session_id: sessionId,
+        discovery_score: evaluation.discovery_score,
+        objection_score: evaluation.objection_score,
+        empathy_score: evaluation.empathy_score,
+        overall_score: evaluation.overall_score,
+        missed_opportunities: evaluation.missed_opportunities,
+        recommendations: evaluation.recommendations,
+        discovery_coverage: evaluation.discovery_coverage,
+      },
+      { onConflict: "session_id" }
+    );
 
     if (insertError) {
-      console.error("[coach] insert error:", insertError);
+      console.error("[coach] upsert error:", insertError);
     }
 
     // Also write a lightweight score to simulation_sessions.analysis so the list view works

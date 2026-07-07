@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
+import { getCallOutcome } from "@/lib/buyer-brain/scenario";
 
 function buildSystemPrompt(participantRole: string = "seller"): string {
   return `You are an expert B2B sales coach analyzing a sales call transcript using the MEDDIC framework. The human participant is the ${participantRole}. Score strictly. Do not give points for silence, greetings, "yes", "sounds good", or generic small talk.
@@ -140,6 +141,7 @@ SESSION OUTCOME:
 - Stage reached: ${state.stage}
 - Facts uncovered: ${factsFound.length ? factsFound.join(", ") : "none"}
 - Total messages: ${messages.length}
+- Buyer decision: ${getCallOutcome(state).replace(/_/g, " ")}
 
 TRANSCRIPT:
 ${transcript}`;
@@ -204,7 +206,7 @@ ${transcript}`;
       .update({ analysis })
       .eq("id", sessionId);
 
-    return NextResponse.json({ analysis, scenario, state, messages });
+    return NextResponse.json({ analysis, scenario, state, messages, call_outcome: getCallOutcome(state) });
   } catch (err) {
     console.error("[simulation/analyze]", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });

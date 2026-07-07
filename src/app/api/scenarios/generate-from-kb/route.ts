@@ -89,7 +89,19 @@ interface GeneratedScenario {
   scoring_criteria: string;
 }
 
-const SCENARIO_GENERATION_PROMPT = `You are an expert sales enablement AI. You have a structured company profile extracted from a B2B company's website and uploaded documents. Create 3 distinct, highly realistic sales simulation scenarios for a seller to practice against. Each scenario must have a different context, buyer persona, and sales situation — all grounded in the company profile and documents.
+const SCENARIO_GENERATION_PROMPT = `You are an expert sales enablement AI. You receive two sources:
+1. WEBSITE CONTEXT: structured seller company/product context extracted from the vendor's website.
+2. UPLOADED DOCUMENTS (PRIMARY SOURCE): raw documents, likely containing the buyer persona, buyer knowledge, buyer behavior, and scenario brief for a sales simulation.
+
+Create 3 distinct, highly realistic sales simulation scenarios for a seller to practice against.
+
+CRITICAL INSTRUCTIONS:
+- The UPLOADED DOCUMENTS are the PRIMARY source for the buyer persona, buyer behavior, scenario context, and any hidden facts or disclosure rules. Use them as the authority for who the buyer is, what they know, how they behave, and what scenario to run.
+- The WEBSITE CONTEXT is ADDITIONAL context about the seller/vendor company and product. Use it to ground the seller_company, seller_product, seller_description, value propositions, and differentiation.
+- If the documents define a specific buyer (name, role, company, situation, fears, criteria), use that buyer directly. Do not invent a different buyer.
+- If the documents define a specific scenario type or sales situation, use it. Do not override it with generic website-derived scenarios.
+- Read the documents deeply. Buyer knowledge, behavior rules, disclosure ladders, voice samples, and scenario briefs are all valid content to extract from.
+- If documents include instructions like "this is your memory" or "do not volunteer," treat those as behavior rules for the buyer, not as seller facts.
 
 Return ONLY valid JSON in this exact shape:
 
@@ -283,15 +295,19 @@ async function fetchOrgDocuments(supabase: any, organizationId: string): Promise
   return (docs ?? []).filter((d: any) => typeof d.content === "string" && d.content.trim().length > 50);
 }
 
-async function generateScenariosWithLLM(profile: CompanyProfile, documentsText: string): Promise<GeneratedScenario[]> {
+async function generateScenariosWithLLM(
+  websiteProfile: CompanyProfile | null,
+  documentsText: string
+): Promise<GeneratedScenario[]> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
 
   const userContent = [
-    "COMPANY PROFILE:",
-    JSON.stringify(profile, null, 2),
+    websiteProfile
+      ? "WEBSITE CONTEXT (seller company / product):\n" + JSON.stringify(websiteProfile, null, 2)
+      : "WEBSITE CONTEXT: none provided.",
     "",
-    "UPLOADED DOCUMENTS:",
+    "UPLOADED DOCUMENTS (PRIMARY SOURCE — buyer persona, buyer behavior, scenario brief, hidden facts):",
     documentsText || "No documents uploaded.",
   ].join("\n");
 
@@ -328,7 +344,7 @@ async function generateScenariosWithLLM(profile: CompanyProfile, documentsText: 
 
 export async function POST(req: NextRequest) {
   try {
-    const { avatarId, voiceId } = await req.json();
+    const { avatarId, voiceId, selectedUrls, selectedDocIds } = await req.json();
     const finalAvatarId = avatarId || process.env.LIVEAVATAR_AVATAR_ID;
     if (!finalAvatarId) return NextResponse.json({ error: "No avatar available. Set LIVEAVATAR_AVATAR_ID env var or select an avatar." }, { status: 400 });
 
@@ -352,37 +368,59 @@ export async function POST(req: NextRequest) {
       .single();
 
     // Fetch uploaded documents for this org only
-    const documents = await fetchOrgDocuments(supabase, organizationId);
-    const documentsText = documents.map((d) => `--- ${d.name} ---\n${d.content}`).join("\n\n");
+    const allDocuments = await fetchOrgDocuments(supabase, organizationId);
+    const selectedDocuments = Array.isArray(selectedDocIds) && selectedDocIds.length > 0
+      ? allDocuments.filter((d) => selectedDocIds.includes(d.name))
+      : allDocuments;
+    const documentsText = selectedDocuments.map((d) => `--- ${d.name} ---\n${d.content}`).join("\n\n");
 
-    let profile = org?.profile_data as CompanyProfile | null;
+    const allUrls = (org?.source_urls as string[] | null) ?? [];
+    const urlsToUse = Array.isArray(selectedUrls) && selectedUrls.length > 0
+      ? selectedUrls
+      : allUrls;
+
+    // Use cached profile only if no explicit selection was made (so cache is not stale)
+    const hasExplicitSelection = (Array.isArray(selectedUrls) && selectedUrls.length > 0) ||
+      (Array.isArray(selectedDocIds) && selectedDocIds.length > 0);
+    let cachedProfile = hasExplicitSelection ? null : (org?.profile_data as CompanyProfile | null);
+    let websiteProfile: CompanyProfile | null = null;
     let extractedFromUrls = false;
     let extractedFromDocuments = false;
 
-    if (!profile) {
-      const urls = (org?.source_urls as string[] | null) ?? [];
-
-      if (urls.length > 0) {
-        const reqOrigin = new URL(req.url).origin;
-        const extracted = await extractProfileFromUrls(urls, reqOrigin);
-        if (extracted.error) return NextResponse.json({ error: extracted.error }, { status: 400 });
-        if (!extracted.profile) return NextResponse.json({ error: "Could not extract profile from website URLs" }, { status: 400 });
-        profile = extracted.profile;
-        extractedFromUrls = true;
-      } else if (documents.length > 0) {
-        const docProfile = await extractProfileFromDocuments(documents);
-        if (!docProfile) return NextResponse.json({ error: "Could not extract profile from uploaded documents" }, { status: 400 });
-        profile = docProfile;
-        extractedFromDocuments = true;
+    // Documents are the primary source for buyer persona/scenario.
+    // URLs provide additional seller company/product context (website profile).
+    // If only documents are selected, fall back to extracting a profile from the documents for backward compatibility.
+    if (urlsToUse.length > 0) {
+      // Prefer cached profile if it matches the full URL set and no explicit selection was made
+      if (cachedProfile) {
+        websiteProfile = cachedProfile;
       } else {
-        return NextResponse.json({ error: "No knowledge base content found. Add website URLs or upload documents first." }, { status: 400 });
+        const reqOrigin = new URL(req.url).origin;
+        const extracted = await extractProfileFromUrls(urlsToUse, reqOrigin);
+        if (extracted.error) return NextResponse.json({ error: extracted.error }, { status: 400 });
+        if (!extracted.profile) return NextResponse.json({ error: "Could not extract profile from selected website URLs" }, { status: 400 });
+        websiteProfile = extracted.profile;
+        extractedFromUrls = true;
       }
-
-      // Save the extracted profile for future use
-      await supabase.from("organizations").update({ profile_data: profile }).eq("id", organizationId);
     }
 
-    const generated = await generateScenariosWithLLM(profile, documentsText);
+    if (!websiteProfile && selectedDocuments.length > 0) {
+      const docProfile = await extractProfileFromDocuments(selectedDocuments);
+      if (!docProfile) return NextResponse.json({ error: "Could not extract profile from selected documents" }, { status: 400 });
+      websiteProfile = docProfile;
+      extractedFromDocuments = true;
+    }
+
+    if (!websiteProfile && selectedDocuments.length === 0) {
+      return NextResponse.json({ error: "No knowledge base content selected. Select at least one URL or document." }, { status: 400 });
+    }
+
+    // Save the extracted profile for future use only when using the full knowledge base
+    if (!hasExplicitSelection && websiteProfile) {
+      await supabase.from("organizations").update({ profile_data: websiteProfile }).eq("id", organizationId);
+    }
+
+    const generated = await generateScenariosWithLLM(websiteProfile, documentsText);
     const scenariosWithAvatar = generated.map((s) => ({
       ...s,
       avatar_id: finalAvatarId,
@@ -392,10 +430,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: scenariosWithAvatar,
-      profile,
+      profile: websiteProfile,
       extractedFromUrls,
       extractedFromDocuments,
-      documentsUsed: documents.length,
+      documentsUsed: selectedDocuments.length,
+      urlsUsed: urlsToUse.length,
     });
   } catch (e: any) {
     console.error("[api/scenarios/generate-from-kb] error:", e);

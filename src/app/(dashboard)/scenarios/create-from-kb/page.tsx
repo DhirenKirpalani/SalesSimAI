@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Sparkles, RefreshCw, Save, AlertCircle, CheckCircle2, Check, Database, FileSearch, UserCog, MessageSquare, Wand2 } from "lucide-react";
+import { ArrowLeft, Loader2, Sparkles, RefreshCw, Save, AlertCircle, CheckCircle2, Check, Database, FileText, FileSearch, UserCog, MessageSquare, Wand2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AvatarPicker } from "@/components/AvatarPicker";
 import { cn } from "@/lib/utils";
@@ -121,6 +121,17 @@ interface GeneratedPersona {
   sampleDialogues: string;
 }
 
+interface KnowledgeDocument {
+  id: string;
+  name: string;
+  doc_type: string;
+  document_type: string;
+  file_path?: string | null;
+  created_at?: string;
+  creator_name?: string | null;
+  creator_email?: string | null;
+}
+
 interface GeneratedScenario {
   seller_company: string;
   seller_product: string;
@@ -147,7 +158,7 @@ export default function CreateFromKBPage() {
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [status, setStatus] = useState("loading");
+  const [status, setStatus] = useState<"loading" | "select" | "generating" | "review" | "error">("loading");
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
   const [scenarios, setScenarios] = useState<GeneratedScenario[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -155,6 +166,11 @@ export default function CreateFromKBPage() {
   const [avatarId, setAvatarId] = useState("");
   const [voiceId, setVoiceId] = useState("");
   const [activeStep, setActiveStep] = useState(0);
+
+  const [sourceUrls, setSourceUrls] = useState<string[]>([]);
+  const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
+  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
 
   const selectedScenario = scenarios[selectedIndex];
 
@@ -171,21 +187,43 @@ export default function CreateFromKBPage() {
   }, [generating, loading]);
 
   useEffect(() => {
-    // Fetch a default avatar first, then generate
+    // Fetch sources and a default avatar, then show selection screen
     (async () => {
       try {
-        const avRes = await fetch("/api/heygen-test/avatars?page=1&page_size=1");
-        const avData = await avRes.json();
-        const firstAvatar = avData.avatars?.[0];
-        if (firstAvatar) {
-          setAvatarId(firstAvatar.id);
-          setVoiceId(firstAvatar.voice_id || "");
+        const [orgRes, docsRes, avRes] = await Promise.all([
+          fetch("/api/company/org"),
+          fetch("/api/company/documents"),
+          fetch("/api/heygen-test/avatars?page=1&page_size=1"),
+        ]);
+
+        if (orgRes.ok) {
+          const orgData = await orgRes.json();
+          const urls = orgData.organization?.source_urls ?? [];
+          setSourceUrls(urls);
+          setSelectedUrls(urls);
         }
-      } catch {
-        // Avatar fetch failure is non-fatal — API will fallback to env var
+
+        if (docsRes.ok) {
+          const docsData = await docsRes.json();
+          const docs = (docsData.documents ?? []) as KnowledgeDocument[];
+          setDocuments(docs);
+          setSelectedDocIds(docs.map((d) => d.id));
+        }
+
+        if (avRes.ok) {
+          const avData = await avRes.json();
+          const firstAvatar = avData.avatars?.[0];
+          if (firstAvatar) {
+            setAvatarId(firstAvatar.id);
+            setVoiceId(firstAvatar.voice_id || "");
+          }
+        }
+      } catch (err) {
+        console.error("[create-from-kb] failed to load sources:", err);
+      } finally {
+        setLoading(false);
+        setStatus("select");
       }
-      setActiveStep(0);
-      generateScenarios();
     })();
   }, []);
 
@@ -194,11 +232,17 @@ export default function CreateFromKBPage() {
     setGenerating(true);
     setActiveStep(0);
     setError("");
+    setStatus("generating");
     try {
       const res = await fetch("/api/scenarios/generate-from-kb", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ avatarId: avatarId || undefined, voiceId: voiceId || undefined }),
+        body: JSON.stringify({
+          avatarId: avatarId || undefined,
+          voiceId: voiceId || undefined,
+          selectedUrls,
+          selectedDocIds,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Generation failed");
@@ -292,6 +336,25 @@ export default function CreateFromKBPage() {
     setSelectedToSave((prev) => prev.map((v, i) => (i === index ? !v : v)));
   };
 
+  const toggleUrl = (url: string) => {
+    setSelectedUrls((prev) =>
+      prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url]
+    );
+  };
+
+  const toggleDoc = (id: string) => {
+    setSelectedDocIds((prev) =>
+      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]
+    );
+  };
+
+  const selectAllUrls = () => setSelectedUrls([...sourceUrls]);
+  const deselectAllUrls = () => setSelectedUrls([]);
+  const selectAllDocs = () => setSelectedDocIds(documents.map((d) => d.id));
+  const deselectAllDocs = () => setSelectedDocIds([]);
+
+  const canGenerate = selectedUrls.length > 0 || selectedDocIds.length > 0;
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
@@ -302,15 +365,143 @@ export default function CreateFromKBPage() {
         <div>
           <h1 className="text-xl font-bold tracking-tight">Create from Knowledge Base</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {status === "loading" || status === "error"
-              ? "AI extracts your company context and generates 3 scenarios."
-              : "Review and edit the AI-generated scenarios before saving."}
+            {status === "review"
+              ? "Review and edit the AI-generated scenarios before saving."
+              : "Select the URLs and documents the AI should use to generate scenarios."}
           </p>
         </div>
       </div>
 
-      {/* Loading state */}
-      {(loading || generating) && (
+      {/* Source selection */}
+      {(status === "select" || status === "loading") && (
+        <Card className="rounded-2xl border shadow-sm">
+          <CardContent className="py-6 px-6 space-y-8">
+            {/* URLs */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <Database className="w-4 h-4 text-muted-foreground" />
+                  Website URLs ({sourceUrls.length})
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={selectAllUrls}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Select all
+                  </button>
+                  <span className="text-xs text-muted-foreground">·</span>
+                  <button
+                    onClick={deselectAllUrls}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Deselect all
+                  </button>
+                </div>
+              </div>
+              {sourceUrls.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No website URLs found. Add URLs in <button onClick={() => router.push("/company-knowledge")} className="text-primary hover:underline">Knowledge Base</button>.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {sourceUrls.map((url) => (
+                    <label
+                      key={url}
+                      className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:bg-muted/30 transition-colors cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedUrls.includes(url)}
+                        onChange={() => toggleUrl(url)}
+                        className="mt-0.5 w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-foreground truncate">{url}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="h-px bg-border" />
+
+            {/* Documents */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-muted-foreground" />
+                  Uploaded Documents ({documents.length})
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={selectAllDocs}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Select all
+                  </button>
+                  <span className="text-xs text-muted-foreground">·</span>
+                  <button
+                    onClick={deselectAllDocs}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Deselect all
+                  </button>
+                </div>
+              </div>
+              {documents.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No documents uploaded. Upload documents in <button onClick={() => router.push("/company-knowledge")} className="text-primary hover:underline">Knowledge Base</button>.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {documents.map((doc) => (
+                    <label
+                      key={doc.id}
+                      className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:bg-muted/30 transition-colors cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedDocIds.includes(doc.id)}
+                        onChange={() => toggleDoc(doc.id)}
+                        className="mt-0.5 w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-foreground truncate">{doc.name}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                          {doc.doc_type} · {doc.document_type}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-xs text-muted-foreground">
+                {selectedUrls.length + selectedDocIds.length} source{selectedUrls.length + selectedDocIds.length === 1 ? "" : "s"} selected
+              </p>
+              <Button
+                onClick={generateScenarios}
+                disabled={!canGenerate || loading}
+                className="rounded-lg gap-2"
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                {loading ? "Loading sources..." : "Generate Scenarios"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Generating state */}
+      {status === "generating" && (
         <Card className="rounded-2xl border shadow-sm">
           <CardContent className="py-10 px-6 text-center space-y-6">
             <div className="space-y-1">
@@ -339,9 +530,9 @@ export default function CreateFromKBPage() {
               <Button variant="outline" onClick={() => router.push("/company-knowledge")}>
                 Add URLs / Documents
               </Button>
-              <Button onClick={() => generateScenarios()}>
+              <Button onClick={() => setStatus("select")}>
                 <RefreshCw className="w-4 h-4 mr-2" />
-                Try Again
+                Back to Selection
               </Button>
             </div>
           </CardContent>

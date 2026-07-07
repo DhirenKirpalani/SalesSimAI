@@ -195,6 +195,12 @@ export default function CompanyKnowledgePage() {
   // Onboarding URLs
   const [onboardingUrls, setOnboardingUrls] = useState<string[]>([]);
 
+  // Debug website extraction
+  const [debugExtracting, setDebugExtracting] = useState(false);
+  const [debugExtractResult, setDebugExtractResult] = useState<Record<string, unknown> | null>(null);
+  const [debugExtractError, setDebugExtractError] = useState("");
+  const [debugDialogOpen, setDebugDialogOpen] = useState(false);
+
   // Auto-save URLs to DB when they change (debounced)
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -211,6 +217,33 @@ export default function CompanyKnowledgePage() {
     }, 600);
     return () => clearTimeout(timer);
   }, [onboardingUrls, org?.id]);
+
+  const handleDebugExtract = async () => {
+    if (onboardingUrls.length === 0) {
+      setDebugExtractError("Add at least one website URL first.");
+      setDebugExtractResult(null);
+      setDebugDialogOpen(true);
+      return;
+    }
+    setDebugExtracting(true);
+    setDebugExtractError("");
+    setDebugExtractResult(null);
+    setDebugDialogOpen(true);
+    try {
+      const res = await fetch("/api/company/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: onboardingUrls[0], urls: onboardingUrls }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Extraction failed");
+      setDebugExtractResult(data.data ?? null);
+    } catch (e: any) {
+      setDebugExtractError(e.message || "Extraction failed");
+    } finally {
+      setDebugExtracting(false);
+    }
+  };
 
   const fetchOrg = useCallback(async () => {
     try {
@@ -729,6 +762,25 @@ export default function CompanyKnowledgePage() {
                 value={onboardingUrls}
                 onChange={setOnboardingUrls}
               />
+              <div className="flex items-center justify-between pt-1">
+                <p className="text-xs text-muted-foreground">
+                  {onboardingUrls.length} URL{onboardingUrls.length === 1 ? "" : "s"} saved.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDebugExtract}
+                  disabled={debugExtracting}
+                  className="gap-2"
+                >
+                  {debugExtracting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  Debug Extract
+                </Button>
+              </div>
             </CardContent>
           </Card>}
 
@@ -1175,6 +1227,58 @@ export default function CompanyKnowledgePage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Debug extraction result dialog */}
+          <Dialog open={debugDialogOpen} onOpenChange={setDebugDialogOpen}>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  Debug Website Extraction
+                </DialogTitle>
+                <DialogDescription>
+                  Raw extracted company profile from the URLs above. This is what the AI would use for scenario generation.
+                </DialogDescription>
+              </DialogHeader>
+              {debugExtracting ? (
+                <div className="py-8 flex flex-col items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Extracting profile from {onboardingUrls.length} URL{onboardingUrls.length === 1 ? "" : "s"}...
+                </div>
+              ) : debugExtractError ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  <div className="flex items-center gap-2 font-medium mb-1">
+                    <AlertCircle className="w-4 h-4" />
+                    Extraction failed
+                  </div>
+                  {debugExtractError}
+                </div>
+              ) : debugExtractResult ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Extraction succeeded
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigator.clipboard.writeText(JSON.stringify(debugExtractResult, null, 2))}
+                      className="gap-1 h-7 text-xs"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy JSON
+                    </Button>
+                  </div>
+                  <pre className="text-xs bg-muted rounded-lg p-4 overflow-auto max-h-[50vh]">
+                    {JSON.stringify(debugExtractResult, null, 2)}
+                  </pre>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground py-4">No extraction result.</p>
+              )}
+            </DialogContent>
+          </Dialog>
 
           {/* ── Delete Document Dialog ─────────────────────────────────────── */}
           <Dialog open={deleteDocOpen} onOpenChange={setDeleteDocOpen}>

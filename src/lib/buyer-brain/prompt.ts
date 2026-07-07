@@ -4,6 +4,8 @@ import { buildPersonaSection } from "./persona";
 import { countDontKnow } from "./memory";
 import {
   getAbsoluteRoleLock,
+  getCallOutcome,
+  getCallOutcomePrompt,
   getDifficultyNote,
   getLanguageNote,
   getRoleHeader,
@@ -86,6 +88,8 @@ TRUST: ${state.trust_level}/100 | MOOD: ${state.buyer_mood} | STAGE: ${state.sta
 FACTS REVEALED: ${getDiscoveredFacts(state)}
 OBJECTIONS ALREADY RAISED: ${state.objections_used?.length ? state.objections_used.join(", ") : "none"} — do NOT repeat these; find a new angle or move on.
 
+${getCallOutcomePrompt(getCallOutcome(state))}
+
 OPENING / GREETING — If the seller's message is a greeting or opener (e.g. "hi", "hello", "hey", "good morning", "thanks for taking my call"), respond NATURALLY as a real person would:
 - Acknowledge the greeting briefly (e.g. "Hi, yeah thanks for calling." / "Morning." / "Hey, sure, go ahead.")
 - Do NOT immediately start asking questions or raising objections. That is unnatural and robotic.
@@ -153,6 +157,8 @@ ${sellerDescription}
 TRUST: ${state.trust_level}/100 | MOOD: ${state.buyer_mood} | STAGE: ${state.stage}
 FACTS REVEALED: ${getDiscoveredFacts(state)}
 OBJECTIONS ALREADY RAISED: ${state.objections_used?.length ? state.objections_used.join(", ") : "none"} — do NOT repeat these; find a new angle or move on.
+
+${getCallOutcomePrompt(getCallOutcome(state))}
 
 OPENING / GREETING — If the seller's message is a greeting or opener (e.g. "hi", "hello", "hey", "good morning", "thanks for taking my call"), respond NATURALLY as a real person would:
 - Acknowledge the greeting briefly (e.g. "Hi, yeah thanks for calling." / "Morning." / "Hey, sure, go ahead.")

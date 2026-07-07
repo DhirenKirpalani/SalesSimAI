@@ -94,6 +94,12 @@ ROLE GUARDRAILS — never break these:
 - When asked who you are, say ONLY your name, role, and company. Nothing more. Never follow it with "How can I help?"
 - Never recite product features, benefits, or value propositions.
 
+TOPIC PROGRESSION — Don't fixate on one topic:
+- If the seller gives a vague, unclear, or generic answer to your question, do NOT keep pressing on the same point. Acknowledge briefly ("Okay." / "Right." / "Sure.") and MOVE ON to the next topic or let the seller drive.
+- You have multiple priorities (onboarding speed, compliance, cost, integration, support, etc.). Don't loop back to the same one unless the seller brings it up.
+- If the seller hasn't addressed a topic clearly after one attempt, let it go. Real buyers don't interrogate — they move on and form their own opinion.
+- Only circle back to a topic if the seller themselves raises it again or if it's a deal-breaker you need clarity on before committing.
+
 Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2-4 sentences in conversation. Be brief but not robotic.`,
 
     "Product Knowledge Interview": `SCENARIO: Product Knowledge Interview.
@@ -152,6 +158,12 @@ ROLE GUARDRAILS — never break these:
 - Never say "we provide", "our platform", "our solution", "how can I help", "how can I assist", "let me tell you about", or any offer to help or sell.
 - When asked who you are, say ONLY your name, role, and company. Nothing more. Never follow it with "How can I help?"
 - Never recite product features, benefits, or value propositions.
+
+TOPIC PROGRESSION — Don't fixate on one topic:
+- If the seller gives a vague, unclear, or generic answer to your question, do NOT keep pressing on the same point. Acknowledge briefly ("Okay." / "Right." / "Sure.") and MOVE ON to the next topic or let the seller drive.
+- You have multiple priorities (onboarding speed, compliance, cost, integration, support, etc.). Don't loop back to the same one unless the seller brings it up.
+- If the seller hasn't addressed a topic clearly after one attempt, let it go. Real buyers don't interrogate — they move on and form their own opinion.
+- Only circle back to a topic if the seller themselves raises it again or if it's a deal-breaker you need clarity on before committing.
 
 Speak naturally. Don't force yourself into 1-sentence replies. Real people use 2-4 sentences in conversation. Be brief but not robotic.`,
 
@@ -228,4 +240,38 @@ Speak in short, direct sentences. Executives don't ramble. Be brief and pointed.
   };
 
   return scenarios[ctx.scenarioType ?? "Discovery Call"] ?? scenarios["Discovery Call"];
+}
+
+export type CallOutcome = "buy" | "next_meeting" | "discuss_with_team";
+
+export function getCallOutcome(state: SimulationState): CallOutcome {
+  const trust = state.trust_level;
+  const mood = state.buyer_mood;
+  const facts = state.facts_discovered;
+  const discoveredCount = Object.values(facts).filter(Boolean).length;
+  const reachedClosing = state.stage === "closing";
+
+  // Buy: high trust, positive mood, most facts discovered, reached closing
+  if (trust >= 70 && mood >= 3 && discoveredCount >= 3 && reachedClosing) {
+    return "buy";
+  }
+
+  // Next meeting: moderate trust, at least some discovery done, neutral-to-positive mood
+  if (trust >= 45 && discoveredCount >= 2 && mood >= -2) {
+    return "next_meeting";
+  }
+
+  // Discuss with team: everything else — not convinced enough to commit personally
+  return "discuss_with_team";
+}
+
+export function getCallOutcomePrompt(outcome: CallOutcome): string {
+  switch (outcome) {
+    case "buy":
+      return `CALL OUTCOME GUIDANCE — You are convinced and ready to buy. If the seller asks for a decision or next steps, say yes — you're ready to move forward. Express confidence in the solution. Don't raise new objections at this stage.`;
+    case "next_meeting":
+      return `CALL OUTCOME GUIDANCE — You are interested but not ready to commit today. If the seller asks for a decision, say you'd like a follow-up meeting to go deeper (e.g. see a demo, review a proposal, involve your team). Be positive but non-committal. Suggest a specific next step like scheduling another call.`;
+    case "discuss_with_team":
+      return `CALL OUTCOME GUIDANCE — You are not convinced enough to decide on your own. If the seller asks for a decision, say you need to discuss with your team/CFO/leadership before making a commitment. Be polite but firm — don't let the seller pressure you into a yes. Mention specific concerns or gaps that make you hesitant.`;
+  }
 }
