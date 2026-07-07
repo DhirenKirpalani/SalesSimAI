@@ -97,6 +97,30 @@ function GenerationSteps({ activeStep }: { activeStep: number }) {
   );
 }
 
+interface GeneratedPersona {
+  name: string;
+  jobTitle: string;
+  company: string;
+  industry: string;
+  personality: string;
+  personalityTraits: string;
+  painPoints: string[];
+  painPointsCurrentProcess: string;
+  painPointsImpact: string;
+  goals: string[];
+  companyGoal: string;
+  personalMotivation: string;
+  communicationStyle: string;
+  communicationLanguage: string;
+  priorVendorExperience: string;
+  decisionCriteria: string;
+  hiddenConcern: string;
+  meetingSource: string;
+  budgetStatus: string;
+  timelinePressure: string;
+  sampleDialogues: string;
+}
+
 interface GeneratedScenario {
   seller_company: string;
   seller_product: string;
@@ -106,11 +130,14 @@ interface GeneratedScenario {
   difficulty: string;
   duration: number;
   context_note: string;
-  custom_persona: Record<string, unknown>;
+  custom_persona: GeneratedPersona;
   avatar_name: string;
   avatar_id: string;
   voice_id: string;
+  voice_avatar_image_url?: string;
+  elevenlabs_voice_id?: string;
   evaluation_framework: string;
+  custom_evaluation_framework: string;
   scoring_criteria: string;
 }
 
@@ -253,7 +280,7 @@ export default function CreateFromKBPage() {
     );
   };
 
-  const updatePersona = (index: number, field: string, value: string | null) => {
+  const updatePersona = (index: number, field: string, value: string | string[] | null) => {
     setScenarios((prev) =>
       prev.map((s, i) =>
         i === index ? { ...s, custom_persona: { ...s.custom_persona, [field]: value ?? "" } } : s
@@ -557,11 +584,117 @@ export default function CreateFromKBPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs">Opening Line</Label>
+                <Label className="text-xs">Personality Traits</Label>
+                <Textarea
+                  value={String(selectedScenario.custom_persona.personalityTraits || "")}
+                  onChange={(e) => updatePersona(selectedIndex, "personalityTraits", e.target.value)}
+                  className="rounded-lg min-h-[60px]"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Pain Points</Label>
+                  <Textarea
+                    value={Array.isArray(selectedScenario.custom_persona.painPoints) ? selectedScenario.custom_persona.painPoints.join("\n") : ""}
+                    onChange={(e) => updatePersona(selectedIndex, "painPoints", e.target.value.split("\n"))}
+                    className="rounded-lg min-h-[80px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Goals</Label>
+                  <Textarea
+                    value={Array.isArray(selectedScenario.custom_persona.goals) ? selectedScenario.custom_persona.goals.join("\n") : ""}
+                    onChange={(e) => updatePersona(selectedIndex, "goals", e.target.value.split("\n"))}
+                    className="rounded-lg min-h-[80px]"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Pain Process</Label>
+                  <Textarea
+                    value={String(selectedScenario.custom_persona.painPointsCurrentProcess || "")}
+                    onChange={(e) => updatePersona(selectedIndex, "painPointsCurrentProcess", e.target.value)}
+                    className="rounded-lg min-h-[80px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Pain Impact</Label>
+                  <Textarea
+                    value={String(selectedScenario.custom_persona.painPointsImpact || "")}
+                    onChange={(e) => updatePersona(selectedIndex, "painPointsImpact", e.target.value)}
+                    className="rounded-lg min-h-[80px]"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Company Goal</Label>
+                  <Textarea
+                    value={String(selectedScenario.custom_persona.companyGoal || "")}
+                    onChange={(e) => updatePersona(selectedIndex, "companyGoal", e.target.value)}
+                    className="rounded-lg min-h-[80px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Personal Motivation</Label>
+                  <Textarea
+                    value={String(selectedScenario.custom_persona.personalMotivation || "")}
+                    onChange={(e) => updatePersona(selectedIndex, "personalMotivation", e.target.value)}
+                    className="rounded-lg min-h-[80px]"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Communication Language</Label>
+                <Textarea
+                  value={String(selectedScenario.custom_persona.communicationLanguage || "")}
+                  onChange={(e) => updatePersona(selectedIndex, "communicationLanguage", e.target.value)}
+                  className="rounded-lg min-h-[60px]"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Prior Vendor Experience</Label>
+                  <Textarea
+                    value={String(selectedScenario.custom_persona.priorVendorExperience || "")}
+                    onChange={(e) => updatePersona(selectedIndex, "priorVendorExperience", e.target.value)}
+                    className="rounded-lg min-h-[80px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Decision Criteria</Label>
+                  <Textarea
+                    value={String(selectedScenario.custom_persona.decisionCriteria || "")}
+                    onChange={(e) => updatePersona(selectedIndex, "decisionCriteria", e.target.value)}
+                    className="rounded-lg min-h-[80px]"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Budget</Label>
+                  <Input
+                    value={String(selectedScenario.custom_persona.budgetStatus || "")}
+                    onChange={(e) => updatePersona(selectedIndex, "budgetStatus", e.target.value)}
+                    className="rounded-lg"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Timeline</Label>
+                  <Input
+                    value={String(selectedScenario.custom_persona.timelinePressure || "")}
+                    onChange={(e) => updatePersona(selectedIndex, "timelinePressure", e.target.value)}
+                    className="rounded-lg"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Sample Dialogues</Label>
                 <Textarea
                   value={String(selectedScenario.custom_persona.sampleDialogues || "")}
                   onChange={(e) => updatePersona(selectedIndex, "sampleDialogues", e.target.value)}
-                  className="rounded-lg min-h-[60px]"
+                  className="rounded-lg min-h-[100px]"
                 />
               </div>
             </CardContent>

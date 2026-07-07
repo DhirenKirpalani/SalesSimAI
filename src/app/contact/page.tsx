@@ -4,7 +4,7 @@ import { Metadata } from "next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Mail, MapPin, Phone } from "lucide-react";
+import { Mail } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -32,41 +32,19 @@ export default function ContactPage() {
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            <div className="space-y-8">
-              <div className="flex items-start gap-4">
+            <div className="space-y-6">
+              <a href="mailto:dhiren@day1app.io" className="flex items-center gap-3 text-[#1B1A1E] font-medium hover:text-[#FF6B45] transition-colors">
                 <div className="w-10 h-10 rounded-lg border border-[#E7E4DF] bg-white flex items-center justify-center text-[#FF6B45] shrink-0">
                   <Mail className="w-5 h-5" />
                 </div>
-                <div>
-                  <h2 className="font-semibold text-[#1B1A1E] mb-1" style={{ fontFamily: "Poppins, sans-serif" }}>Email</h2>
-                  <a href="mailto:hello@day1.com" className="text-sm text-[#68646C] hover:text-[#FF6B45] transition-colors">
-                    hello@day1.com
-                  </a>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
+                dhiren@day1app.io
+              </a>
+              <a href="mailto:derek@day1app.io" className="flex items-center gap-3 text-[#1B1A1E] font-medium hover:text-[#FF6B45] transition-colors">
                 <div className="w-10 h-10 rounded-lg border border-[#E7E4DF] bg-white flex items-center justify-center text-[#FF6B45] shrink-0">
-                  <Phone className="w-5 h-5" />
+                  <Mail className="w-5 h-5" />
                 </div>
-                <div>
-                  <h2 className="font-semibold text-[#1B1A1E] mb-1" style={{ fontFamily: "Poppins, sans-serif" }}>Phone</h2>
-                  <a href="tel:+1234567890" className="text-sm text-[#68646C] hover:text-[#FF6B45] transition-colors">
-                    +1 (234) 567-890
-                  </a>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg border border-[#E7E4DF] bg-white flex items-center justify-center text-[#FF6B45] shrink-0">
-                  <MapPin className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="font-semibold text-[#1B1A1E] mb-1" style={{ fontFamily: "Poppins, sans-serif" }}>Office</h2>
-                  <p className="text-sm text-[#68646C]">
-                    100 Fintech Plaza, Suite 400<br />
-                    San Francisco, CA 94105
-                  </p>
-                </div>
-              </div>
+                derek@day1app.io
+              </a>
             </div>
 
             <form className="rounded-2xl border border-[#E7E4DF] bg-white p-6 lg:p-8 shadow-sm space-y-5">
