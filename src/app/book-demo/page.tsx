@@ -63,8 +63,8 @@ export default function BookDemoPage() {
                   <h2 className="font-semibold text-[#1B1A1E] mb-1" style={{ fontFamily: "Poppins, sans-serif" }}>Questions first</h2>
                   <p className="text-sm text-[#68646C]">
                     Not ready for a demo? Email us at{" "}
-                    <a href="mailto:hello@salessim.ai" className="hover:text-[#FF6B45] transition-colors">
-                      hello@salessim.ai
+                    <a href="mailto:hello@day1.com" className="hover:text-[#FF6B45] transition-colors">
+                      hello@day1.com
                     </a>
                     .
                   </p>

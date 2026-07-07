@@ -135,7 +135,7 @@ interface FormState {
   customEvaluationFramework: string;
 }
 
-const LS_KEY = "salesSimAI_createScenario";
+const LS_KEY = "day1_createScenario";
 
 const INITIAL: FormState = {
   sellerCompany: "",
