@@ -141,6 +141,7 @@ export default function WorkspaceDetailPage() {
                     className="w-full h-full object-contain"
                     loading="eager"
                     decoding="async"
+                    fetchPriority="high"
                   />
                 ) : (
                   <Briefcase className="w-12 h-12 sm:w-14 sm:h-14 text-primary/80" />

@@ -150,8 +150,9 @@ export default function WorkspacePage() {
                       src={activeWorkspace.logo_url}
                       alt={activeWorkspace.name}
                       className="w-full h-full object-contain"
-                      loading="lazy"
+                      loading="eager"
                       decoding="async"
+                      fetchPriority="high"
                     />
                   ) : (
                     <Briefcase className="w-12 h-12 text-primary" />
@@ -202,8 +203,9 @@ export default function WorkspacePage() {
                         src={workspace.logo_url}
                         alt={workspace.name}
                         className="w-full h-full object-contain"
-                        loading="lazy"
+                        loading="eager"
                         decoding="async"
+                        fetchPriority="high"
                       />
                     ) : (
                       <Building2 className="w-7 h-7 text-primary" />
