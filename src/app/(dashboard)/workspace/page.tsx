@@ -105,8 +105,17 @@ export default function WorkspacePage() {
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto py-10 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      <div className="max-w-5xl mx-auto py-8 space-y-8 animate-pulse">
+        <div className="space-y-2">
+          <div className="h-9 w-48 bg-muted rounded" />
+          <div className="h-4 w-96 bg-muted rounded" />
+        </div>
+        <div className="h-48 bg-muted rounded-2xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-32 bg-muted rounded-2xl" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -141,6 +150,8 @@ export default function WorkspacePage() {
                       src={activeWorkspace.logo_url}
                       alt={activeWorkspace.name}
                       className="w-full h-full object-contain"
+                      loading="lazy"
+                      decoding="async"
                     />
                   ) : (
                     <Briefcase className="w-12 h-12 text-primary" />
@@ -191,6 +202,8 @@ export default function WorkspacePage() {
                         src={workspace.logo_url}
                         alt={workspace.name}
                         className="w-full h-full object-contain"
+                        loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <Building2 className="w-7 h-7 text-primary" />

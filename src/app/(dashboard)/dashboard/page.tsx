@@ -266,8 +266,28 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="space-y-6 animate-pulse">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="h-8 w-48 bg-muted rounded" />
+            <div className="h-4 w-96 bg-muted rounded" />
+          </div>
+          <div className="h-10 w-32 bg-muted rounded-xl" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-32 bg-muted rounded-2xl" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-32 bg-muted rounded-2xl" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 h-80 bg-muted rounded-2xl" />
+          <div className="h-80 bg-muted rounded-2xl" />
+        </div>
       </div>
     );
   }
@@ -281,6 +301,10 @@ export default function DashboardPage() {
               src={orgLogoUrl}
               alt={organization ?? "Company"}
               className="h-8 max-w-[160px] object-contain mb-3"
+              loading="eager"
+              decoding="async"
+              width="160"
+              height="32"
             />
           )}
           <h1 className="text-2xl font-bold tracking-tight">

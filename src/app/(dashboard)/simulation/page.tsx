@@ -2680,7 +2680,13 @@ function HeyGenTestInner() {
                 {/* Company logo */}
                 <div className="w-12 h-12 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
                   {orgLogoUrl ? (
-                    <img src={orgLogoUrl} alt={orgName ?? "Company"} className="w-full h-full object-contain p-1" />
+                    <img
+                      src={orgLogoUrl}
+                      alt={orgName ?? "Company"}
+                      className="w-full h-full object-contain p-1"
+                      loading="lazy"
+                      decoding="async"
+                    />
                   ) : (
                     <Building2 className="w-6 h-6 text-orange-500" />
                   )}

@@ -528,6 +528,8 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const documentType = searchParams.get("document_type") ?? undefined;
+    const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 100);
+    const offset = parseInt(searchParams.get("offset") ?? "0");
 
     const supabase = await createClient();
     const adminCheck = await requireOrgMember(supabase);
@@ -538,19 +540,28 @@ export async function GET(req: NextRequest) {
 
     // Use service role to bypass RLS so all org members can read documents
     const svc = serviceSupabase();
+    
+    // Only fetch content when filtering by document_type (for specific use cases)
+    // Otherwise, skip content to reduce payload size dramatically
+    const selectFields = documentType
+      ? "id, name, doc_type, document_type, file_path, created_at, created_by, content"
+      : "id, name, doc_type, document_type, file_path, created_at, created_by";
+    
     let query = svc
       .from("company_documents")
-      .select("id, name, doc_type, document_type, file_path, created_at, created_by, content")
+      .select(selectFields, { count: "exact" })
       .eq("organization_id", orgId);
 
     if (documentType) {
       query = query.eq("document_type", documentType);
     }
 
-    const { data: rows } = await query.order("created_at", { ascending: false });
+    const { data: rows, count } = await query
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
 
     // Enrich with creator info
-    const creatorIds = [...new Set((rows ?? []).map((d) => d.created_by).filter(Boolean))];
+    const creatorIds = [...new Set((rows ?? []).map((d: any) => d.created_by).filter(Boolean))];
     let creators: Record<string, { full_name: string | null; email: string; role: string | null }> = {};
     if (creatorIds.length > 0) {
       const { data: profiles } = await svc
@@ -563,13 +574,17 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({
-      documents: (rows ?? []).map((d) => ({
+      documents: (rows ?? []).map((d: any) => ({
         ...d,
         creator_name: creators[d.created_by ?? ""]?.full_name || null,
         creator_email: creators[d.created_by ?? ""]?.email || null,
         creator_role: creators[d.created_by ?? ""]?.role || null,
         chunk_count: 0, // frontend can optionally fetch this; not needed for the list
       })),
+      total: count ?? 0,
+      limit,
+      offset,
+      hasMore: (count ?? 0) > offset + limit,
     });
   } catch (err) {
     console.error("[api/company/documents GET]", err);

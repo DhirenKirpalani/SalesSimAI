@@ -288,13 +288,7 @@ function CreateScenarioPage() {
     : "Untitled Scenario";
 
   const canGoNext = () => {
-    if (step === 1) return form.sellerCompany.trim() && form.sellerProduct.trim() && form.sellerDescription.trim().length >= 20;
-    if (step === 2) {
-      if (form.usePresetPersona) return !!form.presetPersonaId;
-      return form.customPersonaName.trim() && form.customPersonaTitle.trim() && form.customPersonaCompany.trim();
-    }
-    if (step === 3) return !!form.avatarId;
-    if (step === 4) return !!form.scenarioType;
+    // Allow free navigation - no validation required
     return true;
   };
 
@@ -415,15 +409,18 @@ function CreateScenarioPage() {
           const done = step > s.id;
           return (
             <div key={s.id} className="flex items-center gap-2">
-              <div className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
-                done ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
-                active ? "bg-primary/10 text-primary" :
-                "bg-muted text-muted-foreground"
-              )}>
+              <button
+                onClick={() => setStep(s.id)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer hover:scale-105",
+                  done ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20" :
+                  active ? "bg-primary/10 text-primary hover:bg-primary/20" :
+                  "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
                 {done ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
                 <span className="hidden sm:inline">{s.label}</span>
-              </div>
+              </button>
               {i < STEPS.length - 1 && (
                 <div className={cn("flex-1 h-px w-4 bg-border", done && "bg-emerald-500/30")} />
               )}

@@ -230,9 +230,22 @@ function AnalysisContent() {
 
   if (loading || generating) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-        <Loader2 className="w-6 h-6 animate-spin" />
-        <p className="text-sm">{generating ? "Generating AI analysis…" : "Loading…"}</p>
+      <div className="space-y-6 max-w-6xl mx-auto animate-pulse">
+        <div className="space-y-2">
+          <div className="h-8 w-48 bg-muted rounded" />
+          <div className="h-4 w-96 bg-muted rounded" />
+        </div>
+        {generating && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Generating AI analysis…</span>
+          </div>
+        )}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 h-96 bg-muted rounded-2xl" />
+          <div className="h-96 bg-muted rounded-2xl" />
+        </div>
+        <div className="h-64 bg-muted rounded-2xl" />
       </div>
     );
   }
