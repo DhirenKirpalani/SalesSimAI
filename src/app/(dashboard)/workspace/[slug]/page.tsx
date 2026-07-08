@@ -135,7 +135,13 @@ export default function WorkspaceDetailPage() {
             <div className="relative shrink-0">
               <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white shadow-sm border flex items-center justify-center p-3">
                 {org.logo_url ? (
-                  <img src={org.logo_url} alt={org.name} className="w-full h-full object-contain" />
+                  <img
+                    src={org.logo_url}
+                    alt={org.name}
+                    className="w-full h-full object-contain"
+                    loading="eager"
+                    decoding="async"
+                  />
                 ) : (
                   <Briefcase className="w-12 h-12 sm:w-14 sm:h-14 text-primary/80" />
                 )}

@@ -102,6 +102,18 @@ export default function SimulationsPage() {
     return sessions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   }, [sessions, page]);
 
+  if (loading) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto animate-pulse">
+        <div className="space-y-2">
+          <div className="h-8 w-48 bg-muted rounded" />
+          <div className="h-4 w-96 bg-muted rounded" />
+        </div>
+        <div className="h-96 bg-muted rounded-2xl" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div>

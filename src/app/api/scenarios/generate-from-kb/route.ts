@@ -89,11 +89,13 @@ interface GeneratedScenario {
   scoring_criteria: string;
 }
 
-const SCENARIO_GENERATION_PROMPT = `You are an expert sales enablement AI. You receive two sources:
+function buildScenarioGenerationPrompt(count: number, allowedScenarioTypes: string[]): string {
+  const typeList = allowedScenarioTypes.join(", ");
+  return `You are an expert sales enablement AI. You receive two sources:
 1. WEBSITE CONTEXT: structured seller company/product context extracted from the vendor's website.
 2. UPLOADED DOCUMENTS (PRIMARY SOURCE): raw documents, likely containing the buyer persona, buyer knowledge, buyer behavior, and scenario brief for a sales simulation.
 
-Create 3 distinct, highly realistic sales simulation scenarios for a seller to practice against.
+Create exactly ${count} distinct, highly realistic sales simulation scenarios for a seller to practice against.
 
 CRITICAL INSTRUCTIONS:
 - The UPLOADED DOCUMENTS are the PRIMARY source for the buyer persona, buyer behavior, scenario context, and any hidden facts or disclosure rules. Use them as the authority for who the buyer is, what they know, how they behave, and what scenario to run.
@@ -102,6 +104,11 @@ CRITICAL INSTRUCTIONS:
 - If the documents define a specific scenario type or sales situation, use it. Do not override it with generic website-derived scenarios.
 - Read the documents deeply. Buyer knowledge, behavior rules, disclosure ladders, voice samples, and scenario briefs are all valid content to extract from.
 - If documents include instructions like "this is your memory" or "do not volunteer," treat those as behavior rules for the buyer, not as seller facts.
+
+SCENARIO TYPE CONSTRAINTS:
+- You may ONLY use these scenario types: ${typeList}
+- Each generated scenario must use one of the allowed types above.
+- If only one type is allowed, all ${count} scenarios must use that type but with different buyers, use cases, and angles.
 
 Return ONLY valid JSON in this exact shape:
 
@@ -112,7 +119,7 @@ Return ONLY valid JSON in this exact shape:
       "seller_product": "<short product description>",
       "product_type": "<one of: payment, eor, cards>",
       "seller_description": "<2-3 sentence description for the AI seller. Include ideal customer, key value, differentiation, and a specific use case from the profile.>",
-      "scenario_type": "<one of: First Discovery Call, Objection Handling, Product Demo, Negotiation, Executive Presentation, Renewal, Win-Back, Pitch, Product Knowledge Interview, Global EOR Onboarding, Multi-Country Payroll Rollout, Compliance & Benefits Review, Expense & Cards Rollout, Remote Team Expansion>",
+      "scenario_type": "<one of: ${typeList}>",
       "difficulty": "<Beginner|Intermediate|Advanced|Expert>",
       "duration": <5|10|15|20>,
       "context_note": "<Detailed scenario briefing for the AI buyer. Include: what the seller represents, buyer situation, goals, pain points, what to ask, what NOT to do, and specific company/product references.>",
@@ -137,7 +144,7 @@ Return ONLY valid JSON in this exact shape:
         "meetingSource": "<how the meeting was booked — e.g. Inbound demo request from website, Warm referral from existing customer, Met at fintech conference, LinkedIn outreach, SDR cold call, Partner introduction. Make it specific.>",
         "budgetStatus": "<budget authority and constraints — e.g. 'Can approve up to $50K; above needs CFO sign-off.'>",
         "timelinePressure": "<decision timeline — e.g. 'Needs to go live in 6 weeks before APAC expansion.'>",
-        "sampleDialogues": "<2-3 realistic lines the buyer might say at the start of the call or when pushed. Format as Buyer: \"...\" Seller: \"...\" Buyer: \"...\"""
+        "sampleDialogues": "<2-3 realistic lines the buyer might say at the start of the call or when pushed. Format as Buyer: \"...\" Seller: \"...\" Buyer: \"...\""
       },
       "avatar_name": "<matching first name from custom_persona.name>",
       "voice_avatar_image_url": "",
@@ -149,15 +156,15 @@ Return ONLY valid JSON in this exact shape:
   ]
 }
 
-Rules for the 3 scenarios:
+Rules for the ${count} scenarios:
 - Read BOTH the company profile AND the uploaded documents deeply. Use the specific products, use cases, pain_points_solved, target_customer_segments, and buyer_personas found in the sources to decide what scenarios to create.
-- Each of the 3 scenarios must be a DIFFERENT scenario_type and must map to a DIFFERENT real use case or product angle from the sources. Do not default to generic Discovery/ Objection/ Demo unless the sources truly support only those.
+- Each of the ${count} scenarios must be a DIFFERENT scenario_type (unless only one type is allowed) and must map to a DIFFERENT real use case or product angle from the sources. Do not default to generic Discovery/ Objection/ Demo unless the sources truly support only those.
 - Choose scenario types that fit the use cases found. Examples:
   * If the source highlights "hiring remote teams in APAC" → create a Global EOR Onboarding scenario.
   * If the source highlights "multi-country payroll consolidation" → create a Multi-Country Payroll Rollout scenario.
   * If the source highlights "benefits & compliance" → create a Compliance & Benefits Review scenario.
   * If the source highlights "expense management" → create an Expense & Cards Rollout scenario.
-- Ensure the 3 scenarios cover different stages of the sales cycle where possible (e.g. one early discovery, one mid-cycle demo/objection, one late-stage negotiation/executive), but only if the sources support it.
+- Ensure the ${count} scenarios cover different stages of the sales cycle where possible (e.g. one early discovery, one mid-cycle demo/objection, one late-stage negotiation/executive), but only if the sources support it.
 - Each scenario must use a DIFFERENT buyer persona (different role, name, personality, goals, pain points, and company). Use the buyer_personas from the profile if available; otherwise infer realistic personas from target_customer_segments and document content.
 - Each scenario must have a DIFFERENT real buyer company name. Do not use generic placeholders like "Their Company" or "Buyer Inc". Use realistic B2B company names relevant to the industry and use case.
 - meetingSource must be realistic and specific to the buyer persona and company.
@@ -168,6 +175,7 @@ Rules for the 3 scenarios:
 - Make the buyers skeptical, realistic, and hard to sell to. Do not make them too easy.
 - Every field in the JSON must be filled with a non-empty value. Leave no blank strings except voice_avatar_image_url and elevenlabs_voice_id which the UI will set later.
 - Use the exact JSON keys shown above. Do not rename them.`;
+}
 
 async function extractProfileFromUrls(urls: string[], reqOrigin: string): Promise<{ profile: CompanyProfile | null; error?: string }> {
   if (urls.length === 0) return { profile: null, error: "No URLs in knowledge base." };
@@ -259,14 +267,14 @@ async function extractProfileFromDocuments(documents: { name: string; content: s
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4.1",
         messages: [
           { role: "system", content: DOCUMENT_EXTRACTION_PROMPT },
-          { role: "user", content: `DOCUMENT CONTENT:\n${combinedText.slice(0, 16000)}` },
+          { role: "user", content: `DOCUMENT CONTENT:\n${combinedText.slice(0, 50000)}` },
         ],
         response_format: { type: "json_object" },
         temperature: 0.3,
-        max_tokens: 4000,
+        max_tokens: 8000,
       }),
     });
     if (!res.ok) {
@@ -297,7 +305,9 @@ async function fetchOrgDocuments(supabase: any, organizationId: string): Promise
 
 async function generateScenariosWithLLM(
   websiteProfile: CompanyProfile | null,
-  documentsText: string
+  documentsText: string,
+  count: number,
+  allowedScenarioTypes: string[]
 ): Promise<GeneratedScenario[]> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
@@ -311,6 +321,8 @@ async function generateScenariosWithLLM(
     documentsText || "No documents uploaded.",
   ].join("\n");
 
+  const prompt = buildScenarioGenerationPrompt(count, allowedScenarioTypes);
+
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -318,14 +330,14 @@ async function generateScenariosWithLLM(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1",
       messages: [
-        { role: "system", content: SCENARIO_GENERATION_PROMPT },
+        { role: "system", content: prompt },
         { role: "user", content: userContent },
       ],
       response_format: { type: "json_object" },
       temperature: 0.4,
-      max_tokens: 8000,
+      max_tokens: 16000,
     }),
   });
 
@@ -344,7 +356,7 @@ async function generateScenariosWithLLM(
 
 export async function POST(req: NextRequest) {
   try {
-    const { avatarId, voiceId, selectedUrls, selectedDocIds } = await req.json();
+    const { avatarId, voiceId, selectedUrls, selectedDocIds, count, scenarioTypes } = await req.json();
     const finalAvatarId = avatarId || process.env.LIVEAVATAR_AVATAR_ID;
     if (!finalAvatarId) return NextResponse.json({ error: "No avatar available. Set LIVEAVATAR_AVATAR_ID env var or select an avatar." }, { status: 400 });
 
@@ -420,7 +432,29 @@ export async function POST(req: NextRequest) {
       await supabase.from("organizations").update({ profile_data: websiteProfile }).eq("id", organizationId);
     }
 
-    const generated = await generateScenariosWithLLM(websiteProfile, documentsText);
+    const DEFAULT_SCENARIO_TYPES = [
+      "First Discovery Call",
+      "Objection Handling",
+      "Negotiation",
+      "Product Demo",
+      "Pitch",
+      "Win-Back",
+      "Renewal",
+      "Executive Presentation",
+      "Product Knowledge Interview",
+      "Global EOR Onboarding",
+      "Multi-Country Payroll Rollout",
+      "Compliance & Benefits Review",
+      "Expense & Cards Rollout",
+      "Remote Team Expansion",
+    ];
+
+    const requestedCount = typeof count === "number" ? Math.max(1, Math.min(5, count)) : 3;
+    const allowedScenarioTypes = Array.isArray(scenarioTypes) && scenarioTypes.length > 0
+      ? scenarioTypes.filter((t: unknown) => typeof t === "string")
+      : DEFAULT_SCENARIO_TYPES;
+
+    const generated = await generateScenariosWithLLM(websiteProfile, documentsText, requestedCount, allowedScenarioTypes);
     const scenariosWithAvatar = generated.map((s) => ({
       ...s,
       avatar_id: finalAvatarId,

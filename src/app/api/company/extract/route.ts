@@ -337,7 +337,7 @@ function combineScrapedContent(contentMap: Map<string, string>): string {
     }
   }
   
-  return sections.join("\n\n").slice(0, 15000); // cap at 15k tokens for GPT-4o-mini
+  return sections.join("\n\n").slice(0, 50000); // cap at 50k tokens for GPT-4.1
 }
 
 async function extractWithLLM(text: string) {
@@ -351,14 +351,14 @@ async function extractWithLLM(text: string) {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1",
       messages: [
         { role: "system", content: EXTRACTION_PROMPT },
         { role: "user", content: `WEBSITE CONTENT:\n${text}` },
       ],
       response_format: { type: "json_object" },
       temperature: 0.3,
-      max_tokens: 4000,
+      max_tokens: 8000,
     }),
   });
 

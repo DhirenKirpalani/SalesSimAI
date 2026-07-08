@@ -137,8 +137,12 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="max-w-2xl mx-auto py-8 space-y-6 animate-pulse">
+        <div className="space-y-2">
+          <div className="h-8 w-32 bg-muted rounded" />
+          <div className="h-4 w-64 bg-muted rounded" />
+        </div>
+        <div className="h-96 bg-muted rounded-2xl" />
       </div>
     );
   }

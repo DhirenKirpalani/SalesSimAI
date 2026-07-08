@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Sparkles, RefreshCw, Save, AlertCircle, CheckCircle2, Check, Database, FileText, FileSearch, UserCog, MessageSquare, Wand2 } from "lucide-react";
+import { ArrowLeft, Loader2, Sparkles, RefreshCw, Save, AlertCircle, CheckCircle2, Check, ChevronDown, CircleStop, Database, FileText, FileSearch, UserCog, MessageSquare, Wand2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AvatarPicker } from "@/components/AvatarPicker";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,82 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const DIFFICULTIES = ["Beginner", "Intermediate", "Advanced", "Expert"] as const;
 const DURATIONS = [5, 10, 15, 20];
+
+function ScenarioTypeMultiSelect({
+  options,
+  selected,
+  onChange,
+}: {
+  options: string[];
+  selected: string[];
+  onChange: (selected: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  const toggle = (option: string) => {
+    onChange(
+      selected.includes(option)
+        ? selected.filter((o) => o !== option)
+        : [...selected, option]
+    );
+  };
+
+  const selectAll = () => onChange([...options]);
+  const deselectAll = () => onChange([]);
+
+  return (
+    <div className="space-y-2" ref={containerRef}>
+      <Label className="text-xs text-muted-foreground">Allowed scenario types</Label>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="w-full flex items-center justify-between rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring"
+      >
+        <span>{selected.length === options.length ? "All selected" : `${selected.length} of ${options.length} selected`}</span>
+        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+      </button>
+      {open && (
+        <div className="absolute z-10 w-full max-w-sm rounded-lg border border-border bg-card shadow-lg p-2 space-y-1 max-h-64 overflow-y-auto">
+          <div className="flex items-center justify-between px-2 py-1">
+            <button type="button" onClick={selectAll} className="text-[10px] text-primary hover:underline">
+              Select all
+            </button>
+            <button type="button" onClick={deselectAll} className="text-[10px] text-muted-foreground hover:text-foreground">
+              Deselect all
+            </button>
+          </div>
+          <div className="h-px bg-border" />
+          {options.map((option) => (
+            <label
+              key={option}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer text-xs"
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(option)}
+                onChange={() => toggle(option)}
+                className="w-3.5 h-3.5 rounded border-border text-primary"
+              />
+              <span className="flex-1">{option}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SCENARIO_TYPES = [
   "First Discovery Call",
   "Objection Handling",
@@ -55,7 +131,7 @@ const GENERATION_STEPS = [
 
 function GenerationSteps({ activeStep }: { activeStep: number }) {
   return (
-    <div className="space-y-4 w-full max-w-md mx-auto">
+    <div className="space-y-4 w-full max-w-md mx-auto text-left">
       {GENERATION_STEPS.map((step, index) => {
         const isCompleted = index < activeStep;
         const isActive = index === activeStep;
@@ -78,16 +154,16 @@ function GenerationSteps({ activeStep }: { activeStep: number }) {
               {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className={cn("text-sm font-medium", isActive && "text-primary")}>{step.label}</p>
+              <p className={cn("text-sm font-medium", isActive && "text-primary")}>
+                {step.label}
                 {isActive && (
-                  <motion.div
+                  <motion.span
                     animate={{ opacity: [0.4, 1, 0.4] }}
                     transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                    className="w-1.5 h-1.5 rounded-full bg-primary"
+                    className="inline-block align-middle ml-2 w-1.5 h-1.5 rounded-full bg-primary"
                   />
                 )}
-              </div>
+              </p>
               <p className="text-xs text-muted-foreground">{step.description}</p>
             </div>
           </motion.div>
@@ -171,6 +247,9 @@ export default function CreateFromKBPage() {
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+  const [scenarioCount, setScenarioCount] = useState<number>(3);
+  const [selectedScenarioTypes, setSelectedScenarioTypes] = useState<string[]>([...SCENARIO_TYPES]);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const selectedScenario = scenarios[selectedIndex];
 
@@ -233,15 +312,19 @@ export default function CreateFromKBPage() {
     setActiveStep(0);
     setError("");
     setStatus("generating");
+    abortControllerRef.current = new AbortController();
     try {
       const res = await fetch("/api/scenarios/generate-from-kb", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: abortControllerRef.current.signal,
         body: JSON.stringify({
           avatarId: avatarId || undefined,
           voiceId: voiceId || undefined,
           selectedUrls,
           selectedDocIds,
+          count: scenarioCount,
+          scenarioTypes: selectedScenarioTypes,
         }),
       });
       const data = await res.json();
@@ -256,12 +339,21 @@ export default function CreateFromKBPage() {
       if (generated[0]?.voice_id) setVoiceId(generated[0].voice_id || "");
       setStatus("review");
     } catch (e: any) {
-      setError(e.message || "Failed to generate scenarios from knowledge base");
-      setStatus("error");
+      if (e.name === "AbortError") {
+        setStatus("select");
+      } else {
+        setError(e.message || "Failed to generate scenarios from knowledge base");
+        setStatus("error");
+      }
     } finally {
       setLoading(false);
       setGenerating(false);
+      abortControllerRef.current = null;
     }
+  };
+
+  const stopGeneration = () => {
+    abortControllerRef.current?.abort();
   };
 
   const handleSaveAll = async () => {
@@ -479,13 +571,49 @@ export default function CreateFromKBPage() {
               )}
             </div>
 
+            <div className="h-px bg-border" />
+
+            {/* Scenario generation options */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Wand2 className="w-4 h-4 text-muted-foreground" />
+                Generation options
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Number of scenarios</Label>
+                  <Select
+                    value={String(scenarioCount)}
+                    onValueChange={(value) => setScenarioCount(Number(value))}
+                  >
+                    <SelectTrigger className="rounded-lg">
+                      <SelectValue placeholder="Select count" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n} scenario{n === 1 ? "" : "s"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <ScenarioTypeMultiSelect
+                  options={SCENARIO_TYPES}
+                  selected={selectedScenarioTypes}
+                  onChange={setSelectedScenarioTypes}
+                />
+              </div>
+            </div>
+
             <div className="flex items-center justify-between pt-2">
               <p className="text-xs text-muted-foreground">
                 {selectedUrls.length + selectedDocIds.length} source{selectedUrls.length + selectedDocIds.length === 1 ? "" : "s"} selected
               </p>
               <Button
                 onClick={generateScenarios}
-                disabled={!canGenerate || loading}
+                disabled={!canGenerate || loading || selectedScenarioTypes.length === 0}
                 className="rounded-lg gap-2"
               >
                 {loading ? (
@@ -503,15 +631,21 @@ export default function CreateFromKBPage() {
       {/* Generating state */}
       {status === "generating" && (
         <Card className="rounded-2xl border shadow-sm">
-          <CardContent className="py-10 px-6 text-center space-y-6">
+          <CardContent className="py-8 px-6 space-y-6">
             <div className="space-y-1">
-              <p className="text-sm font-medium text-foreground">Generating 3 scenarios from your knowledge base</p>
+              <p className="text-sm font-medium text-foreground">Generating {scenarioCount} scenario{scenarioCount === 1 ? "" : "s"} from your knowledge base</p>
               <p className="text-xs text-muted-foreground">This may take 30–60 seconds as AI reads your URLs and documents.</p>
             </div>
             <GenerationSteps activeStep={activeStep} />
-            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              Working on step {activeStep + 1} of {GENERATION_STEPS.length}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Working on step {activeStep + 1} of {GENERATION_STEPS.length}
+              </div>
+              <Button variant="outline" size="sm" onClick={stopGeneration} className="rounded-lg gap-1.5">
+                <CircleStop className="w-3.5 h-3.5" />
+                Stop generation
+              </Button>
             </div>
           </CardContent>
         </Card>

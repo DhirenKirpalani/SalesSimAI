@@ -130,6 +130,9 @@ export default function CompanyKnowledgePage() {
 
   // Document upload
   const [docs, setDocs] = useState<Document[]>([]);
+  const [docsTotal, setDocsTotal] = useState(0);
+  const [docsPage, setDocsPage] = useState(0);
+  const [docsHasMore, setDocsHasMore] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "success" | "error">("idle");
   const [uploadMessage, setUploadMessage] = useState("");
@@ -137,6 +140,7 @@ export default function CompanyKnowledgePage() {
   const [selectedDocumentType, setSelectedDocumentType] = useState("icp");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const DOCS_PER_PAGE = 20;
 
   // AI bulk upload
   const [bulkProductType, setBulkProductType] = useState("payment");
@@ -277,12 +281,20 @@ export default function CompanyKnowledgePage() {
     }
   }, []);
 
-  const fetchDocs = useCallback(async () => {
+  const fetchDocs = useCallback(async (page = 0) => {
     try {
-      const res = await fetch("/api/company/documents");
+      const offset = page * DOCS_PER_PAGE;
+      const res = await fetch(`/api/company/documents?limit=${DOCS_PER_PAGE}&offset=${offset}`);
       const data = await res.json();
       if (res.ok) {
-        setDocs(data.documents ?? []);
+        if (page === 0) {
+          setDocs(data.documents ?? []);
+        } else {
+          setDocs((prev) => [...prev, ...(data.documents ?? [])]);
+        }
+        setDocsTotal(data.total ?? 0);
+        setDocsHasMore(data.hasMore ?? false);
+        setDocsPage(page);
       }
     } catch (e) {
       console.error("[company-knowledge] fetch docs error:", e);
@@ -384,6 +396,23 @@ export default function CompanyKnowledgePage() {
     setUploading(true);
     setUploadStatus("idle");
 
+    // Optimistic UI: Add placeholder documents immediately
+    const optimisticDocs = selectedFiles.map((file) => ({
+      id: `temp-${Date.now()}-${Math.random()}`,
+      name: file.name,
+      doc_type: selectedProductType,
+      document_type: selectedDocumentType,
+      file_path: "",
+      created_at: new Date().toISOString(),
+      created_by: "",
+      creator_name: "Uploading...",
+      creator_email: null,
+      creator_role: null,
+      chunk_count: 0,
+      _optimistic: true,
+    }));
+    setDocs((prev) => [...optimisticDocs, ...prev]);
+
     const formData = new FormData();
     formData.append("productType", selectedProductType);
     formData.append("documentType", selectedDocumentType);
@@ -410,14 +439,20 @@ export default function CompanyKnowledgePage() {
         }
         setUploadMessage(parts.join(" · "));
         setSelectedFiles([]);
-        fetchDocs();
+        // Remove optimistic docs and fetch real data
+        setDocs((prev) => prev.filter((d: any) => !d._optimistic));
+        fetchDocs(0);
       } else {
         setUploadStatus("error");
         setUploadMessage(data.error || "Upload failed");
+        // Remove optimistic docs on error
+        setDocs((prev) => prev.filter((d: any) => !d._optimistic));
       }
     } catch {
       setUploadStatus("error");
       setUploadMessage("Upload failed");
+      // Remove optimistic docs on error
+      setDocs((prev) => prev.filter((d: any) => !d._optimistic));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -1223,6 +1258,19 @@ export default function CompanyKnowledgePage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+              {docsHasMore && (
+                <div className="pt-4 text-center border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fetchDocs(docsPage + 1)}
+                    className="gap-2"
+                  >
+                    <Loader2 className="w-3.5 h-3.5" />
+                    Load more ({docsTotal - docs.length} remaining)
+                  </Button>
                 </div>
               )}
             </CardContent>
