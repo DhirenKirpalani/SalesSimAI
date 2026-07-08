@@ -1446,11 +1446,18 @@ function HeyGenTestInner() {
     const load = async () => {
       try {
         const supabase = createClient();
-        const { data: scenario } = await supabase
-          .from(scenarioTable)
-          .select("seller_company, seller_product, seller_description, custom_persona, context_note, preset_persona_id, scenario_type, scoring_criteria, elevenlabs_voice_id, voice_avatar_image_url")
-          .eq("id", scenarioId)
-          .single();
+        
+        // Fetch scenario and org data in parallel for synchronized rendering
+        const [scenarioResult, orgResult] = await Promise.all([
+          supabase
+            .from(scenarioTable)
+            .select("seller_company, seller_product, seller_description, custom_persona, context_note, preset_persona_id, scenario_type, scoring_criteria, elevenlabs_voice_id, voice_avatar_image_url")
+            .eq("id", scenarioId)
+            .single(),
+          fetch("/api/company/org").then(res => res.json()).catch(() => ({ organization: null }))
+        ]);
+        
+        const scenario = scenarioResult.data;
         if (scenario) {
           const persona = scenario.custom_persona as any;
 
@@ -1537,25 +1544,16 @@ function HeyGenTestInner() {
           setElevenlabsVoiceId(elevenlabsVoiceIdParam ?? (scenario as any).elevenlabs_voice_id ?? null);
           setVoiceAvatarImageUrl((prev) => prev ?? (scenario as any).voice_avatar_image_url ?? null);
         }
+        
+        // Set org logo/name from parallel fetch
+        if (orgResult?.organization) {
+          setOrgLogoUrl(orgResult.organization.logo_url ?? null);
+          setOrgName(orgResult.organization.name ?? null);
+        }
       } catch { /* ignore */ }
     };
     load();
   }, [scenarioId, scenarioTable, setScenarioContext]);
-
-  // Fetch organization logo/name for the feedback modal
-  useEffect(() => {
-    const loadOrg = async () => {
-      try {
-        const res = await fetch("/api/company/org");
-        const data = await res.json();
-        if (data.organization) {
-          setOrgLogoUrl(data.organization.logo_url ?? null);
-          setOrgName(data.organization.name ?? null);
-        }
-      } catch { /* ignore */ }
-    };
-    loadOrg();
-  }, []);
 
   // Sync voice call transcripts into the page transcript (shows in Conversation modal)
   useEffect(() => {
@@ -2684,8 +2682,9 @@ function HeyGenTestInner() {
                       src={orgLogoUrl}
                       alt={orgName ?? "Company"}
                       className="w-full h-full object-contain p-1"
-                      loading="lazy"
+                      loading="eager"
                       decoding="async"
+                      fetchPriority="high"
                     />
                   ) : (
                     <Building2 className="w-6 h-6 text-orange-500" />

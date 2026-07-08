@@ -303,6 +303,7 @@ export default function DashboardPage() {
               className="h-8 max-w-[160px] object-contain mb-3"
               loading="eager"
               decoding="async"
+              fetchPriority="high"
               width="160"
               height="32"
             />
