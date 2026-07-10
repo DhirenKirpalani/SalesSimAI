@@ -36,7 +36,7 @@ export default function WorkspacePage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [workspacesLoading, setWorkspacesLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
@@ -50,6 +50,7 @@ export default function WorkspacePage() {
   }, []);
 
   const fetchWorkspaces = useCallback(async () => {
+    setWorkspacesLoading(true);
     try {
       const res = await fetch("/api/company/org/list");
       const data = await res.json();
@@ -60,7 +61,7 @@ export default function WorkspacePage() {
     } catch (err) {
       console.error("[WorkspacePage] fetch workspaces error:", err);
     } finally {
-      setLoading(false);
+      setWorkspacesLoading(false);
     }
   }, []);
 
@@ -103,23 +104,6 @@ export default function WorkspacePage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="max-w-5xl mx-auto py-8 space-y-8 animate-pulse">
-        <div className="space-y-2">
-          <div className="h-9 w-48 bg-muted rounded" />
-          <div className="h-4 w-96 bg-muted rounded" />
-        </div>
-        <div className="h-48 bg-muted rounded-2xl" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-32 bg-muted rounded-2xl" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
   const otherWorkspaces = workspaces.filter((w) => w.id !== activeWorkspaceId);
 
@@ -132,7 +116,12 @@ export default function WorkspacePage() {
         </p>
       </div>
 
-      {activeWorkspace && (
+      {workspacesLoading && !activeWorkspace ? (
+        <div className="space-y-3 animate-pulse">
+          <div className="h-4 w-28 bg-muted rounded" />
+          <div className="h-40 sm:h-48 bg-muted rounded-2xl" />
+        </div>
+      ) : activeWorkspace && (
         <div className="space-y-3">
           <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
             Active workspace
@@ -186,9 +175,26 @@ export default function WorkspacePage() {
 
       <div className="space-y-3">
         <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-          {otherWorkspaces.length > 0 ? "Other workspaces" : "Create a workspace"}
+          {workspacesLoading ? "Loading workspaces..." : otherWorkspaces.length > 0 ? "Other workspaces" : "Create a workspace"}
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {workspacesLoading && otherWorkspaces.length === 0 && (
+            <>
+              {[...Array(3)].map((_, i) => (
+                <Card key={i} className="rounded-2xl">
+                  <CardContent className="p-4 sm:p-5 animate-pulse">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-muted" />
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="h-4 bg-muted rounded w-3/4" />
+                        <div className="h-3 bg-muted rounded w-1/2" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </>
+          )}
           {otherWorkspaces.map((workspace) => (
             <Card
               key={workspace.id}

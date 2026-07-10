@@ -132,7 +132,9 @@ export async function GET(req: NextRequest) {
     }
 
     if (!organizationId) {
-      return NextResponse.json({ organization: null, members: [] });
+      const response = NextResponse.json({ organization: null, members: [] });
+      response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
+      return response;
     }
 
     const { data: org } = await supabase
@@ -179,7 +181,9 @@ export async function GET(req: NextRequest) {
 
     const isAdmin = org.created_by === user.id || myMembership?.role === "admin";
 
-    return NextResponse.json({ organization: org, members, isAdmin, creator, currentUserId: user.id });
+    const response = NextResponse.json({ organization: org, members, isAdmin, creator, currentUserId: user.id });
+    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
+    return response;
   } catch (err) {
     console.error("[api/company/org GET]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
