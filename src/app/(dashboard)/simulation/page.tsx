@@ -11,7 +11,8 @@ import { VoiceCallPanel } from "@/components/VoiceCallPanel";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
 import { VoiceCallSidebar } from "@/components/VoiceCallSidebar";
 import { VoiceCallRightSidebar } from "@/components/VoiceCallRightSidebar";
-import { Video, Mic, MessageSquare, Send, User, Building2, Briefcase, List, Smile, MessageCircle, ArrowLeft, Target, CheckCircle2 } from "lucide-react";
+import { Video, Mic, MessageSquare, Send, User, Building2, Briefcase, List, Smile, MessageCircle, ArrowLeft, Target, CheckCircle2, Menu, X, BookOpen, Lightbulb } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 type Status = "idle" | "connecting" | "connected" | "paused" | "error";
 
@@ -333,6 +334,8 @@ function HeyGenTestInner() {
   const [log, setLog] = useState<string[]>([]);
   const [logOpen, setLogOpen] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [mobileLeftOpen, setMobileLeftOpen] = useState(false);
+  const [mobileRightOpen, setMobileRightOpen] = useState(false);
   const [resolvedScenarioName, setResolvedScenarioName] = useState<string | null>(null);
   const [scenarioContextNote, setScenarioContextNote] = useState<string | null>(null);
   const [sellerCompany, setSellerCompany] = useState<string | null>(null);
@@ -1789,17 +1792,17 @@ function HeyGenTestInner() {
   return (
     <div className="h-full bg-[#0B0E14] text-white flex flex-col overflow-hidden">
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-4 lg:px-6 py-2 border-b border-white/10 bg-[#0B0E14]/95 backdrop-blur-sm z-20 shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-3 sm:px-4 lg:px-6 py-2.5 sm:py-2 border-b border-white/10 bg-[#0B0E14]/95 backdrop-blur-sm z-20 shrink-0 gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <button
             onClick={() => router.back()}
-            className="group flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white/10 text-white hover:bg-white/15 transition-colors"
+            className="group flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium bg-white/10 text-white hover:bg-white/15 transition-colors shrink-0 min-h-[36px]"
             title="Back to scenario"
           >
             <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
             Back
           </button>
-          <p className="text-sm font-semibold leading-none text-white">
+          <p className="text-sm font-semibold text-white line-clamp-2 leading-tight">
             {resolvedScenarioName ?? scenarioNameParam ?? "Simulation"}
           </p>
         </div>
@@ -1861,7 +1864,7 @@ function HeyGenTestInner() {
                   {/* Right side: tabs + content */}
                   <div className="flex-1 w-full text-center sm:text-left">
                     {/* Tabs */}
-                    <div className="flex items-center justify-center sm:justify-start gap-2 mb-6">
+                    <div className="flex items-center justify-center sm:justify-start gap-2 mb-6 p-1 bg-muted/50 rounded-xl w-fit mx-auto sm:mx-0">
                       {(
                         scenarioType === "First Discovery Call"
                           ? (["profile", "background"] as const)
@@ -1870,10 +1873,10 @@ function HeyGenTestInner() {
                         <button
                           key={tab}
                           onClick={() => setActiveTab(tab)}
-                          className={`px-4 sm:px-6 py-2 text-sm font-medium capitalize transition-colors border-b-2 ${
+                          className={`px-4 sm:px-5 py-2 text-sm font-medium capitalize transition-all rounded-lg min-h-[40px] ${
                             activeTab === tab
-                              ? "text-orange-600 border-orange-500"
-                              : "text-muted-foreground border-transparent hover:text-foreground"
+                              ? "bg-card text-orange-600 shadow-sm border border-border"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
                           }`}
                         >
                           {tab}
@@ -1886,118 +1889,118 @@ function HeyGenTestInner() {
                       <div className="w-full">
                         {/* Details */}
                         <div className="w-full text-center sm:text-left">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-4">Client Profile</p>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-4">Client Profile</p>
 
-                      <div className="space-y-4 text-left">
-                        {personaDetails.name && (
-                          <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                              <User className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Name</p>
-                              <p className="text-sm font-medium text-foreground">{personaDetails.name}</p>
-                            </div>
+                          <div className="space-y-3 text-left">
+                            {personaDetails.name && (
+                              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-card border border-border/60 shadow-sm">
+                                <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+                                  <User className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Name</p>
+                                  <p className="text-sm sm:text-base font-medium text-foreground">{personaDetails.name}</p>
+                                </div>
+                              </div>
+                            )}
+                            {personaDetails.jobTitle && (
+                              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-card border border-border/60 shadow-sm">
+                                <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+                                  <Briefcase className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Title</p>
+                                  <p className="text-sm sm:text-base font-medium text-foreground">{personaDetails.jobTitle}</p>
+                                </div>
+                              </div>
+                            )}
+                            {personaDetails.company && (
+                              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-card border border-border/60 shadow-sm">
+                                <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+                                  <Building2 className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Company</p>
+                                  <p className="text-sm sm:text-base font-medium text-foreground">{personaDetails.company}</p>
+                                </div>
+                              </div>
+                            )}
+                            {personaDetails.industry && (
+                              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-card border border-border/60 shadow-sm">
+                                <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+                                  <Target className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Industry</p>
+                                  <p className="text-sm sm:text-base font-medium text-foreground">{personaDetails.industry}</p>
+                                </div>
+                              </div>
+                            )}
+                            {personaDetails.decisionRole && (
+                              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-card border border-border/60 shadow-sm">
+                                <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+                                  <CheckCircle2 className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Decision Role</p>
+                                  <p className="text-sm sm:text-base font-medium text-foreground">{personaDetails.decisionRole}</p>
+                                </div>
+                              </div>
+                            )}
+                            {personaDetails.owns && (
+                              <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-card border border-border/60 shadow-sm">
+                                <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+                                  <List className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Owns</p>
+                                  <p className="text-sm sm:text-base font-medium text-foreground whitespace-pre-line">{personaDetails.owns}</p>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                        {personaDetails.jobTitle && (
-                          <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                              <Briefcase className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Title</p>
-                              <p className="text-sm font-medium text-foreground">{personaDetails.jobTitle}</p>
-                            </div>
-                          </div>
-                        )}
-                        {personaDetails.company && (
-                          <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                              <Building2 className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Company</p>
-                              <p className="text-sm font-medium text-foreground">{personaDetails.company}</p>
-                            </div>
-                          </div>
-                        )}
-                        {personaDetails.industry && (
-                          <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                              <Target className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Industry</p>
-                              <p className="text-sm font-medium text-foreground">{personaDetails.industry}</p>
-                            </div>
-                          </div>
-                        )}
-                        {personaDetails.decisionRole && (
-                          <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                              <CheckCircle2 className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Decision Role</p>
-                              <p className="text-sm font-medium text-foreground">{personaDetails.decisionRole}</p>
-                            </div>
-                          </div>
-                        )}
-                        {personaDetails.owns && (
-                          <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                              <List className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Owns</p>
-                              <p className="text-sm font-medium text-foreground whitespace-pre-line">{personaDetails.owns}</p>
-                            </div>
-                          </div>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                )}
+                    )}
 
                 {/* Background Tab */}
                 {activeTab === "background" && (
-                  <div className="text-center">
+                  <div className="w-full text-center sm:text-left">
                     {/* First Discovery Call: only meeting source */}
                     {scenarioType === "First Discovery Call" ? (
                       personaDetails.meetingSource && (
-                        <div className="max-w-lg mx-auto text-left space-y-5">
-                          <p className="text-xs font-semibold uppercase tracking-wider text-orange-500">Client Background</p>
-                          <div>
+                        <div className="max-w-lg mx-auto sm:mx-0 text-left space-y-3">
+                          <p className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-orange-500">Client Background</p>
+                          <div className="p-3 sm:p-4 rounded-xl bg-card border border-border/60 shadow-sm">
                             <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Meeting Source</p>
-                            <p className="text-sm text-foreground">{personaDetails.meetingSource}</p>
+                            <p className="text-sm sm:text-base text-foreground mt-1 leading-relaxed">{personaDetails.meetingSource}</p>
                           </div>
                         </div>
                       )
                     ) : (
                       /* Other calls: full client background */
                       (personaDetails.painPoints.length > 0 || personaDetails.goals.length > 0 || personaDetails.hiddenConcern || personaDetails.companyGoal || personaDetails.openingLine || personaDetails.meetingSource) && (
-                        <div className="max-w-lg mx-auto text-left space-y-5">
-                          <p className="text-xs font-semibold uppercase tracking-wider text-orange-500">Client Background</p>
+                        <div className="max-w-lg mx-auto sm:mx-0 text-left space-y-3">
+                          <p className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-orange-500">Client Background</p>
                           {personaDetails.meetingSource && (
-                            <div>
+                            <div className="p-3 sm:p-4 rounded-xl bg-card border border-border/60 shadow-sm">
                               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Meeting Source</p>
-                              <p className="text-sm text-foreground">{personaDetails.meetingSource}</p>
+                              <p className="text-sm sm:text-base text-foreground mt-1 leading-relaxed">{personaDetails.meetingSource}</p>
                             </div>
                           )}
                           {personaDetails.openingLine && (
-                            <div>
+                            <div className="p-3 sm:p-4 rounded-xl bg-card border border-border/60 shadow-sm">
                               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Likely Opening</p>
-                              <p className="text-sm text-foreground italic">&ldquo;{personaDetails.openingLine}&rdquo;</p>
+                              <p className="text-sm sm:text-base text-foreground italic mt-1 leading-relaxed">&ldquo;{personaDetails.openingLine}&rdquo;</p>
                             </div>
                           )}
                           {personaDetails.painPoints.length > 0 && (
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Pain Points</p>
-                              <ul className="mt-1 space-y-1">
+                            <div className="p-3 sm:p-4 rounded-xl bg-card border border-border/60 shadow-sm">
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">Pain Points</p>
+                              <ul className="space-y-1.5">
                                 {personaDetails.painPoints.slice(0, 3).map((p, i) => (
-                                  <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                                    <span className="text-orange-500 mt-1">•</span>
+                                  <li key={i} className="text-sm sm:text-base text-foreground flex items-start gap-2 leading-relaxed">
+                                    <span className="text-orange-500 mt-1.5 shrink-0">•</span>
                                     {p}
                                   </li>
                                 ))}
@@ -2005,12 +2008,12 @@ function HeyGenTestInner() {
                             </div>
                           )}
                           {personaDetails.goals.length > 0 && (
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Goals</p>
-                              <ul className="mt-1 space-y-1">
+                            <div className="p-3 sm:p-4 rounded-xl bg-card border border-border/60 shadow-sm">
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">Goals</p>
+                              <ul className="space-y-1.5">
                                 {personaDetails.goals.slice(0, 3).map((g, i) => (
-                                  <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                                    <span className="text-emerald-500 mt-1">•</span>
+                                  <li key={i} className="text-sm sm:text-base text-foreground flex items-start gap-2 leading-relaxed">
+                                    <span className="text-emerald-500 mt-1.5 shrink-0">•</span>
                                     {g}
                                   </li>
                                 ))}
@@ -2018,15 +2021,15 @@ function HeyGenTestInner() {
                             </div>
                           )}
                           {personaDetails.hiddenConcern && (
-                            <div>
+                            <div className="p-3 sm:p-4 rounded-xl bg-card border border-border/60 shadow-sm">
                               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Hidden Concern</p>
-                              <p className="text-sm text-foreground">{personaDetails.hiddenConcern}</p>
+                              <p className="text-sm sm:text-base text-foreground mt-1 leading-relaxed">{personaDetails.hiddenConcern}</p>
                             </div>
                           )}
                           {personaDetails.companyGoal && (
-                            <div>
+                            <div className="p-3 sm:p-4 rounded-xl bg-card border border-border/60 shadow-sm">
                               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Company Goal</p>
-                              <p className="text-sm text-foreground">{personaDetails.companyGoal}</p>
+                              <p className="text-sm sm:text-base text-foreground mt-1 leading-relaxed">{personaDetails.companyGoal}</p>
                             </div>
                           )}
                         </div>
@@ -2041,57 +2044,61 @@ function HeyGenTestInner() {
                   const hasStyle = style.communicationStyle || style.motivations || style.concerns || style.howToEngage;
                   const hasPersonaStyle = personaDetails.personality || personaDetails.communicationLanguage;
                   return (
-                    <div className="max-w-lg mx-auto text-left space-y-5">
+                    <div className="max-w-lg mx-auto sm:mx-0 text-left space-y-3">
                       {personaDetails.personality && (
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                            <Smile className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Personality / Behaviour</p>
-                            <ul className="mt-1 space-y-1">
-                              {(personaDetails.personality.includes("\n")
-                                ? personaDetails.personality.split(/\n+/).filter(Boolean)
-                                : personaDetails.personality.split(/\.\s+/).filter(Boolean)
-                              ).map((item, i) => (
-                                <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                                  <span className="text-muted-foreground mt-1">•</span>
-                                  {item.replace(/^[-•]\s*/, "").replace(/\.$/, "").trim()}
-                                  {!item.endsWith(".") ? "" : ""}
-                                </li>
-                              ))}
-                            </ul>
+                        <div className="p-3 rounded-xl bg-card border border-border/60 shadow-sm">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+                              <Smile className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Personality / Behaviour</p>
+                              <ul className="mt-1.5 space-y-1">
+                                {(personaDetails.personality.includes("\n")
+                                  ? personaDetails.personality.split(/\n+/).filter(Boolean)
+                                  : personaDetails.personality.split(/\.\s+/).filter(Boolean)
+                                ).map((item, i) => (
+                                  <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                                    <span className="text-muted-foreground mt-1 shrink-0">•</span>
+                                    {item.replace(/^[-•]\s*/, "").replace(/\.$/, "").trim()}
+                                    {!item.endsWith(".") ? "" : ""}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
                           </div>
                         </div>
                       )}
                       {personaDetails.communicationLanguage && (
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                            <MessageCircle className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Communication Language</p>
-                            <ul className="mt-1 space-y-1">
-                              {(personaDetails.communicationLanguage.includes("\n")
-                                ? personaDetails.communicationLanguage.split(/\n+/).filter(Boolean)
-                                : personaDetails.communicationLanguage.split(/\.\s+/).filter(Boolean)
-                              ).map((item, i) => (
-                                <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                                  <span className="text-muted-foreground mt-1">•</span>
-                                  {item.replace(/^[-•]\s*/, "").replace(/\.$/, "").trim()}
-                                </li>
-                              ))}
-                            </ul>
+                        <div className="p-3 rounded-xl bg-card border border-border/60 shadow-sm">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+                              <MessageCircle className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Communication Language</p>
+                              <ul className="mt-1.5 space-y-1">
+                                {(personaDetails.communicationLanguage.includes("\n")
+                                  ? personaDetails.communicationLanguage.split(/\n+/).filter(Boolean)
+                                  : personaDetails.communicationLanguage.split(/\.\s+/).filter(Boolean)
+                                ).map((item, i) => (
+                                  <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                                    <span className="text-muted-foreground mt-1 shrink-0">•</span>
+                                    {item.replace(/^[-•]\s*/, "").replace(/\.$/, "").trim()}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
                           </div>
                         </div>
                       )}
                       {style.communicationStyle && (
-                        <div>
+                        <div className="p-3 rounded-xl bg-card border border-border/60 shadow-sm">
                           <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-2">Communication Style</p>
-                          <ul className="space-y-1">
+                          <ul className="space-y-1.5">
                             {style.communicationStyle.split(/\n+/).filter(Boolean).map((item, i) => (
                               <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                                <span className="text-muted-foreground mt-1">•</span>
+                                <span className="text-muted-foreground mt-1 shrink-0">•</span>
                                 {item.replace(/^[-•]\s*/, "")}
                               </li>
                             ))}
@@ -2099,12 +2106,12 @@ function HeyGenTestInner() {
                         </div>
                       )}
                       {style.motivations && (
-                        <div>
+                        <div className="p-3 rounded-xl bg-card border border-border/60 shadow-sm">
                           <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-2">Motivations</p>
-                          <ul className="space-y-1">
+                          <ul className="space-y-1.5">
                             {style.motivations.split(/\n+/).filter(Boolean).map((item, i) => (
                               <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                                <span className="text-emerald-500 mt-1">•</span>
+                                <span className="text-emerald-500 mt-1 shrink-0">•</span>
                                 {item.replace(/^[-•]\s*/, "")}
                               </li>
                             ))}
@@ -2112,12 +2119,12 @@ function HeyGenTestInner() {
                         </div>
                       )}
                       {style.concerns && (
-                        <div>
+                        <div className="p-3 rounded-xl bg-card border border-border/60 shadow-sm">
                           <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-2">Concerns</p>
-                          <ul className="space-y-1">
+                          <ul className="space-y-1.5">
                             {style.concerns.split(/\n+/).filter(Boolean).map((item, i) => (
                               <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                                <span className="text-orange-500 mt-1">•</span>
+                                <span className="text-orange-500 mt-1 shrink-0">•</span>
                                 {item.replace(/^[-•]\s*/, "")}
                               </li>
                             ))}
@@ -2125,12 +2132,12 @@ function HeyGenTestInner() {
                         </div>
                       )}
                       {style.howToEngage && (
-                        <div>
+                        <div className="p-3 rounded-xl bg-card border border-border/60 shadow-sm">
                           <p className="text-xs font-semibold uppercase tracking-wider text-orange-500 mb-2">How to Engage</p>
-                          <ul className="space-y-1">
+                          <ul className="space-y-1.5">
                             {style.howToEngage.split(/\n+/).filter(Boolean).map((item, i) => (
                               <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                                <span className="text-blue-500 mt-1">•</span>
+                                <span className="text-blue-500 mt-1 shrink-0">•</span>
                                 {item.replace(/^[-•]\s*/, "")}
                               </li>
                             ))}
@@ -2147,43 +2154,46 @@ function HeyGenTestInner() {
             </div>
 
             {/* Sticky bottom call bar — Ready to Practice + mode selector + start button in one section */}
-            <div className="shrink-0 border-t border-border bg-card/90 backdrop-blur-sm p-4 sm:p-5 z-10">
-              <div className="max-w-2xl mx-auto flex flex-col items-center justify-center gap-4">
-                <div className="text-center">
-                  <h3 className="text-xl font-semibold text-foreground">Ready to Practice</h3>
-                  <p className="text-sm text-muted-foreground mt-2 max-w-lg mx-auto leading-relaxed">
+            <div className="shrink-0 border-t border-border bg-card/95 backdrop-blur-md p-4 sm:p-5 z-10 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+              <div className="max-w-2xl mx-auto flex flex-col items-center justify-center gap-3 sm:gap-4">
+                <div className="text-center space-y-2">
+                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-orange-500/10 text-orange-500 mb-1">
+                    <Mic className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-base sm:text-lg font-semibold text-foreground">Ready to Practice</h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed px-2 sm:px-0">
                     {personaDetails.openingLine
-                      ? `You’ll be speaking with ${personaDetails.name ?? resolvedPersonaName ?? "the buyer"}${personaDetails.jobTitle ? `, ${personaDetails.jobTitle}` : ""}${personaDetails.company ? ` at ${personaDetails.company}` : ""}. They may open with: “${personaDetails.openingLine}”`
-                      : `You’ll be speaking with ${personaDetails.name ?? resolvedPersonaName ?? "the buyer"}${personaDetails.jobTitle ? `, ${personaDetails.jobTitle}` : ""}${personaDetails.company ? ` at ${personaDetails.company}` : ""}. Review their profile and start the call when you’re ready.`}
+                      ? `You’ll speak with ${personaDetails.name ?? resolvedPersonaName ?? "the buyer"}${personaDetails.jobTitle ? `, ${personaDetails.jobTitle}` : ""}${personaDetails.company ? ` at ${personaDetails.company}` : ""}. They may open with: “${personaDetails.openingLine}”`
+                      : `You’ll speak with ${personaDetails.name ?? resolvedPersonaName ?? "the buyer"}${personaDetails.jobTitle ? `, ${personaDetails.jobTitle}` : ""}${personaDetails.company ? ` at ${personaDetails.company}` : ""}. Review their profile and start when you’re ready.`}
                   </p>
                 </div>
                 {/* Mode Toggle */}
-                <div className="flex items-center gap-1 bg-muted rounded-full p-1 border border-border w-fit">
+                <div className="flex items-center gap-1 bg-muted/60 rounded-full p-1 border border-border w-full sm:w-fit">
                   <button
                     onClick={() => setCallMode("video")}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors ${
+                    className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all min-h-[44px] ${
                       callMode === "video" ? "bg-card text-orange-600 shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    <Video className="w-3.5 h-3.5" />
+                    <Video className="w-4 h-4" />
                     Video Call
                   </button>
                   <button
                     onClick={() => setCallMode("voice")}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors ${
+                    className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all min-h-[44px] ${
                       callMode === "voice" ? "bg-card text-orange-600 shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    <Mic className="w-3.5 h-3.5" />
+                    <Mic className="w-4 h-4" />
                     Voice Call
                   </button>
                   <button
                     onClick={() => setCallMode("text")}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-colors ${
+                    className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all min-h-[44px] ${
                       callMode === "text" ? "bg-card text-orange-600 shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    <MessageSquare className="w-3.5 h-3.5" />
+                    <MessageSquare className="w-4 h-4" />
                     Text Chat
                   </button>
                 </div>
@@ -2191,7 +2201,7 @@ function HeyGenTestInner() {
                 {/* Start button */}
                 <button
                   onClick={callMode === "voice" ? startVoice : callMode === "text" ? startText : start}
-                  className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold px-8 py-3 rounded-full shadow-lg shadow-orange-500/25 transition-all hover:scale-105 active:scale-95"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold px-8 py-3.5 rounded-full shadow-lg shadow-orange-500/25 transition-all hover:scale-[1.02] active:scale-[0.98] min-h-[52px]"
                 >
                   {callMode === "voice" ? (
                     <>
@@ -2214,13 +2224,13 @@ function HeyGenTestInner() {
             </div>
           </div>
         ) : (callMode === "video" && status === "connected" && !showAvatarVideo) || status !== "connected" ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B0E14]">
-            <div className="text-center space-y-6 max-w-sm px-6">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B0E14] px-4">
+            <div className="text-center space-y-5 sm:space-y-6 max-w-xs sm:max-w-sm">
               {/* Pulsing avatar */}
-              <div className="relative mx-auto w-24 h-24">
+              <div className="relative mx-auto w-28 h-28 sm:w-32 sm:h-32">
                 <span className="absolute inset-0 rounded-full bg-orange-500/30 animate-ping" />
                 <span className="absolute inset-1 rounded-full bg-orange-500/20 animate-pulse" />
-                <div className="relative w-24 h-24 rounded-full ring-2 ring-orange-500/40 overflow-hidden bg-gradient-to-br from-orange-500/20 to-orange-600/10 flex items-center justify-center">
+                <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full ring-2 ring-orange-500/40 overflow-hidden bg-gradient-to-br from-orange-500/20 to-orange-600/10 flex items-center justify-center">
                   {status === "connecting" && callMode === "voice" ? (
                     <svg className="w-10 h-10 text-orange-500 animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
@@ -2233,15 +2243,15 @@ function HeyGenTestInner() {
                       className="w-full h-full object-cover object-top"
                     />
                   ) : (
-                    <svg className="w-12 h-12 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-14 h-14 sm:w-16 sm:h-16 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" stroke-linejoin="round" strokeWidth={1} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                     </svg>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <p className="text-lg font-semibold text-white">
+              <div className="space-y-1.5">
+                <p className="text-base sm:text-lg font-semibold text-white">
                   {status === "connecting" && callMode === "voice" ? `Connecting to ${resolvedPersonaName ?? avatarNameParam ?? "voice agent"}` :
                    status === "connecting" ? `Connecting to ${resolvedPersonaName ?? avatarNameParam ?? "avatar"}` :
                    status === "error" ? "Connection failed" :
@@ -2249,16 +2259,16 @@ function HeyGenTestInner() {
                    "Ready to practice"}
                 </p>
                 {resolvedScenarioName && (
-                  <p className="text-sm text-slate-300">{resolvedScenarioName}</p>
+                  <p className="text-xs sm:text-sm text-slate-300 line-clamp-2">{resolvedScenarioName}</p>
                 )}
               </div>
 
               {/* Animated dots */}
               {status === "connecting" && (
-                <div className="flex items-center justify-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+                <div className="flex items-center justify-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
               )}
             </div>
@@ -2268,7 +2278,7 @@ function HeyGenTestInner() {
         {/* Voice Call Panel (when voice mode is active) — 3-column layout */}
         {callMode === "voice" && status === "connected" && (
           <div className="absolute inset-0 flex">
-            {/* Left sidebar — seller cheat sheet */}
+            {/* Left sidebar — seller cheat sheet (desktop) */}
             <div className="w-72 hidden lg:block shrink-0">
               <VoiceCallSidebar
                 sellerCompany={sellerCompany}
@@ -2285,6 +2295,64 @@ function HeyGenTestInner() {
 
             {/* Center — call panel */}
             <div className="flex-1 min-w-0 relative">
+              {/* Mobile sidebar toggles */}
+              <div className="absolute top-3 left-3 right-3 flex items-start justify-between pointer-events-none z-10 lg:hidden">
+                <Sheet open={mobileLeftOpen} onOpenChange={setMobileLeftOpen}>
+                  <SheetTrigger className="pointer-events-auto flex items-center gap-1.5 bg-black/40 hover:bg-black/50 backdrop-blur-md border border-white/10 rounded-full px-2.5 sm:px-3 py-2 sm:py-1.5 text-xs font-medium text-white transition-colors shadow-lg">
+                    <BookOpen className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                    <span className="hidden sm:inline">Cheat sheet</span>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="w-[85vw] max-w-sm bg-[#0B0E14] border-white/10 p-0">
+                    <SheetHeader className="px-4 py-3 border-b border-white/10">
+                      <SheetTitle className="text-sm font-semibold text-white">Seller Cheat Sheet</SheetTitle>
+                    </SheetHeader>
+                    <div className="overflow-y-auto h-[calc(100%-3.25rem)]">
+                      <VoiceCallSidebar
+                        sellerCompany={sellerCompany}
+                        sellerProduct={sellerProduct}
+                        sellerDescription={sellerDescription}
+                        contextNote={scenarioContextNote}
+                        buyerName={resolvedPersonaName}
+                        buyerRole={resolvedPersonaRole}
+                        buyerPainPoints={personaDetails.painPoints}
+                        callSteps={CALL_STEPS}
+                        currentStep={currentStep}
+                      />
+                    </div>
+                  </SheetContent>
+                </Sheet>
+
+                <Sheet open={mobileRightOpen} onOpenChange={setMobileRightOpen}>
+                  <SheetTrigger className="pointer-events-auto flex items-center gap-1.5 bg-black/40 hover:bg-black/50 backdrop-blur-md border border-white/10 rounded-full px-2.5 sm:px-3 py-2 sm:py-1.5 text-xs font-medium text-white transition-colors shadow-lg">
+                    <Lightbulb className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                    <span className="hidden sm:inline">Coaching</span>
+                  </SheetTrigger>
+                  <SheetContent side="right" className="w-[85vw] max-w-sm bg-[#0B0E14] border-white/10 p-0">
+                    <SheetHeader className="px-4 py-3 border-b border-white/10">
+                      <SheetTitle className="text-sm font-semibold text-white">Coaching & Nudges</SheetTitle>
+                    </SheetHeader>
+                    <div className="overflow-y-auto h-[calc(100%-3.25rem)]">
+                      <VoiceCallRightSidebar
+                        coaching={coaching}
+                        coachingOpen={coachingOpen}
+                        setCoachingOpen={setCoachingOpen}
+                        checkpoints={
+                          scoringCriteria
+                            ? parseCheckpointIds(scoringCriteria).map(({ id, name }) => ({
+                                id,
+                                name,
+                                status: (checkpointStatus[id] ?? "pending") as CheckpointStatus,
+                              }))
+                            : undefined
+                        }
+                        suggestedNextQuestionOverride={suggestedNextOverride ?? undefined}
+                        coachingLoading={coachingLoading}
+                      />
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              </div>
+
               <VoiceCallPanel
                 status={voiceCall.status as VoiceStatus}
                 transcript={transcript}
@@ -2306,7 +2374,7 @@ function HeyGenTestInner() {
               />
             </div>
 
-            {/* Right sidebar — coaching + nudges */}
+            {/* Right sidebar — coaching + nudges (desktop) */}
             <div className="w-80 hidden lg:block shrink-0">
               <VoiceCallRightSidebar
                 coaching={coaching}
@@ -2532,22 +2600,6 @@ function HeyGenTestInner() {
             <div ref={transcriptEndRef} />
           </div>
         </div>
-        )}
-
-        {/* Transcript Toggle — video mode only (voice mode shows transcript in the center panel) */}
-        {callMode === "video" && (
-          <button
-            onClick={() => setTranscriptOpen((o) => !o)}
-            className={`absolute top-3 right-3 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/15 rounded-full px-3 py-1.5 text-xs font-medium text-white transition-all z-10 ${
-              transcriptOpen ? "opacity-0 pointer-events-none" : "opacity-100"
-            }`}
-            title="View transcript"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z" />
-            </svg>
-            Transcript
-          </button>
         )}
 
         {/* Coaching Overlay — bottom sheet on mobile, draggable on desktop (hidden in voice mode sidebar) */}
