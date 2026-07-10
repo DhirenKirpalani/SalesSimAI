@@ -17,7 +17,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { Users, Building2, BookOpen, Activity, Database, Mic2, Trophy, Clock, TrendingUp } from "lucide-react";
+import { Users, Building2, BookOpen, Activity, Mic2, Trophy, Clock, TrendingUp } from "lucide-react";
 import { StatCard } from "@/components/cards/StatCard";
 import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
 
@@ -212,42 +212,31 @@ export default function AdminPage() {
 
   if (!isAdmin) return null;
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">
       <div>
         <PageHeaderLogo />
-        <h1 className="text-2xl font-bold tracking-tight">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
           {firstName ? `${getGreeting()}, ${firstName}` : getGreeting()}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
           Overview of users, organizations, and platform activity.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard label="Scenarios" value={stats.scenarios} icon={BookOpen} />
         <StatCard label="Simulations" value={stats.simulations} icon={Activity} />
-        <button
-          onClick={() => router.push("/admin/vector-demo")}
-          className="text-left rounded-2xl border bg-card p-5 shadow-sm hover:bg-accent/30 transition-colors"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <Database className="w-5 h-5 text-primary" />
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">RAG</span>
-          </div>
-          <div className="text-2xl font-bold">Vector Demo</div>
-          <p className="text-xs text-muted-foreground mt-1">Semantic search across call transcripts</p>
-        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 px-4 sm:px-6">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Weekly Activity
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-64 w-full">
+          <CardContent className="px-4 sm:px-6">
+            <div className="h-56 sm:h-64 w-full">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
                 <AreaChart data={activityData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                   <defs>
@@ -291,13 +280,13 @@ export default function AdminPage() {
         </Card>
 
         <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 px-4 sm:px-6">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Plans Distribution
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-64 w-full">
+          <CardContent className="px-4 sm:px-6">
+            <div className="h-56 sm:h-64 w-full">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
                 <BarChart data={orgData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
@@ -331,13 +320,13 @@ export default function AdminPage() {
 
       {/* Member Performance */}
       <Card className="rounded-2xl border bg-card shadow-sm">
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 px-4 sm:px-6">
           <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
             <Users className="w-4 h-4" />
             Team Performance
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6">
           {membersLoading ? (
             <div className="flex items-center justify-center h-32">
               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -347,59 +336,95 @@ export default function AdminPage() {
               No team members found.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-muted-foreground">
-                    <th className="text-left font-medium py-2 px-3">Member</th>
-                    <th className="text-center font-medium py-2 px-3">
-                      <Mic2 className="w-3.5 h-3.5 inline mr-1" />
-                      Calls
-                    </th>
-                    <th className="text-center font-medium py-2 px-3">
-                      <TrendingUp className="w-3.5 h-3.5 inline mr-1" />
-                      Avg Score
-                    </th>
-                    <th className="text-center font-medium py-2 px-3">
-                      <Trophy className="w-3.5 h-3.5 inline mr-1" />
-                      Best
-                    </th>
-                    <th className="text-center font-medium py-2 px-3">
-                      <Clock className="w-3.5 h-3.5 inline mr-1" />
-                      Training
-                    </th>
-                    <th className="text-right font-medium py-2 px-3">Last Active</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {members.map((m) => (
-                    <tr key={m.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                      <td className="py-3 px-3">
-                        <div>
-                          <p className="font-medium">{m.name}</p>
-                          <p className="text-xs text-muted-foreground">{m.email}</p>
-                        </div>
-                      </td>
-                      <td className="text-center py-3 px-3 font-semibold">{m.simulations}</td>
-                      <td className="text-center py-3 px-3">
-                        <span className={m.avgScore >= 70 ? "text-green-600 font-semibold" : "text-amber-600 font-semibold"}>
-                          {m.avgScore || "—"}
-                        </span>
-                      </td>
-                      <td className="text-center py-3 px-3 font-semibold">{m.bestScore || "—"}</td>
-                      <td className="text-center py-3 px-3 text-muted-foreground">
-                        {m.trainingMins < 60 ? `${m.trainingMins}m` : `${Math.floor(m.trainingMins / 60)}h ${m.trainingMins % 60}m`}
-                      </td>
-                      <td className="text-right py-3 px-3 text-muted-foreground text-xs">
-                        {m.lastActive
-                          ? new Date(m.lastActive).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                          : "—"}
-                      </td>
+            <>
+              {/* Desktop table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-muted-foreground">
+                      <th className="text-left font-medium py-2 px-3">Member</th>
+                      <th className="text-center font-medium py-2 px-3">
+                        <Mic2 className="w-3.5 h-3.5 inline mr-1" />
+                        Calls
+                      </th>
+                      <th className="text-center font-medium py-2 px-3">
+                        <TrendingUp className="w-3.5 h-3.5 inline mr-1" />
+                        Avg Score
+                      </th>
+                      <th className="text-center font-medium py-2 px-3">
+                        <Trophy className="w-3.5 h-3.5 inline mr-1" />
+                        Best
+                      </th>
+                      <th className="text-center font-medium py-2 px-3">
+                        <Clock className="w-3.5 h-3.5 inline mr-1" />
+                        Training
+                      </th>
+                      <th className="text-right font-medium py-2 px-3">Last Active</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {members.map((m) => (
+                      <tr key={m.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                        <td className="py-3 px-3">
+                          <div>
+                            <p className="font-medium">{m.name}</p>
+                            <p className="text-xs text-muted-foreground">{m.email}</p>
+                          </div>
+                        </td>
+                        <td className="text-center py-3 px-3 font-semibold">{m.simulations}</td>
+                        <td className="text-center py-3 px-3">
+                          <span className={m.avgScore >= 70 ? "text-green-600 font-semibold" : "text-amber-600 font-semibold"}>
+                            {m.avgScore || "—"}
+                          </span>
+                        </td>
+                        <td className="text-center py-3 px-3 font-semibold">{m.bestScore || "—"}</td>
+                        <td className="text-center py-3 px-3 text-muted-foreground">
+                          {m.trainingMins < 60 ? `${m.trainingMins}m` : `${Math.floor(m.trainingMins / 60)}h ${m.trainingMins % 60}m`}
+                        </td>
+                        <td className="text-right py-3 px-3 text-muted-foreground text-xs">
+                          {m.lastActive
+                            ? new Date(m.lastActive).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile cards */}
+              <div className="sm:hidden space-y-2">
+                {members.map((m) => (
+                  <div key={m.id} className="p-3 rounded-xl border hover:bg-muted/30 transition-colors">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{m.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{m.email}</p>
+                      </div>
+                      <span className={m.avgScore >= 70 ? "text-green-600 font-semibold text-sm shrink-0" : "text-amber-600 font-semibold text-sm shrink-0"}>
+                        Avg {m.avgScore || "—"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t">
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase">Calls</p>
+                        <p className="text-sm font-semibold">{m.simulations}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase">Best</p>
+                        <p className="text-sm font-semibold">{m.bestScore || "—"}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase">Training</p>
+                        <p className="text-xs font-medium text-muted-foreground">
+                          {m.trainingMins < 60 ? `${m.trainingMins}m` : `${Math.floor(m.trainingMins / 60)}h ${m.trainingMins % 60}m`}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

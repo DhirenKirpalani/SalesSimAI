@@ -230,10 +230,10 @@ function AnalysisContent() {
 
   if (loading || generating) {
     return (
-      <div className="space-y-6 max-w-6xl mx-auto animate-pulse">
+      <div className="space-y-4 sm:space-y-6 max-w-6xl mx-auto px-4 sm:px-0 animate-pulse">
         <div className="space-y-2">
           <div className="h-8 w-48 bg-muted rounded" />
-          <div className="h-4 w-96 bg-muted rounded" />
+          <div className="h-4 w-72 sm:w-96 bg-muted rounded" />
         </div>
         {generating && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -241,11 +241,22 @@ function AnalysisContent() {
             <span>Generating AI analysis…</span>
           </div>
         )}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 h-96 bg-muted rounded-2xl" />
-          <div className="h-96 bg-muted rounded-2xl" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-24 bg-muted rounded-2xl" />
+          ))}
         </div>
-        <div className="h-64 bg-muted rounded-2xl" />
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-2xl border bg-card p-4">
+              <div className="w-10 h-10 rounded-full bg-muted" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-2/3 bg-muted rounded" />
+                <div className="h-3 w-1/2 bg-muted rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -259,15 +270,15 @@ function AnalysisContent() {
     const totalMins = Math.round(sessions.reduce((sum, s) => sum + (s.duration_s ?? 0), 0) / 60);
 
     return (
-      <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="space-y-4 sm:space-y-6 max-w-4xl mx-auto px-4 sm:px-0 overflow-x-hidden">
         <div>
           <PageHeaderLogo />
-          <h1 className="text-2xl font-bold tracking-tight">Analysis</h1>
-          <p className="text-sm text-muted-foreground mt-1">AI-generated MEDDIC insights across your practice sessions. Select a session to dive deeper.</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Analysis</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">AI-generated MEDDIC insights across your practice sessions. Select a session to dive deeper.</p>
         </div>
 
         {sessions.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             <StatCard label="Avg MEDDIC" value={avgScore ?? "—"} icon={TrendingUp} trend="neutral" />
             <StatCard label="Best MEDDIC" value={bestScore ?? "—"} icon={Trophy} trend="neutral" />
             <StatCard label="Sessions Analyzed" value={analyzedSessions.length} icon={BarChart3} trend="neutral" />
@@ -276,12 +287,12 @@ function AnalysisContent() {
         )}
 
         {sessions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
-              <Inbox className="w-7 h-7 text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center py-16 sm:py-24 px-4 gap-4 text-center border border-dashed border-border rounded-2xl bg-muted/30">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-muted flex items-center justify-center">
+              <Inbox className="w-7 h-7 sm:w-8 sm:h-8 text-muted-foreground" />
             </div>
             <div>
-              <p className="font-medium text-sm">No completed sessions yet</p>
+              <p className="font-medium text-sm sm:text-base">No completed sessions yet</p>
               <p className="text-xs text-muted-foreground mt-1">Finish a simulation to unlock analysis</p>
             </div>
             <Button variant="outline" size="sm" onClick={() => router.push("/scenarios")} className="gap-1.5 rounded-xl">
@@ -298,30 +309,30 @@ function AnalysisContent() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, delay: i * 0.04 }}
-                  className="group flex items-center gap-4 rounded-2xl border bg-card px-5 py-4 hover:shadow-sm hover:border-primary/30 transition-all cursor-pointer"
+                  className="group flex items-start sm:items-center gap-3 sm:gap-4 rounded-2xl border bg-card px-4 sm:px-5 py-4 hover:shadow-sm hover:border-primary/30 transition-all cursor-pointer overflow-hidden"
                   onClick={() => router.push(`/analysis?session=${s.id}${s.source ? `&source=${s.source}` : ``}`)}
                 >
-                  <div className="hidden sm:flex flex-col items-center gap-1 w-12 shrink-0">
+                  <div className="flex flex-col items-center gap-1 w-12 shrink-0 pt-0.5">
                     {score !== null ? (
                       <>
                         <div className={cn(
-                          "text-lg font-bold tabular-nums leading-none",
-                          score >= 70 ? "text-emerald-500" : score >= 40 ? "text-amber-500" : "text-red-400"
+                          "text-base sm:text-lg font-bold tabular-nums leading-none px-2 py-1 rounded-xl",
+                          score >= 70 ? "bg-emerald-500/10 text-emerald-500" : score >= 40 ? "bg-amber-500/10 text-amber-500" : "bg-red-500/10 text-red-400"
                         )}>{score}</div>
-                        <p className="text-[9px] text-muted-foreground uppercase tracking-wide">Score</p>
+                        <p className="text-[9px] text-muted-foreground uppercase tracking-wide hidden sm:block">Score</p>
                       </>
                     ) : (
                       <div className="text-[9px] text-muted-foreground uppercase tracking-wide text-center">No score</div>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-sm truncate">{s.scenario_name ?? "Untitled"}</p>
+                  <div className="flex-1 min-w-0 space-y-1 overflow-hidden">
+                    <div className="flex items-start gap-2">
+                      <p className="font-medium text-sm truncate flex-1 min-w-0">{s.scenario_name ?? "Untitled"}</p>
                       {s.analysis && (
-                        <Badge variant="secondary" className="text-[10px] bg-violet-500/10 text-violet-600 border-violet-500/20">MEDDIC</Badge>
+                        <Badge variant="secondary" className="text-[10px] bg-violet-500/10 text-violet-600 border-violet-500/20 shrink-0 mt-0.5">MEDDIC</Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {new Date(s.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
@@ -334,8 +345,9 @@ function AnalysisContent() {
                       )}
                     </div>
                   </div>
-                  <Button size="sm" variant="ghost" className="shrink-0 gap-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
-                    View <ArrowRight className="w-3 h-3" />
+                  <Button size="sm" variant="ghost" className="shrink-0 gap-1 text-xs opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity rounded-xl h-8 w-8 sm:h-auto sm:w-auto p-0 sm:px-3">
+                    <span className="hidden sm:inline">View</span>
+                    <ArrowRight className="w-4 h-4 sm:w-3 sm:h-3" />
                   </Button>
                 </motion.div>
               );
@@ -348,7 +360,7 @@ function AnalysisContent() {
             <Button
               variant="outline"
               size="sm"
-              className="rounded-xl"
+              className="rounded-xl h-10 w-10 sm:h-8 sm:w-8"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
             >
@@ -360,7 +372,7 @@ function AnalysisContent() {
             <Button
               variant="outline"
               size="sm"
-              className="rounded-xl"
+              className="rounded-xl h-10 w-10 sm:h-8 sm:w-8"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
             >
@@ -406,13 +418,13 @@ function AnalysisContent() {
 
   // Analysis detail view
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/analysis")} className="rounded-xl gap-1 text-muted-foreground">
-          <ChevronLeft className="w-3.5 h-3.5" /> All Sessions
+    <div className="space-y-4 sm:space-y-6 max-w-6xl mx-auto px-4 sm:px-0">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <Button variant="ghost" size="sm" onClick={() => router.push("/analysis")} className="rounded-xl gap-1 text-muted-foreground h-9 shrink-0">
+          <ChevronLeft className="w-4 h-4" /> <span className="hidden sm:inline">All Sessions</span>
         </Button>
         {currentSession && (
-          <h1 className="text-lg font-semibold truncate">{currentSession?.scenario_name ?? "Session Analysis"}</h1>
+          <h1 className="text-base sm:text-lg font-semibold truncate">{currentSession?.scenario_name ?? "Session Analysis"}</h1>
         )}
       </div>
 
@@ -425,9 +437,9 @@ function AnalysisContent() {
         <ScoreCard label="Overall Score" score={analysis.overall_score} size="lg" />
       </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         <RadarScoreChart data={radarData} />
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 content-start">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 content-start">
           <ScoreCard label="Metrics" score={analysis.breakdown.metrics} />
           <ScoreCard label="Economic Buyer" score={analysis.breakdown.economic_buyer} />
           <ScoreCard label="Decision Criteria" score={analysis.breakdown.decision_criteria} />
@@ -437,14 +449,14 @@ function AnalysisContent() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 px-4 sm:px-6">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <ThumbsUp className="w-4 h-4 text-emerald-500" /> Strengths
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 px-4 sm:px-6">
             {analysis.strengths.map((s, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
@@ -455,12 +467,12 @@ function AnalysisContent() {
         </Card>
 
         <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 px-4 sm:px-6">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <ThumbsDown className="w-4 h-4 text-red-500" /> Weaknesses
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 px-4 sm:px-6">
             {analysis.weaknesses.map((w, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
                 <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
@@ -471,12 +483,12 @@ function AnalysisContent() {
         </Card>
 
         <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 px-4 sm:px-6">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Lightbulb className="w-4 h-4 text-amber-500" /> Missed Opportunities
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 px-4 sm:px-6">
             {analysis.missed_opportunities.map((m, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
                 <Badge variant="outline" className="text-[10px] shrink-0 mt-0.5">{i + 1}</Badge>
@@ -487,12 +499,12 @@ function AnalysisContent() {
         </Card>
 
         <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 px-4 sm:px-6">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-primary" /> Coaching Recommendations
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 px-4 sm:px-6">
             {analysis.coaching_recommendations.map((c, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
                 <Badge variant="secondary" className="text-[10px] shrink-0 mt-0.5">Tip</Badge>
@@ -506,13 +518,13 @@ function AnalysisContent() {
       {/* Coaching Moments — transcript-specific advice */}
       {analysis.coaching_moments && analysis.coaching_moments.length > 0 && (
         <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 px-4 sm:px-6">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-violet-500" /> Key Moments from Your Call
             </CardTitle>
             <p className="text-xs text-muted-foreground">When the buyer said something important, here is what you should have said instead.</p>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-4 sm:px-6">
             {analysis.coaching_moments.map((moment, i) => (
               <div key={i} className="space-y-2 rounded-xl border border-border p-3 bg-muted/20">
                 <div className="flex items-start gap-2">

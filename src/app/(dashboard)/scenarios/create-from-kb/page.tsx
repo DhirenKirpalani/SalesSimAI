@@ -57,19 +57,19 @@ function ScenarioTypeMultiSelect({
   const deselectAll = () => onChange([]);
 
   return (
-    <div className="space-y-2" ref={containerRef}>
+    <div className="space-y-2 relative" ref={containerRef}>
       <Label className="text-xs text-muted-foreground">Allowed scenario types</Label>
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="w-full flex items-center justify-between rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring"
+        className="w-full flex items-center justify-between rounded-lg border border-input bg-background px-3 py-2.5 sm:py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring min-h-[44px]"
       >
         <span>{selected.length === options.length ? "All selected" : `${selected.length} of ${options.length} selected`}</span>
         <ChevronDown className="w-4 h-4 text-muted-foreground" />
       </button>
       {open && (
-        <div className="absolute z-10 w-full max-w-sm rounded-lg border border-border bg-card shadow-lg p-2 space-y-1 max-h-64 overflow-y-auto">
-          <div className="flex items-center justify-between px-2 py-1">
+        <div className="absolute z-10 left-0 right-0 sm:left-0 sm:right-0 lg:w-full rounded-lg border border-border bg-card shadow-lg p-2 max-h-64 lg:max-h-80 overflow-y-auto">
+          <div className="flex items-center justify-between px-2 py-1 mb-1">
             <button type="button" onClick={selectAll} className="text-[10px] text-primary hover:underline">
               Select all
             </button>
@@ -77,21 +77,37 @@ function ScenarioTypeMultiSelect({
               Deselect all
             </button>
           </div>
-          <div className="h-px bg-border" />
-          {options.map((option) => (
-            <label
-              key={option}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer text-xs"
-            >
-              <input
-                type="checkbox"
-                checked={selected.includes(option)}
-                onChange={() => toggle(option)}
-                className="w-3.5 h-3.5 rounded border-border text-primary"
-              />
-              <span className="flex-1">{option}</span>
-            </label>
-          ))}
+          <div className="h-px bg-border mb-1" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-1">
+          {options.map((option) => {
+            const isSelected = selected.includes(option);
+            return (
+              <label
+                key={option}
+                className={cn(
+                  "flex items-center gap-3 px-2 py-2.5 sm:py-2 rounded-lg cursor-pointer text-sm sm:text-xs transition-colors",
+                  isSelected ? "bg-primary/5" : "hover:bg-muted/50"
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggle(option)}
+                  className="sr-only peer"
+                />
+                <div className={cn(
+                  "w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0",
+                  isSelected
+                    ? "bg-primary border-primary text-primary-foreground"
+                    : "border-border bg-background peer-focus:ring-2 peer-focus:ring-ring"
+                )}>
+                  {isSelected && <Check className="w-2.5 h-2.5" />}
+                </div>
+                <span className="flex-1">{option}</span>
+              </label>
+            );
+          })}
+          </div>
         </div>
       )}
     </div>
@@ -448,15 +464,15 @@ export default function CreateFromKBPage() {
   const canGenerate = selectedUrls.length > 0 || selectedDocIds.length > 0;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => router.push("/scenarios")}>
+      <div className="flex items-center gap-2 sm:gap-3">
+        <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9" onClick={() => router.push("/scenarios")}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
-          <h1 className="text-xl font-bold tracking-tight">Create from Knowledge Base</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight">Create from Knowledge Base</h1>
+          <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
             {status === "review"
               ? "Review and edit the AI-generated scenarios before saving."
               : "Select the URLs and documents the AI should use to generate scenarios."}
@@ -467,15 +483,15 @@ export default function CreateFromKBPage() {
       {/* Source selection */}
       {(status === "select" || status === "loading") && (
         <Card className="rounded-2xl border shadow-sm">
-          <CardContent className="py-6 px-6 space-y-8">
+          <CardContent className="py-5 sm:py-6 px-4 sm:px-6 space-y-6 sm:space-y-8">
             {/* URLs */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
                   <Database className="w-4 h-4 text-muted-foreground" />
                   Website URLs ({sourceUrls.length})
                 </h3>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={selectAllUrls}
                     className="text-xs text-primary hover:underline"
@@ -500,14 +516,27 @@ export default function CreateFromKBPage() {
                   {sourceUrls.map((url) => (
                     <label
                       key={url}
-                      className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:bg-muted/30 transition-colors cursor-pointer"
+                      className={cn(
+                        "flex items-center gap-3 p-3 sm:p-3 rounded-xl border transition-all cursor-pointer",
+                        selectedUrls.includes(url)
+                          ? "bg-primary/5 border-primary/30 shadow-sm"
+                          : "bg-card border-border hover:bg-muted/30 hover:border-border/80"
+                      )}
                     >
                       <input
                         type="checkbox"
                         checked={selectedUrls.includes(url)}
                         onChange={() => toggleUrl(url)}
-                        className="mt-0.5 w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                        className="sr-only peer"
                       />
+                      <div className={cn(
+                        "w-5 h-5 sm:w-4 sm:h-4 rounded border flex items-center justify-center transition-colors shrink-0",
+                        selectedUrls.includes(url)
+                          ? "bg-primary border-primary text-primary-foreground"
+                          : "border-border bg-background peer-focus:ring-2 peer-focus:ring-ring"
+                      )}>
+                        {selectedUrls.includes(url) && <Check className="w-3 h-3 sm:w-2.5 sm:h-2.5" />}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-foreground truncate">{url}</p>
                       </div>
@@ -521,12 +550,12 @@ export default function CreateFromKBPage() {
 
             {/* Documents */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
                   <FileText className="w-4 h-4 text-muted-foreground" />
                   Uploaded Documents ({documents.length})
                 </h3>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={selectAllDocs}
                     className="text-xs text-primary hover:underline"
@@ -551,14 +580,27 @@ export default function CreateFromKBPage() {
                   {documents.map((doc) => (
                     <label
                       key={doc.id}
-                      className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:bg-muted/30 transition-colors cursor-pointer"
+                      className={cn(
+                        "flex items-center gap-3 p-3 sm:p-3 rounded-xl border transition-all cursor-pointer",
+                        selectedDocIds.includes(doc.id)
+                          ? "bg-primary/5 border-primary/30 shadow-sm"
+                          : "bg-card border-border hover:bg-muted/30 hover:border-border/80"
+                      )}
                     >
                       <input
                         type="checkbox"
                         checked={selectedDocIds.includes(doc.id)}
                         onChange={() => toggleDoc(doc.id)}
-                        className="mt-0.5 w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                        className="sr-only peer"
                       />
+                      <div className={cn(
+                        "w-5 h-5 sm:w-4 sm:h-4 rounded border flex items-center justify-center transition-colors shrink-0",
+                        selectedDocIds.includes(doc.id)
+                          ? "bg-primary border-primary text-primary-foreground"
+                          : "border-border bg-background peer-focus:ring-2 peer-focus:ring-ring"
+                      )}>
+                        {selectedDocIds.includes(doc.id) && <Check className="w-3 h-3 sm:w-2.5 sm:h-2.5" />}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-foreground truncate">{doc.name}</p>
                         <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
@@ -587,7 +629,7 @@ export default function CreateFromKBPage() {
                     value={String(scenarioCount)}
                     onValueChange={(value) => setScenarioCount(Number(value))}
                   >
-                    <SelectTrigger className="rounded-lg">
+                    <SelectTrigger className="rounded-lg h-11">
                       <SelectValue placeholder="Select count" />
                     </SelectTrigger>
                     <SelectContent>
@@ -607,14 +649,14 @@ export default function CreateFromKBPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-xs text-muted-foreground">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+              <p className="text-xs text-muted-foreground text-center sm:text-left">
                 {selectedUrls.length + selectedDocIds.length} source{selectedUrls.length + selectedDocIds.length === 1 ? "" : "s"} selected
               </p>
               <Button
                 onClick={generateScenarios}
                 disabled={!canGenerate || loading || selectedScenarioTypes.length === 0}
-                className="rounded-lg gap-2"
+                className="rounded-lg gap-2 h-11 sm:h-9"
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

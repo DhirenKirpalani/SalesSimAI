@@ -5,7 +5,7 @@ import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Mail, Users } from "lucide-react";
+import { Calendar, Mail, Users, User, Building2, UsersRound, MessageSquare } from "lucide-react";
 import { useState, FormEvent, useRef } from "react";
 
 export default function BookDemoPage() {
@@ -64,22 +64,22 @@ export default function BookDemoPage() {
   return (
     <PageLayout>
       <BreadcrumbJsonLd items={[{ label: "Home", path: "/" }, { label: "Book a demo", path: "/book-demo" }]} />
-      <div className="wrap py-20 lg:py-28">
+      <div className="wrap py-12 sm:py-20 lg:py-28 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
-          <span className="inline-block text-xs font-bold uppercase tracking-widest text-[#FF6B45] mb-4">
+          <span className="inline-block text-xs font-bold uppercase tracking-widest text-[#FF6B45] mb-3 sm:mb-4">
             Book a demo
           </span>
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#1B1A1E] mb-4" style={{ fontFamily: "Poppins, sans-serif" }}>
+          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-[#1B1A1E] mb-3 sm:mb-4" style={{ fontFamily: "Poppins, sans-serif" }}>
             See Day1 in action
           </h1>
-          <p className="text-base sm:text-lg text-[#68646C] leading-relaxed max-w-2xl mb-12">
+          <p className="text-base sm:text-lg text-[#68646C] leading-relaxed max-w-2xl mb-8 sm:mb-12">
             For B2B fintech sales teams and sales leaders. Tell us about your team and we will show you how Day1 turns every call into team-wide readiness.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+            <div className="space-y-6 sm:space-y-8">
               <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg border border-[#E7E4DF] bg-white flex items-center justify-center text-[#FF6B45] shrink-0">
+                <div className="w-11 h-11 sm:w-10 sm:h-10 rounded-xl sm:rounded-lg border border-[#E7E4DF] bg-white flex items-center justify-center text-[#FF6B45] shrink-0 shadow-sm">
                   <Calendar className="w-5 h-5" />
                 </div>
                 <div>
@@ -90,7 +90,7 @@ export default function BookDemoPage() {
                 </div>
               </div>
               <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg border border-[#E7E4DF] bg-white flex items-center justify-center text-[#FF6B45] shrink-0">
+                <div className="w-11 h-11 sm:w-10 sm:h-10 rounded-xl sm:rounded-lg border border-[#E7E4DF] bg-white flex items-center justify-center text-[#FF6B45] shrink-0 shadow-sm">
                   <Users className="w-5 h-5" />
                 </div>
                 <div>
@@ -101,7 +101,7 @@ export default function BookDemoPage() {
                 </div>
               </div>
               <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg border border-[#E7E4DF] bg-white flex items-center justify-center text-[#FF6B45] shrink-0">
+                <div className="w-11 h-11 sm:w-10 sm:h-10 rounded-xl sm:rounded-lg border border-[#E7E4DF] bg-white flex items-center justify-center text-[#FF6B45] shrink-0 shadow-sm">
                   <Mail className="w-5 h-5" />
                 </div>
                 <div>
@@ -117,33 +117,48 @@ export default function BookDemoPage() {
               </div>
             </div>
 
-            <form ref={formRef} onSubmit={handleSubmit} className="rounded-2xl border border-[#E7E4DF] bg-white p-6 lg:p-8 shadow-sm space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <form ref={formRef} onSubmit={handleSubmit} className="rounded-2xl border border-[#E7E4DF] bg-gradient-to-b from-white to-[#FFFBF9] p-5 sm:p-6 lg:p-8 shadow-lg shadow-[#FF6B45]/10 space-y-4 sm:space-y-5">
+              <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <label htmlFor="name" className="text-sm font-medium text-[#1B1A1E]">Name</label>
-                  <Input id="name" name="name" placeholder="Jane Doe" required />
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9A96A0] pointer-events-none" />
+                    <Input id="name" name="name" placeholder="Jane Doe" className="h-12 pl-10 rounded-xl" required />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="email" className="text-sm font-medium text-[#1B1A1E]">Work email</label>
-                  <Input id="email" name="email" type="email" placeholder="jane@company.com" required />
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9A96A0] pointer-events-none" />
+                    <Input id="email" name="email" type="email" placeholder="jane@company.com" className="h-12 pl-10 rounded-xl" required />
+                  </div>
                 </div>
               </div>
               <div className="space-y-2">
                 <label htmlFor="company" className="text-sm font-medium text-[#1B1A1E]">Company</label>
-                <Input id="company" name="company" placeholder="Acme Fintech" required />
+                <div className="relative">
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9A96A0] pointer-events-none" />
+                  <Input id="company" name="company" placeholder="Acme Fintech" className="h-12 pl-10 rounded-xl" required />
+                </div>
               </div>
               <div className="space-y-2">
                 <label htmlFor="team-size" className="text-sm font-medium text-[#1B1A1E]">Team size</label>
-                <Input id="team-size" name="team-size" placeholder="e.g. 20–50 reps" />
+                <div className="relative">
+                  <UsersRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9A96A0] pointer-events-none" />
+                  <Input id="team-size" name="team-size" placeholder="e.g. 20–50 reps" className="h-12 pl-10 rounded-xl" />
+                </div>
               </div>
               <div className="space-y-2">
                 <label htmlFor="message" className="text-sm font-medium text-[#1B1A1E]">What would you like to see?</label>
-                <Textarea id="message" name="message" placeholder="Tell us about your current call workflow and main pain points." rows={4} />
+                <div className="relative">
+                  <MessageSquare className="absolute left-3 top-3 w-4 h-4 text-[#9A96A0] pointer-events-none" />
+                  <Textarea id="message" name="message" placeholder="Tell us about your current call workflow and main pain points." rows={4} className="pl-10 rounded-xl" />
+                </div>
               </div>
               <Button
                 type="submit"
                 disabled={status === "loading"}
-                className="w-full rounded-lg bg-[#FF6B45] hover:bg-[#ff7d55] text-white disabled:opacity-60"
+                className="w-full h-12 rounded-xl bg-[#FF6B45] hover:bg-[#ff7d55] text-white text-base font-semibold disabled:opacity-60"
               >
                 {status === "loading" ? "Sending..." : "Book demo"}
               </Button>

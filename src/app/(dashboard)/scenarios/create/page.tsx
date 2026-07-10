@@ -389,20 +389,20 @@ function CreateScenarioPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => router.push("/scenarios")}>
+      <div className="flex items-center gap-2 sm:gap-3">
+        <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9" onClick={() => router.push("/scenarios")}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
-          <h1 className="text-xl font-bold tracking-tight">{isEditMode ? "Edit Scenario" : "Create Custom Scenario"}</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">{isEditMode ? "Update the scenario details below." : "Build a simulation tailored to your product and buyers"}</p>
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight">{isEditMode ? "Edit Scenario" : "Create Custom Scenario"}</h1>
+          <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">{isEditMode ? "Update the scenario details below." : "Build a simulation tailored to your product and buyers"}</p>
         </div>
       </div>
 
       {/* Step indicators */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1">
         {STEPS.map((s, i) => {
           const Icon = s.icon;
           const active = step === s.id;
@@ -412,17 +412,17 @@ function CreateScenarioPage() {
               <button
                 onClick={() => setStep(s.id)}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer hover:scale-105",
-                  done ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20" :
-                  active ? "bg-primary/10 text-primary hover:bg-primary/20" :
-                  "bg-muted text-muted-foreground hover:bg-muted/80"
+                  "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all cursor-pointer hover:scale-105 shrink-0 border",
+                  done ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20" :
+                  active ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" :
+                  "bg-muted text-muted-foreground border-border hover:bg-muted/80"
                 )}
               >
                 {done ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
-                <span className="hidden sm:inline">{s.label}</span>
+                <span className={cn("hidden", active && "inline sm:inline")}>{s.label}</span>
               </button>
               {i < STEPS.length - 1 && (
-                <div className={cn("flex-1 h-px w-4 bg-border", done && "bg-emerald-500/30")} />
+                <div className={cn("flex-1 h-px min-w-2 sm:w-4 bg-border", done && "bg-emerald-500/30")} />
               )}
             </div>
           );
@@ -441,20 +441,20 @@ function CreateScenarioPage() {
           {/* Step 1: Your Company */}
           {step === 1 && (
             <Card className="rounded-2xl border shadow-sm">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-base flex items-center gap-2">
+              <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
+                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-primary" />
                   Tell us about your company
                 </CardTitle>
-                <p className="text-xs text-muted-foreground">This becomes the context the AI buyer understands — what you&apos;re selling and why it matters.</p>
+                <p className="text-[11px] sm:text-xs text-muted-foreground">This becomes the context the AI buyer understands — what you&apos;re selling and why it matters.</p>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 px-4 sm:px-6">
                 <div className="space-y-2">
                   <Label htmlFor="sellerCompany" className="text-xs font-medium">Company Name</Label>
                   <Input
                     id="sellerCompany"
                     placeholder="e.g. Aspire, Stripe, Rippling"
-                    className="rounded-xl"
+                    className="rounded-xl h-11"
                     value={form.sellerCompany}
                     onChange={(e) => set("sellerCompany", e.target.value)}
                   />
@@ -464,7 +464,7 @@ function CreateScenarioPage() {
                   <Input
                     id="sellerProduct"
                     placeholder="e.g. B2B expense management SaaS for scale-ups in SEA"
-                    className="rounded-xl"
+                    className="rounded-xl h-11"
                     value={form.sellerProduct}
                     onChange={(e) => set("sellerProduct", e.target.value)}
                   />
@@ -472,8 +472,10 @@ function CreateScenarioPage() {
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">Product Type</Label>
                   <Select value={form.productType} onValueChange={(v) => set("productType", v as ProductType)}>
-                    <SelectTrigger className="rounded-xl">
-                      <SelectValue />
+                    <SelectTrigger className="rounded-xl h-11">
+                      <SelectValue placeholder="Select product type">
+                        {PRODUCT_TYPE_LABELS[form.productType]}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {PRODUCT_TYPES.map((p) => (
@@ -489,7 +491,7 @@ function CreateScenarioPage() {
                   </Label>
                   <Textarea
                     id="sellerDescription"
-                    className="rounded-xl min-h-[180px] text-sm"
+                    className="rounded-xl min-h-[140px] sm:min-h-[180px] text-sm"
                     placeholder={`Write a brief like you'd give to a new hire. Include:
 • What problem you solve
 • Who your ideal customer is
@@ -511,14 +513,14 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
           {/* Step 2: Buyer Persona */}
           {step === 2 && (
             <Card className="rounded-2xl border shadow-sm">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-base flex items-center gap-2">
+              <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
+                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
                   <Users className="w-4 h-4 text-primary" />
                   Choose a buyer persona
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">Who will you be selling to? Pick a preset or build your own.</p>
               </CardHeader>
-              <CardContent className="space-y-5">
+              <CardContent className="space-y-5 px-4 sm:px-6 pb-5 sm:pb-6">
                 {/* Toggle */}
                 <div className="flex rounded-xl border overflow-hidden">
                   <button
@@ -711,14 +713,14 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
           {/* Step 3: Avatar */}
           {step === 3 && (
             <Card className="rounded-2xl border shadow-sm">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-base flex items-center gap-2">
+              <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
+                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
                   <Image className="w-4 h-4 text-primary" />
                   Choose an avatar
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">Pick the LiveAvatar that represents your buyer persona.</p>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 px-4 sm:px-6 pb-5 sm:pb-6">
                 <AvatarPicker
                   selected={form.avatarId}
                   onSelect={(id, voiceId, name) => {
@@ -734,14 +736,14 @@ Aspire is a B2B fintech platform offering corporate cards, multi-currency accoun
           {/* Step 4: Scenario Setup */}
           {step === 4 && (
             <Card className="rounded-2xl border shadow-sm">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-base flex items-center gap-2">
+              <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
+                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
                   <Settings2 className="w-4 h-4 text-primary" />
                   Configure the scenario
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">Set the call type, difficulty, and any contextual backstory.</p>
               </CardHeader>
-              <CardContent className="space-y-5">
+              <CardContent className="space-y-5 px-4 sm:px-6 pb-5 sm:pb-6">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">Call Type</Label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -936,14 +938,14 @@ Examples:
           {/* Step 5: Review */}
           {step === 5 && (
             <Card className="rounded-2xl border shadow-sm">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-base flex items-center gap-2">
+              <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
+                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
                   <FileCheck className="w-4 h-4 text-primary" />
                   Review your scenario
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">Everything looks good? Save and start your simulation.</p>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 px-4 sm:px-6 pb-5 sm:pb-6">
                 {/* Scenario name */}
                 <div className="flex items-start justify-between rounded-xl border p-3 bg-muted/30">
                   <div>
@@ -1151,10 +1153,10 @@ Examples:
       </AnimatePresence>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
         <Button
           variant="ghost"
-          className="rounded-xl"
+          className="rounded-xl h-11 sm:h-9"
           onClick={() => setStep((s) => s - 1)}
           disabled={step === 1}
         >
@@ -1164,7 +1166,7 @@ Examples:
 
         {step < 5 ? (
           <Button
-            className="rounded-xl gap-1"
+            className="rounded-xl gap-1 h-11 sm:h-9"
             onClick={() => setStep((s) => s + 1)}
             disabled={!canGoNext() || loadingEdit}
           >
@@ -1172,17 +1174,17 @@ Examples:
             <ArrowRight className="w-4 h-4" />
           </Button>
         ) : (
-          <div className="flex gap-2">
+          <div className="flex flex-col-reverse sm:flex-row gap-2">
             <Button
               variant="outline"
-              className="rounded-xl gap-1"
+              className="rounded-xl gap-1 h-11 sm:h-9"
               disabled={saving}
               onClick={() => router.push("/scenarios")}
             >
               Cancel
             </Button>
             <Button
-              className="rounded-xl gap-1"
+              className="rounded-xl gap-1 h-11 sm:h-9"
               disabled={saving}
               onClick={handleSave}
             >

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowRight, Eye, EyeOff, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, CheckCircle2, Mail, Lock } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Logo } from "@/components/layout/Logo";
@@ -100,27 +100,30 @@ export default function LoginPage() {
       >
         <div className="text-center mb-8">
           <Logo href="/" className="inline-flex items-center justify-center mb-6 hover:opacity-80 transition-opacity text-xl" />
-          <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Welcome back</h1>
+          <p className="mt-2 text-sm sm:text-base text-muted-foreground">
             Sign in to continue your training.
           </p>
         </div>
 
-        <Card className="rounded-2xl border bg-card/80 backdrop-blur-sm shadow-lg">
-          <CardContent className="p-6 space-y-4">
+        <Card className="rounded-2xl border bg-gradient-to-b from-card to-card/90 backdrop-blur-sm shadow-xl shadow-primary/10">
+          <CardContent className="p-6 sm:p-8 space-y-4">
             <Suspense>
               <ConfirmedBanner />
             </Suspense>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-xs font-medium">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="john@company.com"
-                  className="rounded-xl h-10"
-                  {...register("email")}
-                />
+                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="john@company.com"
+                    className="rounded-xl h-12 pl-10"
+                    {...register("email")}
+                  />
+                </div>
                 {errors.email && (
                   <p className="text-xs text-destructive">{errors.email.message}</p>
                 )}
@@ -128,17 +131,18 @@ export default function LoginPage() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-xs font-medium">Password *</Label>
-                  <Link href="/" className="text-[10px] text-primary hover:underline">
+                  <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                  <Link href="/" className="text-xs text-primary hover:underline">
                     Forgot password?
                   </Link>
                 </div>
                 <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
-                    className="rounded-xl h-10 pr-10"
+                    className="rounded-xl h-12 pl-10 pr-10"
                     {...register("password")}
                   />
                   <button
@@ -158,7 +162,7 @@ export default function LoginPage() {
                 <p className="text-xs text-destructive text-center">{error}</p>
               )}
 
-              <Button type="submit" className="w-full rounded-xl h-10 mt-2" disabled={loading}>
+              <Button type="submit" className="w-full rounded-xl h-12 mt-2 text-base font-semibold" disabled={loading}>
                 {loading ? "Signing in..." : "Sign In"}
                 <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
@@ -175,7 +179,7 @@ export default function LoginPage() {
 
             <Button
               variant="outline"
-              className="w-full rounded-xl h-10"
+              className="w-full rounded-xl h-12 text-base font-medium"
               onClick={signInWithGoogle}
               type="button"
             >
@@ -190,9 +194,9 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">
+        <p className="text-center text-sm text-muted-foreground mt-6">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="text-primary hover:underline font-medium">
+          <Link href="/signup" className="text-primary hover:underline font-semibold">
             Sign up
           </Link>
         </p>

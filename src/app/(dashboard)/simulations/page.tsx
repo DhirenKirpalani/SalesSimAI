@@ -104,22 +104,33 @@ export default function SimulationsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6 max-w-4xl mx-auto animate-pulse">
+      <div className="space-y-4 sm:space-y-6 max-w-4xl mx-auto px-4 sm:px-0 animate-pulse">
         <div className="space-y-2">
           <div className="h-8 w-48 bg-muted rounded" />
-          <div className="h-4 w-96 bg-muted rounded" />
+          <div className="h-4 w-72 sm:w-96 bg-muted rounded" />
         </div>
-        <div className="h-96 bg-muted rounded-2xl" />
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-2xl border bg-card p-4">
+              <div className="w-12 h-12 rounded-full bg-muted" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-2/3 bg-muted rounded" />
+                <div className="h-3 w-1/2 bg-muted rounded" />
+              </div>
+              <div className="w-20 h-8 bg-muted rounded-lg" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-4 sm:space-y-6 max-w-4xl mx-auto">
       <div>
         <PageHeaderLogo />
-        <h1 className="text-2xl font-bold tracking-tight">Simulations</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Simulations</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
           Your practice session history — every run, its date, duration, and analysis status.
         </p>
       </div>
@@ -129,9 +140,14 @@ export default function SimulationsPage() {
           <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
         </div>
       ) : sessions.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
-          <Inbox className="w-10 h-10 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">No simulations yet.</p>
+        <div className="flex flex-col items-center justify-center py-16 sm:py-24 px-4 gap-4 text-center border border-dashed border-border rounded-2xl bg-muted/30">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-muted flex items-center justify-center">
+            <Inbox className="w-7 h-7 sm:w-8 sm:h-8 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="font-medium text-sm sm:text-base">No simulations yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Start practicing with a scenario to see your history.</p>
+          </div>
           <Button size="sm" className="rounded-xl mt-1" onClick={() => router.push("/scenarios")}>
             Browse Scenarios
           </Button>
@@ -147,14 +163,14 @@ export default function SimulationsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: i * 0.04 }}
                 onClick={() => router.push(`/analysis?session=${s.id}&source=${s.source}`)}
-                className="group flex flex-col sm:flex-row sm:items-center gap-4 rounded-2xl border bg-card px-4 py-4 sm:px-5 hover:shadow-sm hover:border-primary/30 cursor-pointer transition-all"
+                className="group flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-2xl border bg-card px-4 py-4 sm:px-5 hover:shadow-sm hover:border-primary/30 cursor-pointer transition-all"
               >
                 {/* Top row: score, name, status, arrow */}
                 <div className="flex items-start gap-3 sm:gap-4">
                   {/* Score badge */}
                   <div className="flex-shrink-0 w-12 sm:w-14 text-center pt-0.5">
                     {score !== undefined ? (
-                      <span className={`text-sm font-bold px-2 py-1 rounded-lg ${scoreColor(score)}`}>
+                      <span className={`text-sm font-bold px-2 py-1.5 rounded-xl ${scoreColor(score)}`}>
                         {score}
                       </span>
                     ) : (
@@ -189,13 +205,13 @@ export default function SimulationsPage() {
                     ) : (
                       <Badge variant="secondary" className="text-[10px]">No analysis</Badge>
                     )}
-                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    <ArrowRight className="w-5 h-5 sm:w-4 sm:h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                   </div>
                 </div>
 
                 {/* Source badge — full width on mobile */}
-                <div className="sm:hidden">
-                  <span className={`text-[10px] px-2 py-1 rounded border inline-flex items-center ${
+                <div className="sm:hidden flex items-center justify-between">
+                  <span className={`text-[10px] px-2.5 py-1 rounded-full border inline-flex items-center ${
                     s.source === "video"
                       ? "bg-violet-500/10 text-violet-600 border-violet-500/20"
                       : s.source === "text"
@@ -203,6 +219,9 @@ export default function SimulationsPage() {
                       : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                   }`}>
                     {s.source === "video" ? "Video Call" : s.source === "text" ? "Text Chat" : "Voice Call"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatDateMobile(s.started_at)}
                   </span>
                 </div>
               </motion.div>
@@ -216,7 +235,7 @@ export default function SimulationsPage() {
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl"
+            className="rounded-xl h-10 w-10 sm:h-8 sm:w-8"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
           >
@@ -228,7 +247,7 @@ export default function SimulationsPage() {
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl"
+            className="rounded-xl h-10 w-10 sm:h-8 sm:w-8"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
           >

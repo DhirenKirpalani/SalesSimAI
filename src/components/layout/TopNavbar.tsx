@@ -118,6 +118,7 @@ export function TopNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { darkMode, toggleDarkMode } = useThemeStore();
   const [initials, setInitials] = useState("U");
+  const [userLoading, setUserLoading] = useState(true);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationLimit, setNotificationLimit] = useState(10);
@@ -310,6 +311,7 @@ export function TopNavbar() {
       const name = user?.user_metadata?.full_name || user?.email || "U";
       const letters = name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
       setInitials(letters);
+      setUserLoading(false);
       readIdsRef.current = new Set(await fetchReadIds());
 
       const { data: userProfile } = await supabase
@@ -431,14 +433,17 @@ export function TopNavbar() {
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-card px-4 lg:px-6">
       <div className="flex items-center gap-3 md:hidden">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger className="inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground">
+          <SheetTrigger className="inline-flex items-center justify-center h-10 w-10 rounded-xl text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground">
             <Menu className="h-5 w-5" />
           </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0">
-            <div className="flex items-center px-4 h-16 border-b">
+          <SheetContent side="left" className="w-[280px] sm:w-72 p-0 rounded-r-2xl">
+            <div className="flex items-center px-5 h-16 border-b">
               <Logo />
             </div>
-            <nav className="flex flex-col gap-1 p-3 pt-4">
+            <div className="px-5 pt-5 pb-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Menu</p>
+            </div>
+            <nav className="flex flex-col gap-1.5 px-3 pb-4">
               {mobileNavItems.map((item) => {
                 const active = pathname.startsWith(item.href);
                 return (
@@ -447,13 +452,13 @@ export function TopNavbar() {
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                      "flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors min-h-[48px]",
                       active
-                        ? "bg-primary/10 text-primary"
+                        ? "bg-primary text-primary-foreground shadow-sm"
                         : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                     )}
                   >
-                    <item.icon className="w-4 h-4" />
+                    <item.icon className={cn("w-5 h-5", active && "text-primary-foreground")} />
                     {item.label}
                   </Link>
                 );
@@ -480,23 +485,23 @@ export function TopNavbar() {
               className="h-9 flex-1"
               onBlur={() => setSearchOpen(false)}
             />
-            <Button variant="ghost" size="icon" onClick={() => setSearchOpen(false)}>
+            <Button variant="ghost" size="icon" onClick={() => setSearchOpen(false)} title="Close search">
               <X className="h-4 w-4" />
             </Button>
           </div>
         ) : (
-          <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} className="hidden sm:flex">
+          <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} className="hidden sm:flex" title="Search">
             <Search className="h-4 w-4" />
           </Button>
         )}
       </div>
 
-      <Button variant="ghost" size="icon" onClick={toggleDarkMode} className="hidden sm:flex">
+      <Button variant="ghost" size="icon" onClick={toggleDarkMode} className="hidden sm:flex" title={darkMode ? "Light mode" : "Dark mode"}>
         {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </Button>
 
       <Sheet open={notificationsOpen} onOpenChange={setNotificationsOpen}>
-        <SheetTrigger>
+        <SheetTrigger title="Notifications">
           <div className="relative inline-flex items-center justify-center h-9 w-9 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
             <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
@@ -504,41 +509,41 @@ export function TopNavbar() {
             )}
           </div>
         </SheetTrigger>
-        <SheetContent side="right" className="w-full sm:max-w-sm p-0">
-          <SheetHeader className="px-4 pt-4 pb-2 pr-10">
-            <div className="flex items-center justify-between">
-              <SheetTitle>Notifications</SheetTitle>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0 rounded-l-2xl sm:rounded-l-2xl">
+          <SheetHeader className="px-4 sm:px-5 pt-5 pb-3 pr-12">
+            <div className="flex items-center justify-between gap-3">
+              <SheetTitle className="text-base sm:text-lg">Notifications</SheetTitle>
               {unreadCount > 0 && (
                 <button
                   onClick={markAllRead}
-                  className="text-xs text-primary hover:underline"
+                  className="text-xs text-primary hover:underline shrink-0"
                 >
                   Mark all as read
                 </button>
               )}
             </div>
-            <SheetDescription>
+            <SheetDescription className="text-xs sm:text-sm">
               {unreadCount > 0
                 ? `You have ${unreadCount} unread notification${unreadCount > 1 ? "s" : ""}.`
                 : "No new notifications."}
             </SheetDescription>
           </SheetHeader>
           <Separator />
-          <ScrollArea className="h-[calc(100vh-8rem)]">
-            <div className="flex flex-col">
+          <ScrollArea className="h-[calc(100vh-9rem)]">
+            <div className="flex flex-col gap-2 p-3 sm:p-4">
               {notifications.slice(0, notificationLimit).map((n) => (
                 <div
                   key={n.id}
                   onClick={() => n.type !== "invite" && markAsRead(n.id)}
                   className={cn(
-                    "flex items-start gap-3 px-4 py-3 transition-colors",
-                    n.type !== "invite" && "hover:bg-accent/50 cursor-pointer",
-                    !n.read && "bg-primary/5"
+                    "flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl border transition-all",
+                    n.type !== "invite" && "hover:bg-accent/40 cursor-pointer",
+                    !n.read ? "bg-primary/5 border-primary/10 shadow-sm" : "bg-card border-border"
                   )}
                 >
                   <div className={cn(
-                    "mt-0.5 shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
-                    n.type === "invite" ? "bg-blue-500/10" : "bg-primary/10"
+                    "mt-0.5 shrink-0 w-10 h-10 sm:w-9 sm:h-9 rounded-full flex items-center justify-center",
+                    n.type === "invite" ? "bg-blue-500/10 text-blue-600" : "bg-primary/10 text-primary"
                   )}>
                     {notificationIcon(n.type)}
                   </div>
@@ -546,29 +551,31 @@ export function TopNavbar() {
                     <p className="text-sm font-medium leading-tight">
                       {n.title}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                       {n.message}
                     </p>
-                    <p className="text-[10px] text-muted-foreground/70 mt-1">
+                    <p className="text-[11px] text-muted-foreground/70 mt-1.5">
                       {n.time}
                     </p>
                     {n.type === "invite" && n.inviteId && (
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex flex-col sm:flex-row gap-2 mt-3">
                         <Button
-                          size="xs"
+                          size="sm"
                           onClick={() => handleAcceptInvite(n.inviteId!, n.id)}
                           disabled={acceptingInvite === n.inviteId}
+                          className="h-9 sm:h-8 rounded-lg"
                         >
                           {acceptingInvite === n.inviteId ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
-                            <><Check className="w-3 h-3" /> Accept</>)
+                            <><Check className="w-4 h-4 mr-1" /> Accept</>)
                           }
                         </Button>
                         <Button
-                          size="xs"
+                          size="sm"
                           variant="ghost"
                           onClick={() => setNotifications((prev) => prev.filter((x) => x.id !== n.id))}
+                          className="h-9 sm:h-8 rounded-lg"
                         >
                           Dismiss
                         </Button>
@@ -576,14 +583,14 @@ export function TopNavbar() {
                     )}
                   </div>
                   {!n.read && n.type !== "invite" && (
-                    <span className="mt-2 shrink-0 h-1.5 w-1.5 rounded-full bg-primary" />
+                    <span className="mt-2 shrink-0 h-2 w-2 sm:h-1.5 sm:w-1.5 rounded-full bg-primary" />
                   )}
                 </div>
               ))}
               {hasMoreNotifications && (
                 <button
                   onClick={() => setNotificationLimit((prev) => prev + 10)}
-                  className="w-full py-3 text-center text-sm font-medium text-primary hover:bg-accent transition-colors"
+                  className="w-full py-3 text-center text-sm font-medium text-primary hover:bg-accent rounded-xl transition-colors"
                 >
                   View more
                 </button>
@@ -593,14 +600,17 @@ export function TopNavbar() {
         </SheetContent>
       </Sheet>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger>
-          <Avatar className="h-8 w-8 border cursor-pointer">
-            <AvatarFallback className="text-xs bg-primary/10 text-primary">{initials}</AvatarFallback>
-          </Avatar>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" sideOffset={8} className="w-64">
-          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      {userLoading ? (
+        <div className="h-9 w-9 sm:h-8 sm:w-8 rounded-full bg-muted/60 animate-pulse border" />
+      ) : (
+        <DropdownMenu>
+          <DropdownMenuTrigger>
+            <Avatar className="h-9 w-9 sm:h-8 sm:w-8 border cursor-pointer animate-in fade-in duration-300" title="Account menu">
+              <AvatarFallback className="text-sm sm:text-xs bg-primary/10 text-primary">{initials}</AvatarFallback>
+            </Avatar>
+          </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" sideOffset={8} className="w-72 sm:w-64 rounded-xl">
+          <div className="px-3 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Workspaces
           </div>
           {workspaces.map((workspace) => {
@@ -610,15 +620,15 @@ export function TopNavbar() {
                 key={workspace.id}
                 onClick={() => handleSwitchWorkspace(workspace.id)}
                 disabled={switchingWorkspaceId === workspace.id}
-                className="flex items-center justify-between"
+                className="flex items-center justify-between py-2.5 px-3"
               >
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-3 min-w-0">
                   {workspace.logo_url ? (
-                    <img src={workspace.logo_url} alt="" className="w-4 h-4 object-contain rounded" />
+                    <img src={workspace.logo_url} alt="" className="w-5 h-5 object-contain rounded" />
                   ) : (
-                    <Building2 className="w-4 h-4 text-muted-foreground" />
+                    <Building2 className="w-5 h-5 text-muted-foreground" />
                   )}
-                  <span className="truncate">{workspace.name}</span>
+                  <span className="truncate text-sm">{workspace.name}</span>
                 </div>
                 {isActive && <Check className="w-4 h-4 text-primary shrink-0 ml-2" />}
                 {switchingWorkspaceId === workspace.id && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0 ml-2" />}
@@ -626,17 +636,18 @@ export function TopNavbar() {
             );
           })}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => router.push("/profile")}>
-            <User className="mr-2 h-4 w-4" />
+          <DropdownMenuItem onClick={() => router.push("/profile")} className="py-2.5 px-3 text-sm">
+            <User className="mr-3 h-4 w-4" />
             Profile
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={handleLogout}>
-            <LogOut className="mr-2 h-4 w-4" />
+          <DropdownMenuItem variant="destructive" onClick={handleLogout} className="py-2.5 px-3 text-sm">
+            <LogOut className="mr-3 h-4 w-4" />
             Log out
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      )}
     </header>
   );
 }

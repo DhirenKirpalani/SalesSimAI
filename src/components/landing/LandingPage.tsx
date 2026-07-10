@@ -387,47 +387,108 @@ export function LandingPage() {
                 <div className="pv-title">{processSteps[openStep].title}</div>
                 <div className="pv-sub">{processSteps[openStep].body}</div>
                 <div className="pv-image">
-                  {openStep === 0 && (
-                    <svg className="pv-illustration" viewBox="0 0 120 120" fill="none">
-                      <rect width="120" height="120" rx="24" fill="#FFF5F0" />
-                      <path d="M40 50h40v10H40z" fill="#FFD6C8" />
-                      <circle cx="48" cy="70" r="8" fill="#FF8A65" />
-                      <circle cx="60" cy="70" r="8" fill="#FF6B45" />
-                      <circle cx="72" cy="70" r="8" fill="#FF8A65" />
-                      <path d="M35 40c0-12 12-20 25-20s25 8 25 20" stroke="#FF6B45" strokeWidth="4" strokeLinecap="round" />
-                      <path d="M30 52h6v16h-6z" fill="#FF6B45" rx="2" />
-                      <path d="M84 52h6v16h-6z" fill="#FF6B45" rx="2" />
+                  <div key={openStep} className="pv-illustration-wrap">
+                    {openStep === 0 && (
+                      <svg className="pv-illustration" viewBox="0 0 120 120" fill="none">
+                      <defs>
+                        <linearGradient id="cap-grad" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#FFF5F0" />
+                          <stop offset="100%" stopColor="#FFE8E0" />
+                        </linearGradient>
+                        <linearGradient id="mic-grad" x1="30" y1="30" x2="90" y2="90" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#FF8A65" />
+                          <stop offset="100%" stopColor="#FF6B45" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="120" height="120" rx="24" fill="url(#cap-grad)" />
+                      <rect x="34" y="28" width="52" height="64" rx="12" fill="#fff" stroke="#FFD6C8" strokeWidth="2" />
+                      <rect x="42" y="40" width="36" height="8" rx="4" fill="#FFD6C8" />
+                      <path d="M52 56c0-4.4 3.6-8 8-8s8 3.6 8 8v8c0 4.4-3.6 8-8 8s-8-3.6-8-8v-8z" stroke="url(#mic-grad)" strokeWidth="3" />
+                      <path d="M44 68c0 8.8 7.2 16 16 16s16-7.2 16-16" stroke="url(#mic-grad)" strokeWidth="3" strokeLinecap="round" />
+                      <path d="M60 84v8" stroke="url(#mic-grad)" strokeWidth="3" strokeLinecap="round" />
+                      <path d="M48 92h24" stroke="url(#mic-grad)" strokeWidth="3" strokeLinecap="round" />
+                      <circle cx="88" cy="38" r="10" fill="url(#mic-grad)" fillOpacity="0.12" />
+                      <path d="M84 38h8M88 34v8" stroke="#FF6B45" strokeWidth="2" strokeLinecap="round" />
                     </svg>
                   )}
                   {openStep === 1 && (
                     <svg className="pv-illustration" viewBox="0 0 120 120" fill="none">
-                      <rect width="120" height="120" rx="24" fill="#FFF5F0" />
-                      <rect x="24" y="80" width="12" height="24" rx="4" fill="#FFD6C8" />
-                      <rect x="44" y="64" width="12" height="40" rx="4" fill="#FF8A65" />
-                      <rect x="64" y="48" width="12" height="56" rx="4" fill="#FF6B45" />
-                      <rect x="84" y="56" width="12" height="48" rx="4" fill="#FF8A65" />
-                      <path d="M24 42h72M24 32h72M24 22h48" stroke="#E5E5E5" strokeWidth="3" strokeLinecap="round" />
+                      <defs>
+                        <linearGradient id="intel-grad" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#FFF5F0" />
+                          <stop offset="100%" stopColor="#FFE8E0" />
+                        </linearGradient>
+                        <linearGradient id="bar-grad" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+                          <stop offset="0%" stopColor="#FF6B45" />
+                          <stop offset="100%" stopColor="#FF8A65" />
+                        </linearGradient>
+                        <filter id="intel-shadow" x="0" y="0" width="120" height="120" filterUnits="userSpaceOnUse">
+                          <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#FF6B45" floodOpacity="0.12" />
+                        </filter>
+                      </defs>
+                      <rect width="120" height="120" rx="24" fill="url(#intel-grad)" />
+                      <rect x="16" y="20" width="88" height="80" rx="14" fill="#fff" stroke="#FFD6C8" strokeWidth="2" filter="url(#intel-shadow)" />
+                      <rect x="28" y="34" width="40" height="6" rx="3" fill="#FFD6C8" />
+                      <rect x="28" y="46" width="64" height="4" rx="2" fill="#E5E5E5" />
+                      <line x1="28" y1="64" x2="92" y2="64" stroke="#F0F0F0" strokeWidth="1" />
+                      <line x1="28" y1="78" x2="92" y2="78" stroke="#F0F0F0" strokeWidth="1" />
+                      <line x1="28" y1="92" x2="92" y2="92" stroke="#F0F0F0" strokeWidth="1" />
+                      <rect x="32" y="74" width="10" height="18" rx="3" fill="url(#bar-grad)" />
+                      <rect x="48" y="60" width="10" height="32" rx="3" fill="url(#bar-grad)" />
+                      <rect x="64" y="48" width="10" height="44" rx="3" fill="url(#bar-grad)" />
+                      <rect x="80" y="66" width="10" height="26" rx="3" fill="url(#bar-grad)" />
+                      <path d="M32 76c8-8 16-4 24-12s16-6 24-14" stroke="#FF6B45" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                     </svg>
                   )}
                   {openStep === 2 && (
                     <svg className="pv-illustration" viewBox="0 0 120 120" fill="none">
-                      <rect width="120" height="120" rx="24" fill="#FFF5F0" />
-                      <circle cx="60" cy="46" r="18" fill="#FFD6C8" />
-                      <circle cx="60" cy="46" r="10" fill="#FF6B45" />
-                      <path d="M60 64v24" stroke="#FF6B45" strokeWidth="4" strokeLinecap="round" />
-                      <path d="M60 88h16M60 96h24" stroke="#FF8A65" strokeWidth="4" strokeLinecap="round" />
-                      <rect x="36" y="76" width="20" height="28" rx="8" fill="#FF6B45" />
+                      <defs>
+                        <linearGradient id="train-grad" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#FFF5F0" />
+                          <stop offset="100%" stopColor="#FFE8E0" />
+                        </linearGradient>
+                        <linearGradient id="bot-grad" x1="45" y1="25" x2="75" y2="75" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#FF8A65" />
+                          <stop offset="100%" stopColor="#FF6B45" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="120" height="120" rx="24" fill="url(#train-grad)" />
+                      <circle cx="60" cy="36" r="18" fill="url(#bot-grad)" />
+                      <circle cx="54" cy="34" r="2.5" fill="#fff" />
+                      <circle cx="66" cy="34" r="2.5" fill="#fff" />
+                      <path d="M56 42c2.5 2 5.5 2 8 0" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+                      <rect x="42" y="54" width="36" height="42" rx="10" fill="#fff" stroke="#FFD6C8" strokeWidth="2" />
+                      <path d="M48 66h8M48 74h24M48 82h18" stroke="#E5E5E5" strokeWidth="3" strokeLinecap="round" />
+                      <path d="M82 60c6 6 6 18 0 24" stroke="#FF8A65" strokeWidth="3" strokeLinecap="round" />
+                      <path d="M88 54c10 10 10 32 0 42" stroke="#FFD6C8" strokeWidth="3" strokeLinecap="round" />
+                      <path d="M34 64c-8 8-8 24 0 32" stroke="#FFD6C8" strokeWidth="3" strokeLinecap="round" />
                     </svg>
                   )}
                   {openStep === 3 && (
                     <svg className="pv-illustration" viewBox="0 0 120 120" fill="none">
-                      <rect width="120" height="120" rx="24" fill="#FFF5F0" />
-                      <rect x="28" y="34" width="64" height="44" rx="10" fill="#fff" stroke="#FF6B45" strokeWidth="2" />
-                      <path d="M40 58h20M40 66h32" stroke="#E5E5E5" strokeWidth="3" strokeLinecap="round" />
-                      <path d="M84 46l-14 14-6-6" stroke="#FF6B45" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M86 80l-8 16-8-16h5V64h6v16h5z" fill="#FF6B45" />
+                      <defs>
+                        <linearGradient id="battle-grad" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#FFF5F0" />
+                          <stop offset="100%" stopColor="#FFE8E0" />
+                        </linearGradient>
+                        <linearGradient id="badge-grad" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+                          <stop offset="0%" stopColor="#FF6B45" />
+                          <stop offset="100%" stopColor="#FF8A65" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="120" height="120" rx="24" fill="url(#battle-grad)" />
+                      <rect x="18" y="24" width="84" height="58" rx="12" fill="#fff" stroke="#FFD6C8" strokeWidth="2" />
+                      <rect x="30" y="38" width="36" height="6" rx="3" fill="#FFD6C8" />
+                      <rect x="30" y="50" width="60" height="4" rx="2" fill="#E5E5E5" />
+                      <rect x="30" y="60" width="48" height="4" rx="2" fill="#E5E5E5" />
+                      <rect x="30" y="70" width="54" height="4" rx="2" fill="#E5E5E5" />
+                      <circle cx="86" cy="44" r="12" fill="url(#badge-grad)" />
+                      <path d="M82 44l4 4 8-8" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M92 88c-6-6-18-6-24 0" stroke="#FF8A65" strokeWidth="3" strokeLinecap="round" />
+                      <path d="M86 94c-8-4-20-4-28 0" stroke="#FFD6C8" strokeWidth="3" strokeLinecap="round" />
                     </svg>
                   )}
+                  </div>
                 </div>
               </div>
               <button
@@ -447,6 +508,7 @@ export function LandingPage() {
         <div className="wrap">
           <div className="persona-banner">
             <div className="section-head center">
+              <div className="eyebrow">AI personas</div>
               <h2 style={{ color: "#fff" }}>Buyers built from your own calls.</h2>
               <p>Every persona reps practice against is shaped by objections, hesitations, and questions Day1 captures from your team's real calls.</p>
             </div>

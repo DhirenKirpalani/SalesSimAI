@@ -1,5 +1,6 @@
 import { PageLayout } from "@/components/landing/PageLayout";
 import { BreadcrumbJsonLd } from "@/components/BreadcrumbJsonLd";
+import { PolicyCard, BulletList } from "@/components/landing/PolicyCard";
 import { Metadata } from "next";
 import {
   FileText,
@@ -37,25 +38,25 @@ export default function TermsPage() {
   return (
     <PageLayout>
       <BreadcrumbJsonLd items={[{ label: "Home", path: "/" }, { label: "Terms of Service", path: "/terms" }]} />
-      <div className="wrap py-20 lg:py-28">
+      <div className="wrap py-12 sm:py-20 lg:py-28 px-4 sm:px-6">
         <div className="max-w-3xl mx-auto">
           {/* Header */}
-          <div className="text-center mb-16">
-            <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF6B45] mb-4">
+          <div className="text-center mb-10 sm:mb-16">
+            <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF6B45] mb-3 sm:mb-4">
               <Gavel className="w-4 h-4" />
               Legal
             </span>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#1B1A1E] mb-6" style={{ fontFamily: "Poppins, sans-serif" }}>
+            <h1 className="text-xl sm:text-4xl lg:text-5xl font-bold text-[#1B1A1E] mb-3 sm:mb-6" style={{ fontFamily: "Poppins, sans-serif" }}>
               Terms of Service
             </h1>
-            <p className="text-[#68646C] text-lg">
-              Effective Date: <strong>July 2026</strong> · Last updated: <strong>July 2026</strong>
+            <p className="text-[#68646C] text-sm sm:text-base">
+              Effective Date: <strong>July 2026</strong><span className="hidden sm:inline"> · </span><br className="sm:hidden" />Last updated: <strong>July 2026</strong>
             </p>
           </div>
 
-          <div className="space-y-8">
+          <div className="space-y-6 sm:space-y-8">
             {/* Intro */}
-            <section className="rounded-2xl border border-[#E7E4DF] bg-white p-6 sm:p-8 shadow-sm">
+            <section className="rounded-2xl border border-[#E7E4DF] bg-gradient-to-b from-white to-[#FFFBF9] p-5 sm:p-6 lg:p-8 shadow-sm text-sm sm:text-base">
               <p className="text-[#68646C] leading-relaxed mb-4">
                 Welcome to <strong className="text-[#1B1A1E]">Day1</strong> (&quot;Day1&quot;, &quot;we&quot;, &quot;our&quot;, or &quot;us&quot;).
               </p>
@@ -257,55 +258,4 @@ export default function TermsPage() {
       </div>
     </PageLayout>
   );
-}
-
-function PolicyCard({
-  number,
-  title,
-  icon: Icon,
-  highlighted,
-  children,
-}: {
-  number: string;
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  highlighted?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={cn(
-      "rounded-2xl border p-6 sm:p-8 shadow-sm",
-      highlighted ? "border-[#FF6B45]/30 bg-[#FFF8F3]" : "border-[#E7E4DF] bg-white"
-    )}>
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-7 h-7 rounded-lg bg-[#F6EFE1] text-[#FF6B45] flex items-center justify-center shrink-0">
-            <Icon className="w-4 h-4" />
-          </div>
-          <span className="text-xs font-bold text-[#FF6B45] uppercase tracking-wider">Section {number}</span>
-        </div>
-        <h2 className="text-xl sm:text-2xl font-bold text-[#1B1A1E]" style={{ fontFamily: "Poppins, sans-serif" }}>
-          {title}
-        </h2>
-      </div>
-      <div className="text-[#68646C]">{children}</div>
-    </section>
-  );
-}
-
-function BulletList({ items }: { items: string[] }) {
-  return (
-    <ul className="grid grid-cols-1 gap-2 mb-4">
-      {items.map((item) => (
-        <li key={item} className="flex items-start gap-2 text-[#68646C]">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B45] mt-2 shrink-0" />
-          <span className="leading-relaxed">{item}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function cn(...classes: (string | false | null | undefined)[]) {
-  return classes.filter(Boolean).join(" ");
 }
