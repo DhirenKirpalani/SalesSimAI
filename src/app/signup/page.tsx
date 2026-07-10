@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Eye, EyeOff, Mail, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, Mail, ArrowRight, User, Lock } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Logo } from "@/components/layout/Logo";
@@ -101,28 +101,28 @@ export default function SignupPage() {
       >
         <div className="text-center mb-8">
           <Logo href="/" className="inline-flex items-center justify-center mb-6 hover:opacity-80 transition-opacity text-xl" />
-          <h1 className="text-2xl font-bold tracking-tight">Create your account</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Create your account</h1>
+          <p className="mt-2 text-sm sm:text-base text-muted-foreground">
             Start your 14-day free trial. No credit card required.
           </p>
         </div>
 
-        <Card className="rounded-2xl border bg-card/80 backdrop-blur-sm shadow-lg">
-          <CardContent className="p-6 space-y-4">
+        <Card className="rounded-2xl border bg-gradient-to-b from-card to-card/90 backdrop-blur-sm shadow-xl shadow-primary/10">
+          <CardContent className="p-6 sm:p-8 space-y-4">
             {emailSent ? (
               <div className="text-center space-y-4 py-6">
-                <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Mail className="w-6 h-6 text-primary" />
+                <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Mail className="w-7 h-7 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold">Check your email</h2>
+                  <h2 className="text-xl font-semibold">Check your email</h2>
                   <p className="text-sm text-muted-foreground mt-2">
                     We sent a confirmation link to your email. Click it to verify your account, then come back to sign in.
                   </p>
                 </div>
                 <Button
                   onClick={() => router.push("/login")}
-                  className="w-full rounded-xl h-10 gap-2"
+                  className="w-full rounded-xl h-12 gap-2 text-base font-semibold"
                   type="button"
                 >
                   Go to Sign In
@@ -133,40 +133,47 @@ export default function SignupPage() {
             <>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-xs font-medium">Name *</Label>
-                <Input
-                  id="name"
-                  placeholder="John Doe"
-                  className="rounded-xl h-10"
-                  {...register("name")}
-                />
+                <Label htmlFor="name" className="text-sm font-medium">Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    id="name"
+                    placeholder="John Doe"
+                    className="rounded-xl h-12 pl-10"
+                    {...register("name")}
+                  />
+                </div>
                 {errors.name && (
                   <p className="text-xs text-destructive">{errors.name.message}</p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-xs font-medium">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="john@company.com"
-                  className="rounded-xl h-10"
-                  {...register("email")}
-                />
+                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="john@company.com"
+                    className="rounded-xl h-12 pl-10"
+                    {...register("email")}
+                  />
+                </div>
                 {errors.email && (
                   <p className="text-xs text-destructive">{errors.email.message}</p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-xs font-medium">Password *</Label>
+                <Label htmlFor="password" className="text-sm font-medium">Password</Label>
                 <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="Create a password"
-                    className="rounded-xl h-10 pr-10"
+                    className="rounded-xl h-12 pl-10 pr-10"
                     {...register("password")}
                   />
                   <button
@@ -186,8 +193,9 @@ export default function SignupPage() {
                 <p className="text-xs text-destructive text-center">{error}</p>
               )}
 
-              <Button type="submit" className="w-full rounded-xl h-10 mt-2" disabled={loading}>
+              <Button type="submit" className="w-full rounded-xl h-12 mt-2 text-base font-semibold" disabled={loading}>
                 {loading ? "Creating account..." : "Create Account"}
+                <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </form>
 
@@ -202,7 +210,7 @@ export default function SignupPage() {
 
             <Button
               variant="outline"
-              className="w-full rounded-xl h-10"
+              className="w-full rounded-xl h-12 text-base font-medium"
               onClick={signInWithGoogle}
               type="button"
             >
@@ -231,9 +239,9 @@ export default function SignupPage() {
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">
+        <p className="text-center text-sm text-muted-foreground mt-6">
           Already have an account?{" "}
-          <Link href="/login" className="text-primary hover:underline font-medium">
+          <Link href="/login" className="text-primary hover:underline font-semibold">
             Sign in
           </Link>
         </p>

@@ -48,29 +48,32 @@ export default function AboutPage() {
       <BreadcrumbJsonLd items={[{ label: "Home", path: "/" }, { label: "About", path: "/about" }]} />
       <main className="flex-1">
         {/* Hero */}
-        <section className="about-page relative overflow-hidden py-20 lg:py-28">
-          <div className="relative wrap text-center">
-            <span className="inline-block text-xs font-bold uppercase tracking-widest text-[#FF6B45] mb-6">
+        <section className="about-page relative overflow-hidden py-16 sm:py-20 lg:py-28">
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[#FF6B45]/[0.04] rounded-full blur-[120px]" />
+          </div>
+          <div className="relative wrap text-center px-4 sm:px-6">
+            <span className="inline-block text-xs font-bold uppercase tracking-widest text-[#FF6B45] mb-4 sm:mb-6">
               About us
             </span>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl leading-[1.1] font-bold text-[#1B1A1E] mb-6">
+            <h1 className="text-3xl sm:text-5xl lg:text-6xl leading-[1.1] font-bold text-[#1B1A1E] mb-4 sm:mb-6">
               Every expert was once on Day 1.
             </h1>
-            <p className="text-lg sm:text-xl text-[#68646C] leading-relaxed max-w-2xl mx-auto mb-10">
+            <p className="text-base sm:text-xl text-[#68646C] leading-relaxed max-w-2xl mx-auto mb-8 sm:mb-10">
               Day1 is where sales teams practice the conversations that matter—before they happen with customers.
             </p>
-            <Link className="btn btn-primary" href="/book-demo">Book a demo →</Link>
+            <Link className="btn btn-primary inline-flex w-full sm:w-auto justify-center" href="/book-demo">Book a demo →</Link>
           </div>
         </section>
 
         {/* Values */}
-        <section className="py-16 lg:py-24 border-y border-[#E7E4DF] bg-white">
-          <div className="wrap">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <section className="py-12 sm:py-16 lg:py-24 border-y border-[#E7E4DF] bg-white">
+          <div className="wrap px-4 sm:px-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {values.map((item) => (
                 <div
                   key={item.title}
-                  className="rounded-2xl border border-[#E7E4DF] bg-white p-6 shadow-sm hover:shadow-md transition-shadow"
+                  className="rounded-2xl border border-[#E7E4DF] bg-gradient-to-b from-white to-[#FFFBF9] p-5 sm:p-6 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all"
                 >
                   <div className="w-11 h-11 rounded-xl bg-[#FFF0EA] flex items-center justify-center text-[#FF6B45] mb-4">
                     <item.icon className="w-5 h-5" />
@@ -84,9 +87,9 @@ export default function AboutPage() {
         </section>
 
         {/* Story */}
-        <section className="about-page py-16 lg:py-24">
-          <div className="wrap">
-            <div className="max-w-3xl mx-auto space-y-16 text-[#1B1A1E]">
+        <section className="about-page py-12 sm:py-16 lg:py-24">
+          <div className="wrap px-4 sm:px-6">
+            <div className="max-w-3xl mx-auto space-y-12 sm:space-y-16 text-[#1B1A1E]">
               <div className="space-y-4 leading-relaxed">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 rounded-full bg-[#FFF0EA] flex items-center justify-center text-[#FF6B45]">
@@ -106,9 +109,9 @@ export default function AboutPage() {
                 <p className="font-medium text-[#1B1A1E]">Because growth happens through repetition.</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
                 {stats.map((stat) => (
-                  <div key={stat.label} className="text-center p-6 rounded-2xl border border-[#E7E4DF] bg-white">
+                  <div key={stat.label} className="text-center p-5 sm:p-6 rounded-2xl border border-[#E7E4DF] bg-gradient-to-b from-white to-[#FFFBF9] shadow-sm">
                     <div className="text-3xl sm:text-4xl font-extrabold text-[#FF6B45] mb-2" style={{ fontFamily: "Poppins, sans-serif" }}>{stat.value}</div>
                     <div className="text-sm text-[#68646C]">{stat.label}</div>
                   </div>
@@ -187,15 +190,15 @@ export default function AboutPage() {
         </section>
 
         {/* CTA */}
-        <section className="py-16 lg:py-24 border-t border-[#E7E4DF] bg-white">
-          <div className="wrap text-center">
-            <h2 className="text-3xl sm:text-4xl font-bold text-[#1B1A1E] mb-4" style={{ fontFamily: "Poppins, sans-serif" }}>
+        <section className="py-12 sm:py-16 lg:py-24 border-t border-[#E7E4DF] bg-white">
+          <div className="wrap text-center px-4 sm:px-6">
+            <h2 className="text-2xl sm:text-4xl font-bold text-[#1B1A1E] mb-4" style={{ fontFamily: "Poppins, sans-serif" }}>
               Ready to make every call your best call?
             </h2>
-            <p className="text-[#68646C] mb-8 max-w-xl mx-auto">
+            <p className="text-base text-[#68646C] mb-6 sm:mb-8 max-w-xl mx-auto">
               Join teams using Day1 to practice, coach, and close with confidence.
             </p>
-            <Link className="btn btn-primary" href="/book-demo">Book a demo →</Link>
+            <Link className="btn btn-primary inline-flex w-full sm:w-auto justify-center" href="/book-demo">Book a demo →</Link>
           </div>
         </section>
       </main>

@@ -124,10 +124,10 @@ export default function WorkspacePage() {
   const otherWorkspaces = workspaces.filter((w) => w.id !== activeWorkspaceId);
 
   return (
-    <div className="max-w-5xl mx-auto py-8 space-y-8">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Workspaces</h1>
-        <p className="text-muted-foreground">
+    <div className="max-w-5xl mx-auto py-4 sm:py-8 px-4 sm:px-0 space-y-6 sm:space-y-8">
+      <div className="flex flex-col gap-1.5 sm:gap-2">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Workspaces</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">
           Manage your workspaces and switch between organizations.
         </p>
       </div>
@@ -138,13 +138,13 @@ export default function WorkspacePage() {
             Active workspace
           </p>
           <Card
-            className="border-primary/30 ring-1 ring-primary/10 overflow-hidden relative cursor-pointer transition-all hover:shadow-lg"
+            className="border-primary/30 ring-1 ring-primary/10 overflow-hidden relative cursor-pointer transition-all hover:shadow-lg rounded-2xl"
             onClick={() => router.push(`/workspace/${activeWorkspace.slug}`)}
           >
-            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-primary/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/4 pointer-events-none" />
+            <div className="absolute top-0 right-0 w-48 h-48 sm:w-64 sm:h-64 bg-gradient-to-br from-primary/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/4 pointer-events-none" />
             <div className="flex flex-col sm:flex-row relative">
-              <div className="p-6 sm:p-8 flex items-center justify-center sm:justify-start">
-                <div className="w-24 h-24 flex items-center justify-center overflow-hidden">
+              <div className="p-5 sm:p-8 flex items-center justify-center sm:justify-start">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center overflow-hidden">
                   {activeWorkspace.logo_url ? (
                     <img
                       src={activeWorkspace.logo_url}
@@ -155,23 +155,23 @@ export default function WorkspacePage() {
                       fetchPriority="high"
                     />
                   ) : (
-                    <Briefcase className="w-12 h-12 text-primary" />
+                    <Briefcase className="w-10 h-10 sm:w-12 sm:h-12 text-primary" />
                   )}
                 </div>
               </div>
-              <CardContent className="flex-1 p-6 sm:py-8 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
-                <div className="min-w-0 space-y-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-2xl font-semibold tracking-tight truncate">{activeWorkspace.name}</h2>
+              <CardContent className="flex-1 p-5 sm:p-8 pt-0 sm:pt-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-5">
+                <div className="min-w-0 space-y-1.5 sm:space-y-2 text-center sm:text-left">
+                  <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                    <h2 className="text-xl sm:text-2xl font-semibold tracking-tight truncate">{activeWorkspace.name}</h2>
                     <Badge variant="secondary" className="text-[10px] font-medium uppercase tracking-wider">
                       {activeWorkspace.plan}
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     {activeWorkspace.role === "admin" ? "Workspace admin" : "Workspace member"} · Current workspace session
                   </p>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center justify-center sm:justify-start gap-3 shrink-0">
                   <Badge className="bg-primary text-primary-foreground hover:bg-primary">
                     <Check className="w-3 h-3 mr-1" />
                     Active
@@ -192,12 +192,12 @@ export default function WorkspacePage() {
           {otherWorkspaces.map((workspace) => (
             <Card
               key={workspace.id}
-              className="cursor-pointer transition-all hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5"
+              className="cursor-pointer transition-all hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5 rounded-2xl"
               onClick={() => router.push(`/workspace/${workspace.slug}`)}
             >
-              <CardContent className="p-5 relative">
-                <div className="flex items-start gap-4">
-                  <div className="shrink-0 w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center p-2">
+              <CardContent className="p-4 sm:p-5 relative">
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-primary/10 flex items-center justify-center p-2">
                     {workspace.logo_url ? (
                       <img
                         src={workspace.logo_url}
@@ -208,12 +208,12 @@ export default function WorkspacePage() {
                         fetchPriority="high"
                       />
                     ) : (
-                      <Building2 className="w-7 h-7 text-primary" />
+                      <Building2 className="w-6 h-6 sm:w-7 sm:h-7 text-primary" />
                     )}
                   </div>
-                  <div className="min-w-0 flex-1 pr-6">
-                    <h3 className="font-semibold truncate">{workspace.name}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
+                  <div className="min-w-0 flex-1 pr-4">
+                    <h3 className="font-semibold text-sm sm:text-base truncate">{workspace.name}</h3>
+                    <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
                       {workspace.plan} · {workspace.role === "admin" ? "Admin" : "Member"}
                     </p>
                   </div>
@@ -225,7 +225,7 @@ export default function WorkspacePage() {
 
           {isAdmin && (
             <Card
-              className="cursor-pointer transition-all hover:shadow-md hover:border-primary/30 border-dashed hover:-translate-y-0.5"
+              className="cursor-pointer transition-all hover:shadow-md hover:border-primary/30 border-dashed hover:-translate-y-0.5 rounded-2xl"
               onClick={() => {
                 setNewName("");
                 setCreateStatus("idle");
@@ -233,13 +233,13 @@ export default function WorkspacePage() {
                 setAddOpen(true);
               }}
             >
-              <CardContent className="p-5 flex items-center gap-4 h-full">
-                <div className="shrink-0 w-14 h-14 rounded-xl bg-muted flex items-center justify-center">
-                  <Plus className="w-7 h-7 text-muted-foreground" />
+              <CardContent className="p-4 sm:p-5 flex items-center gap-3 sm:gap-4 h-full">
+                <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-muted flex items-center justify-center">
+                  <Plus className="w-6 h-6 sm:w-7 sm:h-7 text-muted-foreground" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-muted-foreground">Add workspace</h3>
-                  <p className="text-xs text-muted-foreground mt-1">Create a new organization</p>
+                  <h3 className="font-semibold text-muted-foreground text-sm sm:text-base">Add workspace</h3>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Create a new organization</p>
                 </div>
               </CardContent>
             </Card>
@@ -254,7 +254,7 @@ export default function WorkspacePage() {
       )}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle>Create workspace</DialogTitle>
             <DialogDescription>
@@ -263,13 +263,14 @@ export default function WorkspacePage() {
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="workspace-name">Workspace name</Label>
+              <Label htmlFor="workspace-name" className="text-xs">Workspace name</Label>
               <Input
                 id="workspace-name"
                 placeholder="e.g., Aspire"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 disabled={creating}
+                className="rounded-lg h-11"
               />
             </div>
             {createMessage && (
@@ -277,16 +278,17 @@ export default function WorkspacePage() {
                 {createMessage}
               </p>
             )}
-            <DialogFooter>
+            <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setAddOpen(false)}
                 disabled={creating}
+                className="h-11 sm:h-9 rounded-lg w-full sm:w-auto"
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={creating || !newName.trim()}>
+              <Button type="submit" disabled={creating || !newName.trim()} className="h-11 sm:h-9 rounded-lg w-full sm:w-auto">
                 {creating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
                 Create
               </Button>

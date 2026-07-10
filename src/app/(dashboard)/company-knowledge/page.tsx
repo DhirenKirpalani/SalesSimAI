@@ -711,6 +711,22 @@ export default function CompanyKnowledgePage() {
     }
   }
 
+  if (loading || roleLoading) {
+    return (
+      <div className="max-w-4xl mx-auto py-4 sm:py-8 space-y-4 sm:space-y-6 px-4 sm:px-0 animate-pulse">
+        <div className="space-y-2">
+          <div className="h-8 w-56 bg-muted rounded" />
+          <div className="h-4 w-72 sm:w-96 bg-muted rounded" />
+        </div>
+        <div className="space-y-4">
+          <div className="h-48 bg-muted rounded-2xl" />
+          <div className="h-64 bg-muted rounded-2xl" />
+          <div className="h-40 bg-muted rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
   // ── No access if not in any org and not an app admin ─────────────────
   if (!roleLoading && !loading && !org && !isAdmin) {
     return (
@@ -769,26 +785,26 @@ export default function CompanyKnowledgePage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-8 space-y-6">
+    <div className="max-w-4xl mx-auto py-4 sm:py-8 space-y-4 sm:space-y-6 px-4 sm:px-0">
       {/* Header */}
       <div>
         <PageHeaderLogo />
-        <h1 className="text-2xl font-bold tracking-tight">Knowledge Base</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Knowledge Base</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
           Manage documents, URLs, and AI-extracted context for {org?.name || "this workspace"}.
         </p>
       </div>
 
       <div className="space-y-4">
           {/* Website Extraction — admin only */}
-          {isOrgAdmin && <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
+          {isOrgAdmin && <Card className="rounded-2xl">
+            <CardHeader className="px-4 sm:px-6">
+              <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                 <Sparkles className="w-4 h-4" />
                 AI Company Profile Extraction
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 px-4 sm:px-6">
               <p className="text-sm text-muted-foreground">
                 Extract your company profile from your website to create structured context for role-play scenarios.
               </p>
@@ -797,8 +813,8 @@ export default function CompanyKnowledgePage() {
                 value={onboardingUrls}
                 onChange={setOnboardingUrls}
               />
-              <div className="flex items-center justify-between pt-1">
-                <p className="text-xs text-muted-foreground">
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
+                <p className="text-xs text-muted-foreground text-center sm:text-left">
                   {onboardingUrls.length} URL{onboardingUrls.length === 1 ? "" : "s"} saved.
                 </p>
                 <Button
@@ -806,7 +822,7 @@ export default function CompanyKnowledgePage() {
                   size="sm"
                   onClick={handleDebugExtract}
                   disabled={debugExtracting}
-                  className="gap-2"
+                  className="gap-2 h-11 sm:h-9"
                 >
                   {debugExtracting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -820,19 +836,19 @@ export default function CompanyKnowledgePage() {
           </Card>}
 
           {/* Document Upload — admin only */}
-          {isOrgAdmin && <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
+          {isOrgAdmin && <Card className="rounded-2xl">
+            <CardHeader className="px-4 sm:px-6">
+              <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                 <Upload className="w-4 h-4" />
                 Upload Document
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
-                <div className="flex-1">
-                  <Label className="text-xs mb-1.5 block">Product Type</Label>
+            <CardContent className="space-y-4 px-4 sm:px-6">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-end">
+                <div className="flex-1 space-y-1.5">
+                  <Label className="text-xs">Product Type</Label>
                   <Select value={selectedProductType} onValueChange={(v) => setSelectedProductType(v ?? "payment")}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full h-11 rounded-lg">
                       <SelectValue placeholder="Select type">
                         {PRODUCT_TYPE_LABELS[selectedProductType] || "Select type"}
                       </SelectValue>
@@ -844,10 +860,10 @@ export default function CompanyKnowledgePage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex-1">
-                  <Label className="text-xs mb-1.5 block">Document Type</Label>
+                <div className="flex-1 space-y-1.5">
+                  <Label className="text-xs">Document Type</Label>
                   <Select value={selectedDocumentType} onValueChange={(v) => setSelectedDocumentType(v ?? "icp")}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full h-11 rounded-lg">
                       <SelectValue placeholder="Select type">
                         {DOCUMENT_TYPE_LABELS[selectedDocumentType] || "Select type"}
                       </SelectValue>
@@ -862,8 +878,8 @@ export default function CompanyKnowledgePage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex-1">
-                  <Label className="text-xs mb-1.5 block">File</Label>
+                <div className="flex-1 space-y-1.5">
+                  <Label className="text-xs">File</Label>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -874,7 +890,7 @@ export default function CompanyKnowledgePage() {
                   />
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-md border border-input bg-background text-sm transition-colors cursor-pointer hover:bg-accent hover:text-accent-foreground ${
+                    className={`w-full flex items-center gap-2 px-3 py-3 sm:py-2.5 rounded-lg border border-input bg-background text-sm transition-colors cursor-pointer hover:bg-accent hover:text-accent-foreground min-h-[44px] ${
                       uploading ? "opacity-50" : ""
                     }`}
                   >
@@ -899,11 +915,11 @@ export default function CompanyKnowledgePage() {
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <Button
                   onClick={handleUpload}
                   disabled={selectedFiles.length === 0 || uploading}
-                  className="w-full sm:w-auto sm:min-w-[100px]"
+                  className="w-full sm:w-auto sm:min-w-[100px] h-11 sm:h-9 rounded-lg"
                 >
                   {uploading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

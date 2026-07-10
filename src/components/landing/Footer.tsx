@@ -14,7 +14,7 @@ export function Footer({ pathname, scrollToTop }: FooterProps) {
           <div className="footer-brand">
             <div className="logo">
               <Link href="/" onClick={scrollToTop}>
-                <img src="/images/Logo.png" alt="Day1" style={{ height: 36 }} />
+                <img src="/images/Logo.png" alt="Day1" style={{ height: 36 }} loading="eager" />
               </Link>
             </div>
             <p>AI field intelligence for sales teams. Turn every call into team-wide readiness.</p>

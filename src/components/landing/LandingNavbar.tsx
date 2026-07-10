@@ -12,9 +12,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Menu, X, User, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Logo } from "@/components/layout/Logo";
+import { cn } from "@/lib/utils";
 
 const navLinks = [
   { label: "Platform", href: "/#platform" },
@@ -54,6 +60,8 @@ export function LandingNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [initials, setInitials] = useState("U");
+  const [userName, setUserName] = useState<string>("");
+  const [userEmail, setUserEmail] = useState<string>("");
   const [activeSection, setActiveSection] = useState<string>("");
 
   useEffect(() => {
@@ -62,9 +70,12 @@ export function LandingNavbar() {
       const user = data.user;
       setIsLoggedIn(!!user);
       if (user) {
-        const name = user.user_metadata?.full_name || user.email || "U";
+        const name = (user.user_metadata?.full_name as string) || user.email || "U";
+        const email = user.email || "";
         const letters = name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
         setInitials(letters);
+        setUserName(name);
+        setUserEmail(email);
       }
     });
   }, []);
@@ -152,65 +163,87 @@ export function LandingNavbar() {
                   Book a demo
                 </Button>
               </Link>
-              <button
-                onClick={() => setMobileOpen((v) => !v)}
-                className="md:hidden p-2 rounded-lg hover:bg-[var(--tag)] transition-colors"
-              >
-                {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
+              <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+                <SheetTrigger className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-xl text-sm font-medium transition-colors hover:bg-[var(--tag)]">
+                  <Menu className="w-5 h-5" />
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[280px] sm:w-72 p-0 rounded-r-2xl">
+                  <div className="flex items-center px-5 h-16 border-b border-[var(--border)]">
+                    <Logo />
+                  </div>
+                  <div className="px-5 pt-5 pb-2">
+                    <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Menu</p>
+                  </div>
+                  <nav className="flex flex-col gap-1.5 px-3 pb-4">
+                    {navLinks.map((link) => {
+                      const isActive = activeSection && link.href === `/#${activeSection}`;
+                      return (
+                        <a
+                          key={link.href}
+                          href={link.href}
+                          onClick={(e) => {
+                            handleNavClick(e, link.href);
+                            setMobileOpen(false);
+                          }}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors min-h-[48px] no-underline",
+                            isActive
+                              ? "bg-[var(--foreground)] text-[var(--background)] shadow-sm"
+                              : "text-[var(--muted-foreground)] hover:bg-[var(--tag)] hover:text-[var(--foreground)]"
+                          )}
+                        >
+                          <span className="w-5 h-5 flex items-center justify-center">
+                            {isActive ? <X className="w-4 h-4" /> : <span className="w-1.5 h-1.5 rounded-full bg-current" />}
+                          </span>
+                          {link.label}
+                        </a>
+                      );
+                    })}
+                  </nav>
+                  <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-[var(--border)] bg-[var(--background)]">
+                    {isLoggedIn ? (
+                      <div className="space-y-3">
+                        <Link
+                          href="/profile"
+                          onClick={() => setMobileOpen(false)}
+                          className="flex items-center gap-3 p-3 rounded-xl bg-[var(--tag)] no-underline hover:opacity-80 transition-opacity"
+                        >
+                          <Avatar className="h-11 w-11 border shrink-0">
+                            <AvatarFallback className="text-sm bg-[var(--foreground)] text-[var(--background)]">{initials}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-[var(--foreground)] truncate">{userName}</p>
+                            {userEmail && <p className="text-xs text-[var(--muted-foreground)] truncate">{userEmail}</p>}
+                          </div>
+                        </Link>
+                        <Button
+                          variant="outline"
+                          className="w-full h-11 rounded-xl text-sm font-semibold"
+                          onClick={() => { handleLogout(); setMobileOpen(false); }}
+                        >
+                          <LogOut className="w-4 h-4 mr-2" />
+                          Log out
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <Link href="/login" onClick={() => setMobileOpen(false)}>
+                          <Button variant="outline" className="w-full h-11 rounded-xl text-sm font-semibold">
+                            Log in
+                          </Button>
+                        </Link>
+                        <Link href="/signup" onClick={() => setMobileOpen(false)}>
+                          <Button className="w-full h-11 rounded-xl text-sm font-semibold">Book a demo</Button>
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </SheetContent>
+              </Sheet>
             </>
           )}
         </div>
       </div>
-
-      {/* Mobile menu */}
-      {mobileOpen && (
-        <div className="md:hidden border-t border-[var(--border)] bg-[var(--background)]">
-          <div className="px-6 py-4 space-y-3">
-            {navLinks.map((link) => {
-              const isActive = activeSection && link.href === `/#${activeSection}`;
-              return (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  onClick={(e) => {
-                    handleNavClick(e, link.href);
-                    setMobileOpen(false);
-                  }}
-                  className={`block text-sm font-medium transition-colors py-1 no-underline ${
-                    isActive ? "text-[var(--foreground)]" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                  }`}
-                >
-                  {link.label}
-                </a>
-              );
-            })}
-            <div className="pt-2 flex flex-col gap-2">
-              {isLoggedIn ? (
-                <>
-                  <Link href="/profile" onClick={() => setMobileOpen(false)}>
-                    <Button className="w-full rounded-md">Profile</Button>
-                  </Link>
-                  <Button variant="outline" className="w-full rounded-md" onClick={() => { handleLogout(); setMobileOpen(false); }}>
-                    Log out
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Link href="/login" onClick={() => setMobileOpen(false)}>
-                    <Button variant="outline" className="w-full rounded-md">
-                      Log in
-                    </Button>
-                  </Link>
-                  <Link href="/signup" onClick={() => setMobileOpen(false)}>
-                    <Button className="w-full rounded-md">Book a demo</Button>
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </nav>
   );
 }

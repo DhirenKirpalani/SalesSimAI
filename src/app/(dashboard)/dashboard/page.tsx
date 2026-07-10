@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { createClient } from "@/lib/supabase/client";
+import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
 import { StatCard } from "@/components/cards/StatCard";
 import { PerformanceChart } from "@/components/charts/PerformanceChart";
 import { ScoreDistributionChart } from "@/components/charts/ScoreDistributionChart";
@@ -86,7 +88,12 @@ interface TopListCardProps {
 }
 
 function TopListCard({ title, items, icon: Icon, emptyText }: TopListCardProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const isMobile = useMediaQuery("(max-width: 640px)");
+  const [collapsed, setCollapsed] = useState(isMobile);
+
+  useEffect(() => {
+    setCollapsed(isMobile);
+  }, [isMobile]);
 
   return (
     <Card className="rounded-2xl border bg-card shadow-sm hover:shadow-md transition-shadow">
@@ -99,7 +106,7 @@ function TopListCard({ title, items, icon: Icon, emptyText }: TopListCardProps) 
             <h3 className="font-semibold text-sm">{title}</h3>
           </div>
           <button
-            onClick={() => setCollapsed((c) => !c)}
+            onClick={() => setCollapsed((c: boolean) => !c)}
             className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
             aria-label={collapsed ? "Expand" : "Collapse"}
           >
@@ -296,27 +303,16 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          {orgLogoUrl && (
-            <img
-              src={orgLogoUrl}
-              alt={organization ?? "Company"}
-              className="h-8 max-w-[160px] object-contain mb-3"
-              loading="eager"
-              decoding="async"
-              fetchPriority="high"
-              width="160"
-              height="32"
-            />
-          )}
-          <h1 className="text-2xl font-bold tracking-tight">
+          <PageHeaderLogo />
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
             {firstName ? `${getGreeting()}, ${firstName}` : getGreeting()}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             Track your readiness and performance across sales simulations.
           </p>
         </div>
-        <Link href="/scenarios">
-          <Button className="rounded-xl gap-2">
+        <Link href="/scenarios" className="w-full sm:w-auto">
+          <Button className="w-full sm:w-auto rounded-xl gap-2 h-11">
             <Zap className="w-4 h-4" />
             Quick Start
           </Button>
@@ -325,7 +321,7 @@ export default function DashboardPage() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h2 className="font-semibold text-sm">Sales Intelligence</h2>
-        <div className="flex flex-wrap gap-1 p-1 bg-muted/50 rounded-full w-fit">
+        <div className="flex gap-1 p-1 bg-muted/50 rounded-full w-full sm:w-fit overflow-x-auto no-scrollbar">
           {([
             { type: "payment", icon: Wallet },
             { type: "eor", icon: Users },
@@ -337,7 +333,7 @@ export default function DashboardPage() {
                 key={type}
                 onClick={() => setSelectedProductType(type)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  "inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex-1 sm:flex-none whitespace-nowrap",
                   active
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-background"
@@ -351,7 +347,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-start">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -402,7 +398,11 @@ export default function DashboardPage() {
         </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h2 className="font-semibold text-sm">Performance</h2>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: "Simulations Completed", value: completed, icon: Mic2 },
           { label: "Avg MEDDIC Score", value: avgMeddic, icon: TrendingUp },
@@ -435,7 +435,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="flex items-center justify-between px-4 sm:px-5 py-4 border-b">
             <h3 className="font-semibold text-sm">Recent Sessions</h3>
             <Link href="/simulations">
               <Button variant="ghost" size="sm" className="gap-1 text-xs">
@@ -444,7 +444,49 @@ export default function DashboardPage() {
               </Button>
             </Link>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Mobile card list */}
+          <div className="sm:hidden divide-y">
+            {recent.map((s) => {
+              const completed = !!s.ended_at;
+              const score = s.analysis?.overall_score ?? 0;
+              return (
+                <div key={s.id} className="px-4 py-3.5 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {s.scenario_name ?? "Untitled"}
+                      {s.source === "voice" && (
+                        <Badge variant="outline" className="text-[9px] ml-2">Voice</Badge>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {formatDurationMins(s.duration_s)} min · {new Date(s.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={cn(
+                      "text-sm font-semibold",
+                      score >= 70 ? "text-emerald-500" : score >= 40 ? "text-amber-500" : "text-red-400"
+                    )}>
+                      {score}
+                    </span>
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "text-[10px] font-normal capitalize",
+                        completed ? "bg-blue-500/10 text-blue-600" : "bg-emerald-500/10 text-emerald-600"
+                      )}
+                    >
+                      {completed ? "completed" : "active"}
+                    </Badge>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">

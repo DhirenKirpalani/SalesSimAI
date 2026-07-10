@@ -65,8 +65,14 @@ export default function WorkspaceDetailPage() {
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto py-10 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      <div className="max-w-5xl mx-auto py-4 sm:py-8 px-4 sm:px-0 space-y-4 sm:space-y-6 animate-pulse">
+        <div className="h-9 w-24 bg-muted rounded-full" />
+        <div className="h-48 sm:h-56 bg-muted rounded-2xl" />
+        <div className="h-12 bg-muted rounded-xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div className="h-24 bg-muted rounded-2xl" />
+          <div className="h-24 bg-muted rounded-2xl" />
+        </div>
       </div>
     );
   }
@@ -121,9 +127,9 @@ export default function WorkspaceDetailPage() {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto py-8 space-y-6">
+    <div className="max-w-5xl mx-auto py-4 sm:py-8 px-4 sm:px-0 space-y-4 sm:space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="outline" size="sm" onClick={() => router.push("/workspace")} className="rounded-full">
+        <Button variant="outline" size="sm" onClick={() => router.push("/workspace")} className="rounded-full h-9">
           <ArrowLeft className="w-4 h-4 mr-1.5" />
           Back
         </Button>
@@ -172,28 +178,28 @@ export default function WorkspaceDetailPage() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="w-full sm:w-fit grid grid-cols-3 sm:flex bg-muted/60 border border-border/60 rounded-full p-0 shadow-sm h-auto gap-0">
+        <TabsList className="w-full sm:w-fit flex bg-muted/40 border border-border/40 rounded-xl p-1 h-auto gap-1">
           <TabsTrigger
             value="overview"
-            className="w-full sm:w-auto sm:flex-none h-auto gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-muted/80 data-active:bg-primary data-active:text-primary-foreground data-active:hover:bg-primary data-active:hover:text-primary-foreground"
+            className="flex-1 sm:flex-none h-auto gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 text-muted-foreground hover:text-foreground data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm"
           >
-            <LayoutGrid className="w-4 h-4" />
-            Overview
+            <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Overview</span>
           </TabsTrigger>
           <TabsTrigger
             value="members"
-            className="w-full sm:w-auto sm:flex-none h-auto gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-muted/80 data-active:bg-primary data-active:text-primary-foreground data-active:hover:bg-primary data-active:hover:text-primary-foreground"
+            className="flex-1 sm:flex-none h-auto gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 text-muted-foreground hover:text-foreground data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm"
           >
-            <Users className="w-4 h-4" />
-            Members
+            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Members</span>
           </TabsTrigger>
           {data.isAdmin && (
             <TabsTrigger
               value="settings"
-              className="w-full sm:w-auto sm:flex-none h-auto gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-muted/80 data-active:bg-primary data-active:text-primary-foreground data-active:hover:bg-primary data-active:hover:text-primary-foreground"
+              className="flex-1 sm:flex-none h-auto gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 text-muted-foreground hover:text-foreground data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm"
             >
-              <Settings className="w-4 h-4" />
-              Settings
+              <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>Settings</span>
             </TabsTrigger>
           )}
         </TabsList>

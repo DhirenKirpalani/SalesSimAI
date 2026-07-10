@@ -148,32 +148,32 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6 px-4 sm:px-0">
       <div>
         <PageHeaderLogo />
-        <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Profile</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
           Manage your account settings and preferences.
         </p>
       </div>
 
       {/* Profile Info — Editable */}
       <Card className="rounded-2xl border bg-card shadow-sm">
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 px-4 sm:px-6">
           <CardTitle className="text-sm font-medium text-muted-foreground">
             Account Information
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 border">
-              <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+        <CardContent className="space-y-5 px-4 sm:px-6">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Avatar className="h-14 w-14 sm:h-16 sm:w-16 border">
+              <AvatarFallback className="bg-primary/10 text-primary text-base sm:text-lg font-semibold">
                 {initials}
               </AvatarFallback>
             </Avatar>
-            <div>
-              <p className="font-semibold text-lg">{profile?.full_name || profile?.email}</p>
-              <p className="text-sm text-muted-foreground">{profile?.email}</p>
+            <div className="min-w-0">
+              <p className="font-semibold text-base sm:text-lg truncate">{profile?.full_name || profile?.email}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground truncate">{profile?.email}</p>
             </div>
           </div>
           <Separator />
@@ -185,14 +185,14 @@ export default function ProfilePage() {
                 value={profile?.full_name || ""}
                 onChange={(e) => setProfile((p) => p ? { ...p, full_name: e.target.value } : p)}
                 placeholder="Your name"
-                className="rounded-xl"
+                className="rounded-xl h-11"
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="company" className="text-xs font-medium">Workspace</Label>
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border bg-muted/30 text-sm text-muted-foreground">
-                <span>{profile?.company || "—"}</span>
-                <span className="text-[10px] text-muted-foreground/60">(from organization)</span>
+              <div className="flex items-center gap-2 px-3 py-2.5 sm:py-2 rounded-xl border bg-muted/30 text-sm text-muted-foreground min-h-[44px]">
+                <span className="truncate">{profile?.company || "—"}</span>
+                <span className="text-[10px] text-muted-foreground/60 shrink-0">(from organization)</span>
               </div>
             </div>
             <div className="space-y-2">
@@ -204,35 +204,34 @@ export default function ProfilePage() {
                 value={profile?.position || ""}
                 onChange={(e) => setProfile((p) => p ? { ...p, position: e.target.value } : p)}
                 placeholder="e.g. CFO, Head of Sales"
-                className="rounded-xl"
+                className="rounded-xl h-11"
               />
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-medium flex items-center gap-1">
                 <User className="w-3 h-3" /> Role
               </Label>
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border bg-muted/30 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 px-3 py-2.5 sm:py-2 rounded-xl border bg-muted/30 text-sm text-muted-foreground min-h-[44px]">
                 <span className="capitalize">{profile?.role || "user"}</span>
                 <span className="text-[10px] text-muted-foreground/60">(managed by admin)</span>
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-2">
               <Label className="text-xs font-medium flex items-center gap-1">
                 <Mail className="w-3 h-3" /> Email
               </Label>
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border bg-muted/30 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 px-3 py-2.5 sm:py-2 rounded-xl border bg-muted/30 text-sm text-muted-foreground min-h-[44px]">
                 {profile?.email}
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3 pt-1">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
             <Button
               onClick={handleSave}
               disabled={saving}
-              className="rounded-xl gap-2"
-              size="sm"
+              className="rounded-xl gap-2 h-11 sm:h-9"
             >
-              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
               Save Changes
             </Button>
             {status === "success" && (

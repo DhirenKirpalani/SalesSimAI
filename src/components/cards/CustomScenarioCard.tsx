@@ -139,53 +139,53 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
         {/* Card body is clickable */}
         <div onClick={() => setOpen(true)} className="cursor-pointer">
           <Card className="rounded-2xl border bg-card shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group relative">
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 pt-4 px-4 sm:px-5">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <h3 className="font-semibold text-sm leading-tight line-clamp-2">{scenario.name}</h3>
+                  <h3 className="font-semibold text-sm sm:text-base leading-tight line-clamp-2">{scenario.name}</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">{scenario.seller_company}</p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex flex-col items-end gap-1 shrink-0">
                   {scenario.product_type && (
-                    <Badge variant="secondary" className={cn("text-xs font-medium", PRODUCT_TYPE_COLORS[scenario.product_type] ?? "bg-muted text-muted-foreground")}>
+                    <Badge variant="secondary" className={cn("text-[10px] sm:text-xs font-medium", PRODUCT_TYPE_COLORS[scenario.product_type] ?? "bg-muted text-muted-foreground")}>
                       {PRODUCT_TYPE_LABELS[scenario.product_type] ?? scenario.product_type}
                     </Badge>
                   )}
-                  <Badge variant="secondary" className={cn("text-xs font-medium", diffColor)}>
+                  <Badge variant="secondary" className={cn("text-[10px] sm:text-xs font-medium", diffColor)}>
                     {scenario.difficulty}
                   </Badge>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 px-4 sm:px-5 pb-5">
               {/* What you're selling */}
-              <div className="flex items-start gap-2">
-                <div className="p-1.5 rounded-md bg-orange-500/10 text-orange-500 shrink-0 mt-0.5">
-                  <Building2 className="w-3.5 h-3.5" />
+              <div className="flex items-start gap-2.5 sm:gap-2">
+                <div className="p-2 sm:p-1.5 rounded-lg sm:rounded-md bg-orange-500/10 text-orange-500 shrink-0 mt-0.5">
+                  <Building2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">You&apos;re selling</p>
                   <p className="text-sm font-medium text-foreground line-clamp-1">{scenario.seller_product}</p>
                 </div>
               </div>
 
               {/* Who you're talking to */}
-              <div className="flex items-start gap-2">
-                <div className="p-1.5 rounded-md bg-orange-500/10 text-orange-500 shrink-0 mt-0.5">
-                  <Users className="w-3.5 h-3.5" />
+              <div className="flex items-start gap-2.5 sm:gap-2">
+                <div className="p-2 sm:p-1.5 rounded-lg sm:rounded-md bg-orange-500/10 text-orange-500 shrink-0 mt-0.5">
+                  <Users className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Buyer</p>
                   <p className="text-sm font-medium text-foreground line-clamp-1">{personaFull}</p>
                 </div>
               </div>
 
               {/* The challenge / scenario type */}
-              <div className="flex items-start gap-2">
-                <div className="p-1.5 rounded-md bg-orange-500/10 text-orange-500 shrink-0 mt-0.5">
-                  <MessageSquare className="w-3.5 h-3.5" />
+              <div className="flex items-start gap-2.5 sm:gap-2">
+                <div className="p-2 sm:p-1.5 rounded-lg sm:rounded-md bg-orange-500/10 text-orange-500 shrink-0 mt-0.5">
+                  <MessageSquare className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Scenario</p>
                   <p className="text-sm text-foreground line-clamp-2">
                     {scenario.scenario_type}
@@ -198,7 +198,7 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
               </div>
 
               {/* Meta row */}
-              <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-muted-foreground pt-1">
                 <span className="flex items-center gap-1 whitespace-nowrap shrink-0">
                   <Clock className="w-3.5 h-3.5" />
                   {scenario.duration} min
@@ -207,26 +207,22 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
                   <BarChart3 className="w-3.5 h-3.5" />
                   {scenario.difficulty}
                 </span>
-                {scenario.product_type && (
-                  <Badge variant="secondary" className={cn("text-[10px] font-medium", PRODUCT_TYPE_COLORS[scenario.product_type] ?? "bg-muted text-muted-foreground")}>
-                    {PRODUCT_TYPE_LABELS[scenario.product_type] ?? scenario.product_type}
-                  </Badge>
-                )}
               </div>
 
-              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                <Button size="sm" className="flex-1 rounded-lg gap-1 text-xs group-hover:gap-2 transition-all bg-orange-500 hover:bg-orange-600 text-white" onClick={handleStart} disabled={startLoading}>
+              <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                <Button size="sm" className="flex-1 rounded-lg gap-1.5 text-sm sm:text-xs h-11 sm:h-9 group-hover:gap-2 transition-all bg-orange-500 hover:bg-orange-600 text-white" onClick={handleStart} disabled={startLoading}>
                   {startLoading ? "Preparing…" : "Start Simulation"}
-                  {!startLoading && <ArrowRight className="w-3.5 h-3.5" />}
+                  {!startLoading && <ArrowRight className="w-4 h-4 sm:w-3.5 sm:h-3.5" />}
                 </Button>
                 {showDelete && (
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="rounded-lg h-8 w-8 p-0 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+                    className="rounded-lg h-11 w-11 sm:h-9 sm:w-9 p-0 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
                     onClick={handleDelete}
+                    aria-label="Delete scenario"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                   </Button>
                 )}
               </div>

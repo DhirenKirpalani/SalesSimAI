@@ -308,23 +308,23 @@ export function WorkspaceManagement({
   const membersContent = (
     <div className="space-y-4">
       {isOrgAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+        <Card className="rounded-2xl">
+          <CardHeader className="px-4 sm:px-6">
+            <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
               <Mail className="w-4 h-4" />
               Invite Team Member
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <form onSubmit={handleInvite} className="flex gap-3">
+          <CardContent className="space-y-4 px-4 sm:px-6">
+            <form onSubmit={handleInvite} className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <Input
                 type="email"
                 placeholder="colleague@company.com"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
-                className="flex-1"
+                className="flex-1 rounded-lg h-11"
               />
-              <Button type="submit" disabled={inviteLoading || !inviteEmail.trim()}>
+              <Button type="submit" disabled={inviteLoading || !inviteEmail.trim()} className="h-11 sm:h-9 rounded-lg">
                 {inviteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Invite"}
               </Button>
             </form>
@@ -340,15 +340,15 @@ export function WorkspaceManagement({
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pending Invites</p>
                 {invites.map((inv) => (
-                  <div key={inv.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-sm">{inv.email}</span>
+                  <div key={inv.id} className="flex items-center justify-between gap-2 p-2.5 sm:p-2 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Mail className="w-3 h-3 text-muted-foreground shrink-0" />
+                      <span className="text-sm truncate">{inv.email}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-muted-foreground hidden sm:inline">{new Date(inv.created_at).toLocaleDateString()}</span>
                       <Button
-                        size="icon-xs"
+                        size="icon"
                         variant="ghost"
                         title="Copy invite link"
                         onClick={() => {
@@ -357,8 +357,9 @@ export function WorkspaceManagement({
                           setCopiedInviteId(inv.id);
                           setTimeout(() => setCopiedInviteId(null), 2000);
                         }}
+                        className="h-8 w-8"
                       >
-                        {copiedInviteId === inv.id ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                        {copiedInviteId === inv.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                       </Button>
                     </div>
                   </div>
@@ -369,26 +370,26 @@ export function WorkspaceManagement({
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
+      <Card className="rounded-2xl">
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
             <Users className="w-4 h-4" />
             Team Members
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6">
           <div className="space-y-2">
             {members.map((m) => (
-              <div key={m.id} className="flex items-center justify-between p-3 rounded-lg border">
-                <div>
-                  <p className="text-sm font-medium">{m.full_name || m.email.split("@")[0]}</p>
-                  <p className="text-xs text-muted-foreground">{m.position || "No position"} · {m.email}</p>
+              <div key={m.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl border">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{m.full_name || m.email.split("@")[0]}</p>
+                  <p className="text-xs text-muted-foreground truncate">{m.position || "No position"} · {m.email}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {isOrgAdmin && org?.created_by !== m.id && currentUserId !== m.id && (
                     <>
                       <Select value={m.role || "user"} onValueChange={(v) => handleUpdateMemberRole(m.id, v ?? "user")}>
-                        <SelectTrigger className="min-w-[130px] h-8 text-xs px-2.5 bg-background border hover:bg-accent hover:border-primary/30 transition-colors gap-2">
+                        <SelectTrigger className="min-w-[120px] sm:min-w-[130px] h-9 sm:h-8 text-xs px-2.5 bg-background border hover:bg-accent hover:border-primary/30 transition-colors gap-2 rounded-lg">
                           <span className="text-muted-foreground">Role:</span>
                           <SelectValue className="capitalize" />
                         </SelectTrigger>
@@ -401,9 +402,9 @@ export function WorkspaceManagement({
                         variant="ghost"
                         size="sm"
                         onClick={() => handleRemoveMember(m.id)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 h-7 px-2"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 h-9 w-9 sm:h-7 sm:w-auto sm:px-2 rounded-lg"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                       </Button>
                     </>
                   )}
@@ -427,25 +428,25 @@ export function WorkspaceManagement({
 
   const settingsContent = isOrgAdmin ? (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
+      <Card className="rounded-2xl">
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
             <Building2 className="w-4 h-4" />
             Branding
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 px-4 sm:px-6">
           <form onSubmit={handleSaveSettings} className="space-y-4">
             <div>
-              <Label className="text-xs mb-1 block">Company Logo</Label>
-              <div className="flex items-center gap-3">
+              <Label className="text-xs mb-1.5 block">Company Logo</Label>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 {logoUrl && (
-                  <img src={logoUrl} alt="Logo preview" className="w-12 h-12 rounded-lg object-contain border shrink-0" />
+                  <img src={logoUrl} alt="Logo preview" className="w-16 h-16 sm:w-12 sm:h-12 rounded-lg object-contain border shrink-0" />
                 )}
                 <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoFileSelect} className="hidden" />
                 <div
                   onClick={() => logoInputRef.current?.click()}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md border border-input bg-background text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-3 sm:py-2.5 rounded-lg border border-input bg-background text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors min-h-[44px]"
                 >
                   <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
                   <span className="truncate flex-1">{logoUrl ? "Change logo" : "Click to choose a file"}</span>
@@ -463,18 +464,18 @@ export function WorkspaceManagement({
                   )}
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Upload a PNG/JPG logo. It will be shown on the company page.</p>
+              <p className="text-xs text-muted-foreground mt-1.5">Upload a PNG/JPG logo. It will be shown on the company page.</p>
             </div>
 
             <div className="pt-2 border-t">
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
-              <Button type="submit" disabled={savingSettings}>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+              <Button type="submit" disabled={savingSettings} className="h-11 sm:h-9 rounded-lg">
                 {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Settings"}
               </Button>
               {settingsStatus !== "idle" && (
-                <div className={`flex items-center gap-2 text-sm ${settingsStatus === "success" ? "text-green-600" : "text-red-600"}`}>
+                <div className={`flex items-center justify-center sm:justify-start gap-2 text-sm ${settingsStatus === "success" ? "text-green-600" : "text-red-600"}`}>
                   {settingsStatus === "success" ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
                   {settingsMessage}
                 </div>
@@ -484,22 +485,22 @@ export function WorkspaceManagement({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base text-red-600">
+      <Card className="rounded-2xl border-red-200">
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle className="flex items-center gap-2 text-sm sm:text-base text-red-600">
             <AlertCircle className="w-4 h-4" />
             Danger Zone
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
+        <CardContent className="space-y-4 px-4 sm:px-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
             <div>
               <p className="text-sm font-medium">Delete Organization</p>
               <p className="text-xs text-muted-foreground mt-1">
                 Permanently delete this organization. All members will be unlinked and all data will be lost.
               </p>
             </div>
-            <Button variant="destructive" size="sm" disabled={deletingOrg} onClick={() => setDeleteOrgOpen(true)}>
+            <Button variant="destructive" size="sm" disabled={deletingOrg} onClick={() => setDeleteOrgOpen(true)} className="h-11 sm:h-9 rounded-lg w-full sm:w-auto">
               {deletingOrg ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
               Delete
             </Button>
@@ -508,7 +509,7 @@ export function WorkspaceManagement({
       </Card>
 
       <Dialog open={deleteOrgOpen} onOpenChange={setDeleteOrgOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base">Delete organization?</DialogTitle>
             <DialogDescription>
@@ -521,11 +522,11 @@ export function WorkspaceManagement({
               {deleteOrgError}
             </div>
           )}
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setDeleteOrgOpen(false)} disabled={deletingOrg}>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setDeleteOrgOpen(false)} disabled={deletingOrg} className="h-11 sm:h-9 rounded-lg w-full sm:w-auto">
               Cancel
             </Button>
-            <Button variant="destructive" onClick={confirmDeleteOrg} disabled={deletingOrg}>
+            <Button variant="destructive" onClick={confirmDeleteOrg} disabled={deletingOrg} className="h-11 sm:h-9 rounded-lg w-full sm:w-auto">
               {deletingOrg ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
               Delete
             </Button>
