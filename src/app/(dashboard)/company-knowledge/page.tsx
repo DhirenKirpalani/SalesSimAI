@@ -113,7 +113,8 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
 export default function CompanyKnowledgePage() {
   const router = useRouter();
   const { isAdmin, loading: roleLoading } = useRole();
-  const [loading, setLoading] = useState(true);
+  const [orgLoading, setOrgLoading] = useState(true);
+  const [docsLoading, setDocsLoading] = useState(true);
 
   // Org state
   const [org, setOrg] = useState<Organization | null>(null);
@@ -250,6 +251,7 @@ export default function CompanyKnowledgePage() {
   };
 
   const fetchOrg = useCallback(async () => {
+    setOrgLoading(true);
     try {
       const res = await fetch("/api/company/org");
       const data = await res.json();
@@ -266,6 +268,8 @@ export default function CompanyKnowledgePage() {
       }
     } catch (e) {
       console.error("[company-knowledge] fetch org error:", e);
+    } finally {
+      setOrgLoading(false);
     }
   }, []);
 
@@ -282,6 +286,7 @@ export default function CompanyKnowledgePage() {
   }, []);
 
   const fetchDocs = useCallback(async (page = 0) => {
+    setDocsLoading(true);
     try {
       const offset = page * DOCS_PER_PAGE;
       const res = await fetch(`/api/company/documents?limit=${DOCS_PER_PAGE}&offset=${offset}`);
@@ -298,16 +303,14 @@ export default function CompanyKnowledgePage() {
       }
     } catch (e) {
       console.error("[company-knowledge] fetch docs error:", e);
+    } finally {
+      setDocsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      await Promise.all([fetchOrg(), fetchDocs()]);
-      setLoading(false);
-    }
-    load();
+    fetchOrg();
+    fetchDocs();
   }, [fetchOrg, fetchDocs]);
 
   useEffect(() => {
@@ -711,7 +714,7 @@ export default function CompanyKnowledgePage() {
     }
   }
 
-  if (loading || roleLoading) {
+  if (roleLoading) {
     return (
       <div className="max-w-4xl mx-auto py-4 sm:py-8 space-y-4 sm:space-y-6 px-4 sm:px-0 animate-pulse">
         <div className="space-y-2">
@@ -728,7 +731,7 @@ export default function CompanyKnowledgePage() {
   }
 
   // ── No access if not in any org and not an app admin ─────────────────
-  if (!roleLoading && !loading && !org && !isAdmin) {
+  if (!orgLoading && !org && !isAdmin) {
     return (
       <div className="max-w-2xl mx-auto py-12 px-4">
         <Card>
@@ -752,7 +755,7 @@ export default function CompanyKnowledgePage() {
   }
 
   // ── No Org State ─────────────────────────────────────────────────────
-  if (!loading && !org) {
+  if (!orgLoading && !org) {
     return (
       <div className="max-w-2xl mx-auto py-12 px-4">
         <Card>
@@ -1215,7 +1218,22 @@ export default function CompanyKnowledgePage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {docs.length === 0 ? (
+              {docsLoading && docs.length === 0 ? (
+                <div className="space-y-3 animate-pulse py-2">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-transparent">
+                      <div className="flex items-center gap-3 w-1/2">
+                        <div className="w-4 h-4 bg-muted rounded" />
+                        <div className="h-4 bg-muted rounded w-full" />
+                      </div>
+                      <div className="flex items-center gap-3 w-1/3">
+                        <div className="h-5 bg-muted rounded w-16" />
+                        <div className="h-8 bg-muted rounded w-8 ml-auto" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : docs.length === 0 ? (
                 <p className="text-muted-foreground text-sm text-center py-8">
                   {isOrgAdmin
                     ? "No documents uploaded yet. Upload your first document above."

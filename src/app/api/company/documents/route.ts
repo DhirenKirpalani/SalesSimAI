@@ -573,7 +573,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       documents: (rows ?? []).map((d: any) => ({
         ...d,
         creator_name: creators[d.created_by ?? ""]?.full_name || null,
@@ -586,6 +586,8 @@ export async function GET(req: NextRequest) {
       offset,
       hasMore: (count ?? 0) > offset + limit,
     });
+    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
+    return response;
   } catch (err) {
     console.error("[api/company/documents GET]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

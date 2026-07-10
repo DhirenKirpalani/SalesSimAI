@@ -94,10 +94,12 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       activeOrganizationId: activeOrgId,
       organizations,
     });
+    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
+    return response;
   } catch (err) {
     console.error("[api/company/org/list GET]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -1,12 +1,14 @@
 # Day1
 
-AI-powered sales training simulator. Practice discovery calls, objection handling, and negotiations with realistic AI buyer personas tailored to your product and industry.
+AI-powered conversation simulator for individuals and companies. Practice real-life conversations — discovery calls, objection handling, negotiations, interviews, and more — with realistic AI personas tailored to your product, industry, and use case.
 
 ---
 
 ## Overview
 
-Day1 helps sales teams and individual reps sharpen their skills through immersive, AI-driven role-play scenarios. Users can either practice with pre-built platform scenarios or create their own custom simulations built around their actual company, product, and target buyers.
+Day1 helps individuals and teams sharpen their conversation skills through immersive, AI-driven role-play scenarios. Practice against realistic personas, get real-time coaching, and build a shared knowledge base of company context so every scenario is grounded in your actual product and playbook.
+
+Users can practice with pre-built platform scenarios or create custom simulations built around their company, product, and target audience.
 
 ---
 
@@ -16,6 +18,8 @@ Day1 helps sales teams and individual reps sharpen their skills through immersiv
 - **UI**: [Tailwind CSS](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) components
 - **Animations**: [Framer Motion](https://www.framer.com/motion)
 - **Backend / Auth**: [Supabase](https://supabase.com) (PostgreSQL + Auth)
+- **AI**: [OpenAI](https://openai.com) GPT-4o / GPT-4o-mini
+- **Voice / Avatar**: LiveAvatar (conversational streaming avatars), ElevenLabs voice
 - **Icons**: [Lucide React](https://lucide.dev)
 
 ---
@@ -24,40 +28,44 @@ Day1 helps sales teams and individual reps sharpen their skills through immersiv
 
 ### Landing Page
 
-- Responsive landing page with fixed navbar
-- Sections: Hero, Features, Showcase, Pricing, FAQ, Footer
-- Conditional navbar: shows Profile / Logout for authenticated users, Sign In / Get Started for guests
-- Smooth scroll anchor links to each section
+- Responsive, mobile-first landing page with animated sections
+- Sections: Hero, Features, Showcase, Personas, Process, Pricing, FAQ, CTA, Footer
+- Conditional navbar: shows Dashboard / Profile / Logout for authenticated users, Sign In / Get Started for guests
+- Animated mobile navigation drawer
 
 ### Authentication
 
 - **Sign Up**: email, password, full name, position
-- **Email Confirmation Flow**: after sign-up, a toast prompts users to confirm their email; after confirmation, redirected to login
-- **Sign In**: email + password with eye icon for password visibility toggle
-- **Password Visibility Toggle**: Eye/EyeOff icons on all password fields
+- **Email Confirmation Flow**: toast prompt to confirm email; redirect to login after confirmation
+- **Sign In**: email + password with password visibility toggle
 - Protected routes via Supabase Auth
 
 ### Role-Based Access Control (RBAC)
 
-- Two roles: `admin` and `user`
-- `app_role` enum in Supabase with values `admin`, `user`
+- App-level roles: `admin`, `user`
+- Workspace-level roles via `organization_members`
 - `useRole()` hook for client-side role checking
-- Admin-only UI elements (e.g. sidebar link, platform scenario delete)
-- RLS policies restrict data access by role
+- Admin-only UI elements (platform scenario delete, workspace management)
+
+### Workspaces
+
+- Multi-organization support via `organizations` and `organization_members`
+- Switch between workspaces from the workspace switcher
+- Workspace detail page with members, settings, and admin controls
+- Active workspace scoped across scenarios, simulations, knowledge base, and analytics
 
 ### Profile Page
 
-- Editable fields: **Full Name**, **Company**, **Position** (e.g. CFO, Head of Sales)
+- Editable fields: **Full Name**, **Company**, **Position**
 - Fetches from Supabase `profiles` table
-- Save updates both the database and auth user metadata
-- Loading and success/error states
+- Updates both the database and auth user metadata
 
 ### Scenario Library
 
 Two independent sections:
 
-1. **My Custom Scenarios** — scenarios created by the logged-in user
-2. **Platform Scenarios** — pre-built case studies seeded by the admin
+1. **My Custom Scenarios** — scenarios created by users in the active workspace
+2. **Platform Scenarios** — pre-built case studies seeded by admins
 
 Each scenario card shows:
 - Name, difficulty badge, seller company
@@ -73,108 +81,110 @@ Each scenario card shows:
 
 ### Custom Scenario Creation Wizard
 
-4-step persistent form (auto-saves to `localStorage`, survives refresh):
+Persistent 4-step form (auto-saves to `localStorage`):
 
-1. **Your Company**
-   - Company name
-   - Product one-liner
-   - Full company & product brief (textarea with examples)
+1. **Your Company** — company name, product one-liner, full company & product brief
+2. **Buyer Persona** — choose a preset or build a custom buyer
+3. **Scenario Setup** — call type, difficulty, duration, optional backstory
+4. **Review** — summary card, Save & Start or Save for Later
 
-2. **Buyer Persona**
-   - Toggle: pick from **Preset Personas** or **Build Your Own**
-   - Presets: CFO, VP Procurement, CRO, CTO, Head of Sales
-   - Custom: name, title, company, industry, personality, pain points
+### Knowledge Base (Company Knowledge)
 
-3. **Scenario Setup**
-   - Call type grid: First Discovery, Objection Handling, Negotiation, Product Demo, Pitch, Win-Back, Renewal, Executive Presentation
-   - Difficulty selector
-   - Duration selector (10–40 min)
-   - Optional context/backstory textarea
+- Upload documents (PDF, DOCX, PPTX, TXT, MD, JSON, CSV)
+- AI auto-classification of document type in bulk upload mode
+- Website URL extraction for AI company profile
+- Documents are chunked, embedded, and stored per workspace
+- Deduplication at file, content, and chunk levels
 
-4. **Review**
-   - Summary card showing the full scenario brief
-   - Save & Start or Save for Later
+### Simulation Modes
 
-### Platform Scenarios (Case Studies)
+When a scenario is started, choose how to practice:
 
-Pre-built discovery-call case studies stored in the database:
+- **Video Call** — realistic streaming avatar buyer with video and audio
+- **Voice Call** — audio-only AI buyer with live transcription
+- **Text Chat** — WhatsApp-style chat practice
 
-| Scenario | Buyer | Company | Industry |
-|---|---|---|---|
-| BloomCommerce First Discovery | Daniel Lim — Financial Controller | BloomCommerce | E-commerce |
-| FastShip Logistics First Discovery | Sarah Wong — Finance Manager | FastShip Logistics | Logistics |
-| NovaTech Solutions First Discovery | Kevin Tan — Financial Controller | NovaTech Solutions | B2B SaaS |
-| StyleStreet Commerce First Discovery | Andrew Lee — Financial Controller | StyleStreet Commerce | Fashion E-commerce |
+Simulation includes:
+- Prep screen with buyer profile, background, and communication style tabs
+- Real-time transcription
+- Live coaching nudges and suggested next questions
+- Session timer and checkpoint scoring
 
-Each includes:
-- Full seller description (Aspire brief)
-- Complete buyer persona JSONB (pain points, goals, personality, company background, buyer background, booth intel)
-- Context note with scenario setup and ground rules
+### AI Coaching & Analytics
 
-### Detail Dialog (Card Click)
+- Real-time coaching overlay during simulations
+- Checkpoint-based scoring aligned to your methodology or practice goals
+- Post-call analysis page with completed sessions, scores, and feedback
+- Per-workspace analytics and session history
 
-Clicking any scenario card opens a modal with:
-- **What you're selling** — product one-liner + full company description
-- **Buyer persona** — full profile, personality, pain points list
-- **Call context** — scenario type badges + backstory
+### Responsive Design
 
-### Delete Confirmation
-
-- Delete icon on every scenario card
-- Confirmation modal: "Delete scenario? This will permanently remove [Name]. This action cannot be undone."
-- **Cancel** or **Delete** (destructive button)
-- Platform scenarios: delete button visible **only to admins**; non-admins see no trash icon
-- Custom scenarios: always deletable by the owner
-
-### Dashboard
-
-- Responsive layout with Sidebar (desktop) and Top Navbar (mobile)
-- Navigation: Scenarios, Simulation, Analytics, History, Profile, Admin (admin-only)
-- Theme toggle (light/dark)
+- Mobile-first responsive layout
+- Dashboard sidebar on desktop, sheet-based navigation on mobile
+- Touch-friendly controls and tap targets throughout
 
 ---
 
 ## Database Schema (Supabase)
 
-### `profiles`
+### Core tables
+
+#### `profiles`
 - `id` uuid PK → `auth.users`
-- `full_name` text
-- `email` text
+- `full_name`, `email`, `company`, `position`
 - `role` enum (`admin` | `user`) default `user`
-- `company` text
+- `organization_id` uuid FK → `organizations` (active workspace)
+- `created_at` timestamptz
+
+#### `organizations`
+- `id` uuid PK
+- `name`, `slug`, `plan`
+- `logo_url`, `theme_color`, `theme_colors`, `email_domain`, `source_urls`
+- `created_by` uuid FK → `auth.users`
+- `created_at` timestamptz
+
+#### `organization_members`
+- `id` uuid PK
+- `organization_id` uuid FK → `organizations`
+- `user_id` uuid FK → `auth.users`
+- `role` text (`admin` | `member`)
 - `position` text
+
+#### `custom_scenarios`
+- `id` uuid PK
+- `user_id` uuid FK → `auth.users`
+- `organization_id` uuid FK → `organizations`
+- `seller_company`, `seller_product`, `seller_description`
+- `preset_persona_id`, `custom_persona` jsonb
+- `scenario_type`, `difficulty`, `duration`, `context_note`, `name`
+- `created_at` timestamptz
+- RLS scoped by workspace membership
+
+#### `platform_scenarios`
+- Same shape as `custom_scenarios`
+- `organization_id` nullable; visible to all workspace members
+- Only admins can delete
+
+#### `company_documents`
+- `id` uuid PK
+- `organization_id` uuid FK → `organizations`
+- `name`, `content`, `doc_type`, `document_type`, `file_path`
+- `file_hash`, `content_hash`
+- `created_by` uuid FK → `auth.users`
 - `created_at` timestamptz
 
-### `custom_scenarios`
+#### `company_document_chunks`
 - `id` uuid PK
-- `user_id` uuid FK → `auth.users` (NOT NULL)
-- `seller_company` text
-- `seller_product` text
-- `seller_description` text
-- `preset_persona_id` text
-- `custom_persona` jsonb
-- `scenario_type` text
-- `difficulty` text
-- `duration` int
-- `context_note` text
-- `name` text
-- `created_at` timestamptz
-- RLS: users can only CRUD their own rows
+- `document_id` uuid FK → `company_documents`
+- `content`, `embedding` vector, `chunk_index`, `chunk_hash`
 
-### `platform_scenarios`
+#### `simulation_sessions`
 - `id` uuid PK
-- `seller_company` text
-- `seller_product` text
-- `seller_description` text
-- `preset_persona_id` text
-- `custom_persona` jsonb
-- `scenario_type` text
-- `difficulty` text
-- `duration` int
-- `context_note` text
-- `name` text
-- `created_at` timestamptz
-- RLS: anyone can view; only admins can delete
+- `scenario_id`, `scenario_table` (`custom_scenarios` | `platform_scenarios`)
+- `user_id` uuid FK → `auth.users`
+- `organization_id` uuid FK → `organizations`
+- `status`, `mode`, `started_at`, `ended_at`, `duration_seconds`
+- `metadata` jsonb
 
 ---
 
@@ -182,12 +192,13 @@ Clicking any scenario card opens a modal with:
 
 | File | Purpose |
 |---|---|
-| `supabase/profiles.sql` | Create `profiles` table, `app_role` enum, RLS policies, trigger |
+| `supabase/profiles.sql` | Create `profiles` table, roles, RLS, trigger |
+| `supabase/organizations.sql` | Create `organizations` and `organization_members` |
 | `supabase/custom_scenarios.sql` | Create `custom_scenarios` table + RLS |
 | `supabase/platform_scenarios.sql` | Create `platform_scenarios` table + RLS |
-| `supabase/seed_platform_scenarios.sql` | Seed INSERTs for 4 platform case studies |
-| `supabase/update_role.sql` | Idempotent migration for role enum |
-| `supabase/update_profile.sql` | Idempotent migration for `company` + `position` columns |
+| `supabase/company_documents.sql` | Create `company_documents` and `company_document_chunks` |
+| `supabase/simulation_sessions.sql` | Create `simulation_sessions` table |
+| `supabase/seed_platform_scenarios.sql` | Seed platform case studies |
 
 ---
 
@@ -196,14 +207,30 @@ Clicking any scenario card opens a modal with:
 ### Prerequisites
 - Node.js 18+
 - A Supabase project
+- OpenAI API key
+- (Optional) LiveAvatar and ElevenLabs credentials for video/voice simulation
 
 ### Environment Variables
 
 Create a `.env.local`:
 
 ```env
+# Supabase
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# OpenAI
+OPENAI_API_KEY=your_openai_key
+
+# Live Avatar (video/voice calls)
+NEXT_PUBLIC_APP_URL=https://your-production-url.com
+LIVEAVATAR_API_KEY=your_liveavatar_key
+LIVEAVATAR_AVATAR_ID=your_avatar_id
+
+# ElevenLabs (voice synthesis)
+ELEVENLABS_API_KEY=your_elevenlabs_key
+ELEVENLABS_VOICE_ID=your_voice_id
 ```
 
 ### Run Migrations
@@ -211,9 +238,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 In your Supabase SQL Editor, run in this order:
 
 1. `supabase/profiles.sql`
-2. `supabase/custom_scenarios.sql`
-3. `supabase/platform_scenarios.sql`
-4. `supabase/seed_platform_scenarios.sql`
+2. `supabase/organizations.sql`
+3. `supabase/custom_scenarios.sql`
+4. `supabase/platform_scenarios.sql`
+5. `supabase/company_documents.sql`
+6. `supabase/simulation_sessions.sql`
+7. `supabase/seed_platform_scenarios.sql`
 
 ### Install & Run
 
@@ -233,20 +263,27 @@ src/
   app/
     (dashboard)/           # Authenticated routes (layout with sidebar/navbar)
       scenarios/           # Scenario Library + Create Custom wizard
+      company-knowledge/   # Knowledge base document uploads & URL extraction
+      workspace/           # Workspace list and workspace detail
+      simulation/          # Simulation prep + video/voice/text call UI
+      analysis/            # Session history and analytics
       profile/             # Editable profile page
       admin/               # Admin-only page
     page.tsx               # Landing page
+  app/api/                 # Next.js API routes (auth, simulation, documents, etc.)
   components/
-    cards/
-      CustomScenarioCard.tsx   # Scenario card with detail dialog + delete
+    cards/                 # Scenario cards, transcript messages
     landing/               # Landing page sections
-    layout/                # Sidebar, TopNavbar
+    layout/                # Sidebar, TopNavbar, PageHeaderLogo
     ui/                    # shadcn/ui components
+    workspace/             # Workspace management components
   hooks/
     useRole.ts             # Client-side role check
+    useCoaching.ts         # Real-time coaching state
   lib/
-    data/mockData.ts       # Mock personas & legacy scenarios
     supabase/client.ts     # Supabase browser client
+    vector-store.ts        # Embedding helpers
+    extract-text.ts        # Document text extraction
   types/index.ts           # TypeScript interfaces
 supabase/
   *.sql                    # Migration & seed files
@@ -254,9 +291,27 @@ supabase/
 
 ---
 
+## Important Notes
+
+### LiveAvatar / Voice Calls
+- LiveAvatar requires a public `NEXT_PUBLIC_APP_URL` because its servers call the LLM proxy endpoint.
+- On localhost, the avatar can hear and transcribe user speech, but cannot receive agent responses.
+- For full video/voice simulation, deploy to a publicly accessible URL.
+
+### Knowledge Base
+- Uploaded files are stored in a Supabase Storage bucket named `knowledge-base`.
+- Each workspace gets its own folder inside the bucket.
+- Documents are chunked and embedded automatically on upload.
+
+### Workspace Scoping
+- Scenarios, simulations, documents, and analytics are scoped to the user's active workspace (`organization_id`).
+- A user can belong to multiple workspaces and switch between them from the workspace list.
+
+---
+
 ## Admin Setup
 
-To promote a user to admin, update their role in Supabase:
+To promote a user to app admin, update their role in Supabase:
 
 ```sql
 update public.profiles
@@ -267,6 +322,7 @@ where email = 'admin@example.com';
 Admins gain access to:
 - Admin sidebar link
 - Platform scenario delete functionality
+- Workspace creation and management
 
 ---
 
