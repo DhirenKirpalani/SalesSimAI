@@ -98,7 +98,7 @@ export async function GET() {
       activeOrganizationId: activeOrgId,
       organizations,
     });
-    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
+    response.headers.set("Cache-Control", "private, no-cache");
     return response;
   } catch (err) {
     console.error("[api/company/org/list GET]", err);

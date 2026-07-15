@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { resolveFramework } from "@/lib/evaluation-frameworks";
 
 function serviceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -25,14 +26,9 @@ interface CoachingEvaluation {
   recommendations: string[];
   discovery_coverage: Record<string, boolean>;
   criteria_scores?: Record<string, number>;
-  meddic_breakdown?: {
-    "Identify Pain": number;
-    Metrics: number;
-    "Economic Buyer": number;
-    "Decision Criteria": number;
-    "Decision Process": number;
-    Champion: number;
-  };
+  meddic_breakdown?: Record<string, number>;
+  star_breakdown?: Record<string, number>;
+  framework?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -93,7 +89,8 @@ export async function POST(req: NextRequest) {
       .map(([k]) => k);
 
     // Build transcript string
-    const transcriptLabel = scenario?.scenario_type === "Product Knowledge Interview" ? "CANDIDATE" : "SELLER";
+    const framework = resolveFramework(scenario?.scenario_type, scenario?.evaluation_framework);
+    const transcriptLabel = framework.transcriptLabel;
     const transcriptLines = (messages ?? []).map((m) => `${m.role === "user" ? transcriptLabel : "BUYER"}: ${m.content}`);
     const transcript = transcriptLines.join("\n");
 
@@ -106,8 +103,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "OPENAI_API_KEY not set" }, { status: 500 });
     }
 
-    const participantRole = scenario?.scenario_type === "Product Knowledge Interview" ? "candidate" : "seller";
-    const prompt = `You are an expert sales coach evaluating a B2B sales call simulation using the MEDDIC framework. The human participant is the ${participantRole}.
+    const participantRole = framework.participantRole;
+    const prompt = `You are an expert coach evaluating a simulation using the ${framework.name} framework. The human participant is the ${participantRole}.
 
 SCENARIO: ${scenario?.name ?? "Sales simulation"}
 CALL TYPE: ${scenario?.scenario_type ?? "Discovery Call"}
@@ -118,7 +115,7 @@ WHAT IS BEING SOLD: ${scenario?.seller_description ?? ""}
 CONTEXT: ${scenario?.context_note ?? ""}
 DIFFICULTY: ${scenario?.difficulty ?? "Intermediate"}
 DURATION: ${scenario?.duration ?? 5} minutes
-FRAMEWORK: ${scenario?.evaluation_framework ?? "MEDDIC"}
+FRAMEWORK: ${scenario?.evaluation_framework ?? framework.name}
 
 BUYER PERSONA:
 - Name: ${persona?.name ?? "Unknown"}
@@ -140,53 +137,10 @@ ${scenario?.scoring_criteria ?? "No rubric provided"}
 TRANSCRIPT:
 ${transcript}
 
-EVALUATE on MEDDIC dimensions. Start each dimension at 0 and award points ONLY when the ${participantRole}'s own words in the transcript provide clear evidence. Silence, greetings, "yes", "sounds good", or generic small talk must score 0.
-
-Use this strict scale for each dimension:
-- 0: No evidence the ${participantRole} addressed this dimension.
-- 20-40: Weak or implicit mention (one vague reference, not probed).
-- 50-70: Clear evidence (specific question or statement tied to the dimension).
-- 80-100: Strong evidence (probed deeply, quantified, or tied to a concrete next step).
-
-Dimensions:
-1. Identify Pain: Did the ${participantRole} discover and probe specific business pain points?
-2. Metrics: Did they quantify business impact, ROI, or cost of the pain?
-3. Economic Buyer: Did they identify or engage the financial decision maker?
-4. Decision Criteria: Did they uncover the buyer's evaluation requirements?
-5. Decision Process: Did they map the buying process, timeline, or steps?
-6. Champion: Did they build a relationship and find or create an internal advocate?
-
-Use the SCORING RUBRIC above to judge how well the ${participantRole} hit each checkpoint. Do not give partial credit for simply talking; require evidence.
-
-Also provide:
-- OVERALL_SCORE: weighted average (0-100). Weights: Identify Pain 25%, Metrics 20%, Economic Buyer 15%, Decision Criteria 15%, Decision Process 15%, Champion 10%.
-- STRENGTHS: Specific things the ${participantRole} actually did well (max 3). Must be grounded in the transcript. Return empty if none.
-- WEAKNESSES: Specific gaps or mistakes evident in the transcript (max 5). Reference actual turns or quotes.
-- MISSED_OPPORTUNITIES: Specific questions or tactics the ${participantRole} failed to use at a real moment in the transcript (max 5).
-- RECOMMENDATIONS: Actionable coaching tips that directly address the weaknesses and missed opportunities (max 5). Do not repeat generic sales advice.
-- DISCOVERY_COVERAGE: Which of the 9 discovery steps were covered (true/false)
-  Steps: intro_agenda, current_process, breakdown, impact, cost, previous_attempts, future_state, stakeholders, blockers
+${framework.buildEvaluationInstructions(participantRole)}
 
 Return ONLY valid JSON:
-{
-  "discovery_score": <identify_pain score>,
-  "objection_score": <decision_criteria score>,
-  "empathy_score": <champion score>,
-  "overall_score": number,
-  "meddic_breakdown": {
-    "Identify Pain": number,
-    "Metrics": number,
-    "Economic Buyer": number,
-    "Decision Criteria": number,
-    "Decision Process": number,
-    "Champion": number
-  },
-  "strengths": ["..."],
-  "weaknesses": ["..."],
-  "missed_opportunities": ["..."],
-  "recommendations": ["..."],
-  "discovery_coverage": { "intro_agenda": boolean, "current_process": boolean, "breakdown": boolean, "impact": boolean, "cost": boolean, "previous_attempts": boolean, "future_state": boolean, "stakeholders": boolean, "blockers": boolean }
-}`;
+${framework.buildJsonShape()}`;
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -219,38 +173,24 @@ Return ONLY valid JSON:
       return NextResponse.json({ error: "Failed to parse evaluation" }, { status: 500 });
     }
 
-    // Normalize scores: ensure breakdown exists, clamp to 0-100, and recompute overall from breakdown
+    // Normalize scores using the framework config
     const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
-    const mb = evaluation.meddic_breakdown ?? {
-      "Identify Pain": evaluation.discovery_score ?? 0,
-      "Metrics": evaluation.discovery_score ?? 0,
-      "Economic Buyer": evaluation.empathy_score ?? 0,
-      "Decision Criteria": evaluation.objection_score ?? 0,
-      "Decision Process": 0,
-      "Champion": evaluation.empathy_score ?? 0,
-    };
-    const normalizedBreakdown = {
-      "Identify Pain": clamp(mb["Identify Pain"]),
-      "Metrics": clamp(mb["Metrics"]),
-      "Economic Buyer": clamp(mb["Economic Buyer"]),
-      "Decision Criteria": clamp(mb["Decision Criteria"]),
-      "Decision Process": clamp(mb["Decision Process"]),
-      "Champion": clamp(mb["Champion"]),
-    };
-    evaluation.meddic_breakdown = normalizedBreakdown;
-    evaluation.discovery_score = normalizedBreakdown["Identify Pain"];
-    evaluation.objection_score = normalizedBreakdown["Decision Criteria"];
-    evaluation.empathy_score = normalizedBreakdown["Champion"];
+    const normalizedBreakdown = framework.normalizeBreakdown(evaluation as unknown as Record<string, unknown>);
+    evaluation.framework = framework.id;
+    // Map first 3 dimensions to legacy score fields for backward compatibility
+    const dims = framework.dimensions;
+    evaluation.discovery_score = normalizedBreakdown[dims[0].key] ?? 0;
+    evaluation.objection_score = normalizedBreakdown[dims[2]?.key ?? dims[1].key] ?? 0;
+    evaluation.empathy_score = normalizedBreakdown[dims[dims.length - 1].key] ?? 0;
+    // Store the framework-specific breakdown
+    if (framework.id === "star") {
+      evaluation.star_breakdown = normalizedBreakdown;
+    } else {
+      evaluation.meddic_breakdown = normalizedBreakdown;
+    }
     evaluation.strengths = Array.isArray(evaluation.strengths) ? evaluation.strengths : [];
     evaluation.weaknesses = Array.isArray(evaluation.weaknesses) ? evaluation.weaknesses : evaluation.missed_opportunities ?? [];
-    evaluation.overall_score = Math.round(
-      normalizedBreakdown["Identify Pain"] * 0.25 +
-      normalizedBreakdown["Metrics"] * 0.20 +
-      normalizedBreakdown["Economic Buyer"] * 0.15 +
-      normalizedBreakdown["Decision Criteria"] * 0.15 +
-      normalizedBreakdown["Decision Process"] * 0.15 +
-      normalizedBreakdown["Champion"] * 0.10
-    );
+    evaluation.overall_score = framework.computeOverall(normalizedBreakdown);
 
     // Persist to simulation_coaching table
     const { error: insertError } = await serviceDb.from("simulation_coaching").upsert(

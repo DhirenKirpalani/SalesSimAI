@@ -3,7 +3,7 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { Conversation } from "@elevenlabs/client";
 import { createClient } from "@/lib/supabase/client";
-import { buildVoiceConfig, buildSystemPrompt } from "@/lib/voice-config";
+import { buildVoiceConfig, buildSystemPrompt, getAgentId } from "@/lib/voice-config";
 import type { PersonaContext } from "@/lib/voice-config";
 
 export type VoiceStatus = "idle" | "connecting" | "listening" | "processing" | "speaking" | "paused" | "error";
@@ -209,8 +209,8 @@ export function useVoiceCall(): UseVoiceCallReturn {
     unsubscribeFromRealtime();
     subscribeToRealtime(sessionId);
 
-    const agentId = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
-    console.log("[useVoiceCall] agentId:", agentId);
+    const agentId = getAgentId(persona?.scenarioType);
+    console.log("[useVoiceCall] agentId:", agentId, "scenarioType:", persona?.scenarioType ?? "N/A");
     if (!agentId) {
       setError("ElevenLabs agent ID is not configured.");
       setStatus("error");

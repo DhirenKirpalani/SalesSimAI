@@ -27,6 +27,7 @@ interface VoiceCallSidebarProps {
   buyerPainPoints?: string[];
   callSteps?: CallStep[];
   currentStep?: number;
+  scenarioType?: string | null;
 }
 
 interface CompetitiveDoc {
@@ -236,7 +237,9 @@ export function VoiceCallSidebar({
   buyerPainPoints,
   callSteps,
   currentStep = 0,
+  scenarioType,
 }: VoiceCallSidebarProps) {
+  const isInterview = scenarioType === "First Round Interview" || scenarioType === "Product Knowledge Interview";
   const [showAll, setShowAll] = useState(false);
   const [showCallStructure, setShowCallStructure] = useState(false);
   const [competitiveDocs, setCompetitiveDocs] = useState<CompetitiveDoc[]>([]);
@@ -288,14 +291,15 @@ export function VoiceCallSidebar({
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
         {/* Header */}
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-orange-400 font-semibold mb-1">Seller Cheat Sheet</p>
+          <p className="text-[10px] uppercase tracking-wider text-orange-400 font-semibold mb-1">{isInterview ? "Interview Prep" : "Seller Cheat Sheet"}</p>
           <h3 className="text-sm font-semibold text-white leading-tight">
             {sellerCompany ?? "Your Company"}
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">{sellerProduct ?? "Product"}</p>
         </div>
 
-        {/* What you are selling */}
+        {/* What you are selling — hidden for interviews */}
+        {!isInterview && (
         <div className="space-y-2">
           <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
             <Building2 className="w-3.5 h-3.5" />
@@ -326,9 +330,10 @@ export function VoiceCallSidebar({
             </>
           )}
         </div>
+        )}
 
-        {/* Key features */}
-        {keyFeatures.length > 0 && (
+        {/* Key features — hidden for interviews */}
+        {!isInterview && keyFeatures.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
               <Target className="w-3.5 h-3.5" />
@@ -345,8 +350,8 @@ export function VoiceCallSidebar({
           </div>
         )}
 
-        {/* Pricing */}
-        {pricing && (
+        {/* Pricing — hidden for interviews */}
+        {!isInterview && pricing && (
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
               <DollarSign className="w-3.5 h-3.5" />
@@ -358,8 +363,8 @@ export function VoiceCallSidebar({
           </div>
         )}
 
-        {/* Competitive intelligence */}
-        {hasCompetitive && (
+        {/* Competitive intelligence — hidden for interviews */}
+        {!isInterview && hasCompetitive && (
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
               <Trophy className="w-3.5 h-3.5" />
@@ -378,8 +383,8 @@ export function VoiceCallSidebar({
           </div>
         )}
 
-        {/* Buyer pain points */}
-        {buyerPainPoints && buyerPainPoints.length > 0 && (
+        {/* Buyer pain points — hidden for interviews */}
+        {!isInterview && buyerPainPoints && buyerPainPoints.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
               <AlertCircle className="w-3.5 h-3.5" />
@@ -401,7 +406,7 @@ export function VoiceCallSidebar({
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
               <Lightbulb className="w-3.5 h-3.5" />
-              Talking to
+              {isInterview ? "Interviewer" : "Talking to"}
             </div>
             <p className="text-xs text-slate-300">
               {buyerName}
@@ -411,8 +416,8 @@ export function VoiceCallSidebar({
           </div>
         )}
 
-        {/* Call Structure — collapsed reference */}
-        {callSteps && callSteps.length > 0 && (
+        {/* Call Structure — collapsed reference, hidden for interviews */}
+        {!isInterview && callSteps && callSteps.length > 0 && (
           <div className="space-y-2">
             <button
               onClick={() => setShowCallStructure((v) => !v)}

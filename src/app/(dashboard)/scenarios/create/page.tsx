@@ -56,6 +56,7 @@ const SCENARIO_TYPES = [
   "Renewal",
   "Executive Presentation",
   "Product Knowledge Interview",
+  "First Round Interview",
 ];
 
 const DIFFICULTIES = ["Beginner", "Intermediate", "Advanced", "Expert"] as const;

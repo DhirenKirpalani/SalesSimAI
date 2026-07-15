@@ -279,6 +279,7 @@ export function TopNavbar() {
           .from("heygen_sessions")
           .select("id, scenario_name, overall_score:analysis->overall_score, started_at, ended_at")
           .eq("user_id", userId)
+          .eq("organization_id", organizationId)
           .not("ended_at", "is", null)
           .order("ended_at", { ascending: false })
           .limit(limit),
@@ -286,6 +287,7 @@ export function TopNavbar() {
           .from("simulation_sessions")
           .select("id, scenario_name, overall_score:analysis->overall_score, created_at, ended_at")
           .eq("user_id", userId)
+          .eq("organization_id", organizationId)
           .not("ended_at", "is", null)
           .order("ended_at", { ascending: false })
           .limit(limit),
@@ -331,6 +333,7 @@ export function TopNavbar() {
         { event: "UPDATE", schema: "public", table: "heygen_sessions", filter: `user_id=eq.${user.id}` },
         (payload) => {
           if (!payload.new.ended_at) return;
+          if (organizationId && payload.new.organization_id !== organizationId) return;
           const updated = payload.new;
           sessionsCache = [updated, ...sessionsCache.filter((s) => s.id !== updated.id)].slice(0, 10);
           setNotifications(buildNotifications(sessionsCache, voiceTextSessionsCache, scenariosCache, invitesCache, readIdsRef.current));
@@ -341,6 +344,7 @@ export function TopNavbar() {
         { event: "UPDATE", schema: "public", table: "simulation_sessions", filter: `user_id=eq.${user.id}` },
         (payload) => {
           if (!payload.new.ended_at || payload.new.status !== "completed") return;
+          if (organizationId && payload.new.organization_id !== organizationId) return;
           const updated = payload.new;
           voiceTextSessionsCache = [updated, ...voiceTextSessionsCache.filter((s) => s.id !== updated.id)].slice(0, 10);
           setNotifications(buildNotifications(sessionsCache, voiceTextSessionsCache, scenariosCache, invitesCache, readIdsRef.current));
@@ -350,6 +354,7 @@ export function TopNavbar() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "custom_scenarios", filter: `user_id=eq.${user.id}` },
         (payload) => {
+          if (organizationId && payload.new.organization_id !== organizationId) return;
           scenariosCache = [payload.new, ...scenariosCache].slice(0, 5);
           setNotifications(buildNotifications(sessionsCache, voiceTextSessionsCache, scenariosCache, invitesCache, readIdsRef.current));
         }
