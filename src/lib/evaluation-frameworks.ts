@@ -189,27 +189,63 @@ Also provide:
 };
 
 // ────────────────────────────────────────────────────────────
-// STAR Framework (used for interview scenarios)
+// STAR Framework — 7 Behavioural Competencies (interview scenarios)
+// Docs: docs/interview-competency-framework.md
 // ────────────────────────────────────────────────────────────
 
 const STAR_DIMENSIONS: FrameworkDimension[] = [
-  { key: "structure", label: "Structure (STAR)", weight: 0.40, description: "Did the candidate use the STAR format (Situation, Task, Action, Result)? Were answers well-organized with all four components?" },
-  { key: "specificity", label: "Specificity", weight: 0.25, description: "Were answers grounded in concrete examples with real details, metrics, and outcomes? No generic or vague statements." },
-  { key: "self_awareness", label: "Self-Awareness", weight: 0.15, description: "Could they honestly discuss failures, weaknesses, and areas for growth? Did they show genuine introspection?" },
-  { key: "communication", label: "Communication", weight: 0.10, description: "Was the delivery clear, concise, and confident? Appropriate answer length — not too short, not rambling." },
-  { key: "motivation", label: "Motivation & Fit", weight: 0.10, description: "Did they show genuine interest in the role? Career vision aligns with the position. Thoughtful questions at the end." },
+  {
+    key: "competency_strategic_thinking",
+    label: "Strategic Thinking",
+    weight: 0.20,
+    description: "Does the candidate frame situations strategically? Do they show business acumen, structured decision-making, and awareness of trade-offs and second-order effects?",
+  },
+  {
+    key: "autonomy_under_complexity",
+    label: "Autonomy Under Complexity",
+    weight: 0.15,
+    description: "Do they take ownership in ambiguous situations without being directed? Do they define the problem, build a hypothesis, and act — without waiting for someone to hand them a map?",
+  },
+  {
+    key: "leverage_without_authority",
+    label: "Leverage Without Authority",
+    weight: 0.15,
+    description: "Can they move people and outcomes they don't control? Do they describe cross-functional influence, stakeholder alignment, and achieving results when formal authority was absent?",
+  },
+  {
+    key: "collaboration",
+    label: "Collaboration",
+    weight: 0.15,
+    description: "Do they make the people around them better? Do they credit teammates without deflecting accountability, handle conflict as productive friction, and show outcomes improved because of how they worked with others?",
+  },
+  {
+    key: "candour_self_correction",
+    label: "Candour & Self-Correction",
+    weight: 0.15,
+    description: "Are they honest enough about themselves to grow? Do they describe real failures — not safe stories — and show they updated their thinking or behavior afterward? Can they be coached?",
+  },
+  {
+    key: "counterfeit_recognition",
+    label: "Counterfeit Recognition",
+    weight: 0.10,
+    description: "Can they tell the real from the performed? Do they show pattern recognition, healthy skepticism, and examples of catching situations where reality didn't match what was presented? Do they challenge false premises rather than just accept them?",
+  },
+  {
+    key: "vision_adjustment",
+    label: "Vision Adjustment",
+    weight: 0.10,
+    description: "Can they update the destination while keeping the team moving? Do they describe pivots — times new information required changing course — and show they can do this without losing momentum or the team?",
+  },
 ];
 
 const STAR_COVERAGE_STEPS = [
-  { key: "tell_me_about_yourself", label: "Tell Me About Yourself" },
-  { key: "why_this_role", label: "Why This Role" },
-  { key: "challenge_star", label: "Challenge (STAR)" },
-  { key: "failure_star", label: "Failure (STAR)" },
-  { key: "conflict_star", label: "Conflict (STAR)" },
-  { key: "influence_star", label: "Influence (STAR)" },
-  { key: "strengths_weaknesses", label: "Strengths & Weaknesses" },
-  { key: "career_vision", label: "Career Vision" },
-  { key: "questions_for_interviewer", label: "Questions for Interviewer" },
+  { key: "strategic_thinking_evidence", label: "Strategic Thinking" },
+  { key: "autonomy_under_complexity_evidence", label: "Autonomy Under Complexity" },
+  { key: "leverage_without_authority_evidence", label: "Leverage Without Authority" },
+  { key: "collaboration_evidence", label: "Collaboration" },
+  { key: "candour_self_correction_evidence", label: "Candour & Self-Correction" },
+  { key: "counterfeit_recognition_evidence", label: "Counterfeit Recognition" },
+  { key: "vision_adjustment_evidence", label: "Vision Adjustment" },
 ];
 
 const STAR: EvaluationFramework = {
@@ -221,17 +257,17 @@ const STAR: EvaluationFramework = {
   coverageSteps: STAR_COVERAGE_STEPS,
 
   buildSystemPrompt(participantRole: string) {
-    const dims = STAR_DIMENSIONS.map(d => `- ${d.label}: ${d.description}`).join("\n");
+    const dims = STAR_DIMENSIONS.map(d => `- ${d.label} (${Math.round(d.weight * 100)}%): ${d.description}`).join("\n");
     const weights = STAR_DIMENSIONS.map(d => `${d.label} ${Math.round(d.weight * 100)}%`).join(", ");
-    return `You are an expert interview coach analyzing a behavioral interview transcript using the STAR framework. The human participant is the ${participantRole}. Score strictly. Do not give points for silence, greetings, "yes", "sounds good", or generic small talk.
+    return `You are an expert interview coach analyzing a behavioral interview transcript using a 7-competency framework. The human participant is the ${participantRole}. Score strictly. Do not give points for silence, greetings, "yes", "sounds good", or generic small talk.
 
-STAR scoring guidance — start every dimension at 0 and award points ONLY when the ${participantRole}'s own words provide clear evidence:
-- 0: No evidence the ${participantRole} addressed this dimension.
-- 20-40: Weak or implicit mention (one vague reference, no concrete example).
-- 50-70: Clear evidence (specific example with most STAR components present).
-- 80-100: Strong evidence (complete STAR with concrete details, metrics, and clear outcomes).
+Scoring guidance — start every competency at 0 and award points ONLY when the ${participantRole}'s own words provide clear evidence:
+- 0: No evidence the ${participantRole} demonstrated this competency.
+- 20-40: Vague or surface mention — no concrete example backing it up.
+- 50-70: Clear example with most elements present — missing depth, specificity, or outcome.
+- 80-100: Strong, concrete, specific example with a meaningful outcome demonstrating this competency.
 
-Dimensions:
+Competencies:
 ${dims}
 
 Compute the overall_score as a weighted average: ${weights}.
@@ -249,23 +285,22 @@ Return ONLY valid JSON in this exact shape:
   "coaching_moments": [
     {
       "buyer_quote": "<exact interviewer statement from transcript>",
-      "signal": "<what this question signals>",
+      "signal": "<which competency this tests and what signal the answer sent>",
       "what_they_should_have_said": "<exact script they should have used in that moment>"
     }
   ]
 }
 
-Rules for strengths, weaknesses, missed opportunities, and coaching recommendations:
-- They MUST be grounded in the actual transcript and the scenario above.
-- Strengths: specific things the ${participantRole} actually said or did well. Do NOT list generic advice. If there are no real strengths, return an empty array.
-- Weaknesses: specific gaps or mistakes evident in the transcript. Use quotes or refer to actual turns.
-- Missed opportunities: specific questions or topics the ${participantRole} failed to address at a real moment in the conversation.
-- Coaching recommendations: actionable advice that directly addresses the weaknesses and missed opportunities. Do not repeat generic interview tips.
+Rules:
+- Strengths: specific things the ${participantRole} actually said or demonstrated. Do NOT list generic praise. Return empty array if none.
+- Weaknesses: specific gaps tied to actual transcript moments. Reference quotes or turns.
+- Missed opportunities: specific competencies the ${participantRole} failed to demonstrate when the question invited it.
+- Coaching recommendations: actionable advice that addresses the specific weaknesses found.
 
 COACHING MOMENTS rules:
-- Pick 3-5 real moments from the transcript where the interviewer asked something significant.
-- For each, explain what signal that question sends (behavioral competency, red flag, etc.).
-- Provide an exact script the ${participantRole} should have used — not generic advice, word-for-word what to say.
+- Pick 3-5 real moments where the interviewer asked something that invited a competency to be shown.
+- For each, identify which competency was being tested and how the ${participantRole}'s answer scored on it.
+- Provide an exact script the ${participantRole} should have used — word-for-word, not generic tips.
 - Be honest and specific. Reference actual moments from the transcript.`;
   },
 
@@ -284,28 +319,25 @@ COACHING MOMENTS rules:
   },
 
   buildEvaluationInstructions(participantRole: string) {
-    const dims = STAR_DIMENSIONS.map((d, i) => `${i + 1}. ${d.label}: ${d.description}`).join("\n");
+    const dims = STAR_DIMENSIONS.map((d, i) => `${i + 1}. ${d.label} (${Math.round(d.weight * 100)}%): ${d.description}`).join("\n");
     const weights = STAR_DIMENSIONS.map(d => `${d.label} ${Math.round(d.weight * 100)}%`).join(", ");
-    return `EVALUATE on STAR dimensions. Start each dimension at 0 and award points ONLY when the ${participantRole}'s own words in the transcript provide clear evidence. Silence, greetings, "yes", "sounds good", or generic small talk must score 0.
+    return `EVALUATE on 7 behavioural competencies. Start each at 0 and award points ONLY when the ${participantRole}'s own words provide clear evidence. Silence, greetings, and generic talk must score 0.
 
-Use this strict scale for each dimension:
-- 0: No evidence the ${participantRole} addressed this dimension.
-- 20-40: Weak or implicit mention (one vague reference, no concrete example).
-- 50-70: Clear evidence (specific example with most STAR components present).
-- 80-100: Strong evidence (complete STAR with concrete details, metrics, and clear outcomes).
+Strict scoring scale:
+- 0: No evidence of this competency.
+- 20-40: Vague or surface mention — no concrete example.
+- 50-70: Clear example — missing depth, specificity, or measurable outcome.
+- 80-100: Strong, specific example with a meaningful, concrete outcome.
 
-Dimensions:
+Competencies:
 ${dims}
 
-Use the SCORING RUBRIC above to judge how well the ${participantRole} hit each checkpoint. Do not give partial credit for simply talking; require evidence.
-
-Also provide:
-- OVERALL_SCORE: weighted average (0-100). Weights: ${weights}.
-- STRENGTHS: Specific things the ${participantRole} actually did well (max 3). Must be grounded in the transcript. Return empty if none.
-- WEAKNESSES: Specific gaps or mistakes evident in the transcript (max 5). Reference actual turns or quotes.
-- MISSED_OPPORTUNITIES: Specific questions or topics the ${participantRole} failed to address at a real moment in the transcript (max 5).
-- RECOMMENDATIONS: Actionable coaching tips that directly address the weaknesses and missed opportunities (max 5). Do not repeat generic interview advice.
-- DISCOVERY_COVERAGE: Which of the 9 interview steps were covered (true/false)
+OVERALL_SCORE: weighted average (0-100). Weights: ${weights}.
+STRENGTHS: Specific demonstrations (max 3). Must be grounded in the transcript.
+WEAKNESSES: Specific gaps or missed showings (max 5). Reference actual turns.
+MISSED_OPPORTUNITIES: Competencies the ${participantRole} failed to demonstrate when the question invited it (max 5).
+RECOMMENDATIONS: Actionable coaching targeting the specific weaknesses found (max 5).
+DISCOVERY_COVERAGE: Which of the 7 competency areas were evidenced (true/false).
   Steps: ${STAR_COVERAGE_STEPS.map(s => s.key).join(", ")}`;
   },
 
@@ -313,11 +345,13 @@ Also provide:
     const clamp = (n: unknown) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
     const rb = (raw.breakdown ?? raw.star_breakdown ?? raw) as Record<string, unknown>;
     return {
-      structure: clamp(rb["Structure (STAR)"] ?? rb["structure"] ?? 0),
-      specificity: clamp(rb["Specificity"] ?? rb["specificity"] ?? 0),
-      self_awareness: clamp(rb["Self-Awareness"] ?? rb["self_awareness"] ?? 0),
-      communication: clamp(rb["Communication"] ?? rb["communication"] ?? 0),
-      motivation: clamp(rb["Motivation & Fit"] ?? rb["motivation"] ?? 0),
+      competency_strategic_thinking: clamp(rb["Strategic Thinking"] ?? rb["competency_strategic_thinking"] ?? 0),
+      autonomy_under_complexity: clamp(rb["Autonomy Under Complexity"] ?? rb["autonomy_under_complexity"] ?? 0),
+      leverage_without_authority: clamp(rb["Leverage Without Authority"] ?? rb["leverage_without_authority"] ?? 0),
+      collaboration: clamp(rb["Collaboration"] ?? rb["collaboration"] ?? 0),
+      candour_self_correction: clamp(rb["Candour & Self-Correction"] ?? rb["candour_self_correction"] ?? 0),
+      counterfeit_recognition: clamp(rb["Counterfeit Recognition"] ?? rb["counterfeit_recognition"] ?? 0),
+      vision_adjustment: clamp(rb["Vision Adjustment"] ?? rb["vision_adjustment"] ?? 0),
     };
   },
 

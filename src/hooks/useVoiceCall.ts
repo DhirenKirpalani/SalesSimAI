@@ -221,27 +221,34 @@ export function useVoiceCall(): UseVoiceCallReturn {
 
     try {
       const voiceConfig = buildVoiceConfig(sessionId, languageRef.current, voiceId ?? undefined, persona);
-      const systemPrompt = buildSystemPrompt(persona);
+      const isInterviewPersona =
+        persona?.scenarioType === "First Round Interview" ||
+        persona?.scenarioType === "Product Knowledge Interview";
 
       // ── PROMPT PATCH ───────────────────────────────────────────────────────
-      // Push the latest system prompt to the ElevenLabs agent so behavior stays in sync with code.
-      try {
-        const patchRes = await fetch("/api/elevenlabs/update-agent-voice", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            agentId,
-            voiceId: voiceConfig.voiceId ?? voiceId ?? "",
-            systemPrompt,
-          }),
-        });
-        if (!patchRes.ok) {
-          console.warn("[useVoiceCall] prompt patch failed:", await patchRes.text().catch(() => "unknown"));
-        } else {
-          console.log("[useVoiceCall] prompt patched successfully");
+      // Interview scenarios: ElevenLabs dashboard is the source of truth — skip the patch.
+      // dynamicVariables (buyer_name, buyer_knowledge, etc.) still flow through for {{variable}} substitution.
+      // Sales scenarios: patch the agent so behavior stays in sync with code.
+      if (!isInterviewPersona) {
+        const systemPrompt = buildSystemPrompt(persona);
+        try {
+          const patchRes = await fetch("/api/elevenlabs/update-agent-voice", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              agentId,
+              voiceId: voiceConfig.voiceId ?? voiceId ?? "",
+              systemPrompt,
+            }),
+          });
+          if (!patchRes.ok) {
+            console.warn("[useVoiceCall] prompt patch failed:", await patchRes.text().catch(() => "unknown"));
+          } else {
+            console.log("[useVoiceCall] prompt patched successfully");
+          }
+        } catch (patchErr) {
+          console.warn("[useVoiceCall] prompt patch error:", patchErr);
         }
-      } catch (patchErr) {
-        console.warn("[useVoiceCall] prompt patch error:", patchErr);
       }
       // ─────────────────────────────────────────────────────────────────────
 

@@ -102,6 +102,7 @@ interface CoachTurnResult {
   checkpoint_name?: string | null;
   suggested_next?: string;
   already_covered?: string[];
+  is_interview?: boolean;
   product_corrections?: ProductCorrection[];
 }
 
@@ -515,6 +516,12 @@ function HeyGenTestInner() {
   /** Append a coach-turn result (sales nudge + product fact corrections) to the live nudge log and transcript */
   const appendCoachTurnNudges = useCallback((result: CoachTurnResult) => {
     if (result.fallback || result.error || !result.quality || !result.nudge) return;
+
+    // Sync LLM-detected covered steps back to keyword step tracker
+    if (result.is_interview && Array.isArray(result.already_covered) && result.already_covered.length > 0) {
+      coaching.markStepsByName(result.already_covered);
+    }
+
     const nudgeType: "success" | "info" | "warning" =
       result.quality === "good" ? "success" : result.quality === "warning" ? "warning" : "info";
     const label = result.checkpoint_hit ? `${result.checkpoint_hit}: ` : "";
@@ -581,15 +588,20 @@ function HeyGenTestInner() {
     if (signature === lastNudgeSignatureRef.current) return;
     lastNudgeSignatureRef.current = signature;
 
+    const isInterview = scenarioType?.toLowerCase().includes("interview") ?? false;
     let nudge: { message: string; type: "success" | "info" | "warning"; category: NudgeCategory; priority: number; copyText?: string } | null = null;
 
     if (update.stepCompleted) {
-      const message = "Good job! You advanced the conversation.";
+      const message = isInterview
+        ? "Competency demonstrated — keep going."
+        : "Good job! You advanced the conversation.";
       nudge = { message, type: "success", ...classifyNudge(message, "success") };
-    } else if (update.uncoveredFact) {
+    } else if (update.uncoveredFact && !isInterview) {
+      // Sales-specific: only show uncoveredFact for non-interview scenarios
       const message = `Insight uncovered: ${update.uncoveredFact}`;
       nudge = { message, type: "info", ...classifyNudge(message, "info") };
-    } else if (update.newSuggestion) {
+    } else if (update.newSuggestion && !isInterview) {
+      // For interviews the LLM coach-turn handles nudges; suppress keyword suggestions
       const message = `Try: ${update.newSuggestion.slice(0, 100)}${update.newSuggestion.length > 100 ? "…" : ""}`;
       nudge = { message, type: "warning", ...classifyNudge(message, "warning") };
     }
@@ -605,7 +617,7 @@ function HeyGenTestInner() {
       });
       addCoachNudge(nudge.message, nudge.type);
     }
-  }, [coaching.lastTurnResult, status]);
+  }, [coaching.lastTurnResult, status, scenarioType]);
 
   coachingAnalyzeRef.current = coaching.analyze;
 
@@ -1489,6 +1501,34 @@ function HeyGenTestInner() {
             meetingSource: persona?.meetingSource ?? null,
           });
 
+          const isInterviewScenario =
+            scenario.scenario_type === "First Round Interview" ||
+            scenario.scenario_type === "Product Knowledge Interview";
+
+          // Build buyer_knowledge and buyer_behavior for interview agent
+          // These populate {{buyer_knowledge}} and {{buyer_behavior}} in the ElevenLabs prompt template
+          let buyerKnowledge: string | undefined;
+          let buyerBehavior: string | undefined;
+          if (isInterviewScenario && persona) {
+            const knowledgeParts: string[] = [];
+            if (Array.isArray(persona.goals) && persona.goals.length)
+              knowledgeParts.push(`WHAT I AM ASSESSING:\n${persona.goals.map((g: string) => `- ${g}`).join("\n")}`);
+            if (persona.hiddenConcern)
+              knowledgeParts.push(`WHAT I AM REALLY LOOKING FOR (underneath):\n${persona.hiddenConcern}`);
+            if (persona.decisionCriteria)
+              knowledgeParts.push(`WHAT GOOD LOOKS LIKE TO ME:\n${persona.decisionCriteria}`);
+            if (persona.sampleDialogues)
+              knowledgeParts.push(`HOW I TYPICALLY INTERVIEW (examples):\n${persona.sampleDialogues}`);
+            buyerKnowledge = knowledgeParts.join("\n\n") || undefined;
+
+            const behaviorParts: string[] = [];
+            if (persona.personality)
+              behaviorParts.push(persona.personality);
+            if (persona.communicationStyle)
+              behaviorParts.push(`COMMUNICATION STYLE: ${persona.communicationStyle}`);
+            buyerBehavior = behaviorParts.join("\n\n") || undefined;
+          }
+
           personaContextRef.current = {
             buyerName: persona?.name ?? undefined,
             buyerTitle: persona?.jobTitle ?? undefined,
@@ -1504,6 +1544,8 @@ function HeyGenTestInner() {
             buyerBudgetStatus: persona?.budgetStatus ?? undefined,
             buyerCommunicationStyle: persona?.communicationStyle ?? undefined,
             buyerCommunicationLanguage: persona?.communicationLanguage ?? undefined,
+            buyerKnowledge,
+            buyerBehavior,
             sellerCompany: scenario.seller_company ?? undefined,
             sellerProduct: scenario.seller_product ?? undefined,
             contextNote: scenario.context_note ?? undefined,

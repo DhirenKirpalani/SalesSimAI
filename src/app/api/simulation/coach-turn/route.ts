@@ -116,7 +116,10 @@ export async function POST(req: NextRequest) {
       ? stepsCompleted.map((c, i) => (c ? i : -1)).filter((i) => i >= 0)
       : [];
 
-    const framework = [
+    const scenarioType = scenario.scenario_type ?? "Discovery Call";
+    const isInterview = scenarioType.toLowerCase().includes("interview");
+
+    const salesFramework = [
       { index: 0, name: "Intro + Agenda", goal: "Set the agenda and understand buyer goals" },
       { index: 1, name: "Current Process", goal: "Understand how the buyer does things today" },
       { index: 2, name: "Breakdown Points", goal: "Identify where the current process breaks or causes pain" },
@@ -128,9 +131,62 @@ export async function POST(req: NextRequest) {
       { index: 8, name: "Blockers", goal: "Surface objections and risks" },
     ];
 
-    const systemPrompt = `You are a concise, accurate sales coach observing a live sales call. Your job is to help the seller improve ONE thing on the very last thing they said.
+    const interviewFramework = [
+      { index: 0, name: "Strategic Thinking", goal: "Show structured thinking, trade-off awareness, and business impact — not just what happened, but how you thought about it" },
+      { index: 1, name: "Autonomy Under Complexity", goal: "Take ownership in ambiguous situations — define the problem, act without being directed, use 'I' not 'we'" },
+      { index: 2, name: "Leverage Without Authority", goal: "Move people and outcomes you don't control — name who you needed to move, how you understood their motivation, and tailor your approach" },
+      { index: 3, name: "Collaboration", goal: "Show genuine teamwork with real friction — credit specific people, show conflict that improved the output, balance 'I' and 'we'" },
+      { index: 4, name: "Candour & Self-Correction", goal: "Own real failures honestly — describe exactly what changed in your thinking or behavior afterward, not just what you 'learned'" },
+      { index: 5, name: "Counterfeit Recognition", goal: "Show pattern recognition and healthy skepticism — describe the signal that triggered your doubt when others accepted the surface reading" },
+      { index: 6, name: "Vision Adjustment", goal: "Demonstrate a real pivot — show you moved before you were forced, name what you gave up, and show how you kept the team with you" },
+    ];
 
-SCENARIO: ${scenario.scenario_type ?? "Discovery Call"}
+    const framework = isInterview ? interviewFramework : salesFramework;
+    const participantLabel = isInterview ? "CANDIDATE" : "SELLER";
+    const counterpartLabel = isInterview ? "INTERVIEWER" : "BUYER";
+
+    const systemPrompt = isInterview
+      ? `You are a concise, direct interview coach observing a live behavioral interview simulation. Your job is to help the CANDIDATE demonstrate ONE specific competency better on their very last answer.
+
+SCENARIO: ${scenarioType}
+INTERVIEWER: ${personaName}${personaRole ? `, ${personaRole}` : ""}${personaCompany ? ` at ${personaCompany}` : ""}
+DIFFICULTY: ${scenario.difficulty ?? "Intermediate"}
+CONTEXT: ${scenario.context_note ?? ""}
+
+COMPETENCY FRAMEWORK (7 behavioural competencies being evaluated):
+${framework.map((f) => `${f.index}. ${f.name}: ${f.goal}`).join("\n")}
+
+Competencies already evidenced: ${completedSteps.length ? completedSteps.join(", ") : "none"}. Treat as hints — infer from the conversation what is actually covered.
+
+SCORING RUBRIC:
+${scenario.scoring_criteria}
+
+CONVERSATION SO FAR:
+${history || "(start of interview)"}
+
+Instructions:
+1. Read the full conversation. Understand which competencies have already been demonstrated.
+2. Evaluate the CANDIDATE's last answer against the competency the INTERVIEWER's question was probing.
+3. If the answer was vague, generic, or lacked a concrete example — call that out directly. Don't soften it.
+4. If the answer demonstrated a competency well — confirm it and guide the candidate toward the next uncovered one.
+5. Your nudge should name the specific competency gap, not give generic advice.
+6. Your suggested_next should be a concrete coaching instruction the candidate can act on immediately.
+7. product_corrections should always be an empty array for interview scenarios.
+8. Be honest. A candidate who hears "that was vague" learns more than one who hears "good try."
+
+Return ONLY valid JSON:
+{
+  "checkpoint_hit": "<competency name, e.g. Strategic Thinking, or null>",
+  "checkpoint_name": "<same as checkpoint_hit or null>",
+  "quality": "good" | "warning" | "missed",
+  "nudge": "<one direct coaching sentence, max 15 words, tied to the competency just tested>",
+  "suggested_next": "<one concrete instruction for the next answer, max 15 words>",
+  "already_covered": ["<competency names already demonstrated>"],
+  "product_corrections": []
+}`
+      : `You are a concise, accurate sales coach observing a live sales call. Your job is to help the seller improve ONE thing on the very last thing they said.
+
+SCENARIO: ${scenarioType}
 SELLING: ${scenario.seller_product ?? scenario.seller_company ?? "Unknown"}
 PRODUCT CATEGORY: ${scenario.product_type ?? ""}
 CONTEXT: ${scenario.context_note ?? ""}
@@ -146,7 +202,7 @@ SESSION STATE:
 DISCOVERY FRAMEWORK (use to guide progression, but infer coverage from the actual conversation, not just the step numbers):
 ${framework.map((f) => `${f.index}. ${f.name}: ${f.goal}`).join("\n")}
 
-Heuristic steps already covered: ${completedSteps.length ? completedSteps.join(", ") : "none"}. Treat these as hints, not hard rules. If the conversation shows a step is actually covered, mark it covered. If the conversation shows a step is NOT covered even though it is listed, still treat it as uncovered.
+Heuristic steps already covered: ${completedSteps.length ? completedSteps.join(", ") : "none"}. Treat these as hints, not hard rules.
 
 PRODUCT KNOWLEDGE BASE (use to fact-check seller claims and answer product questions):
 ${scenario.seller_description || "No product knowledge base provided."}${docContext}
@@ -159,20 +215,12 @@ ${history || "(start of call)"}
 
 Instructions:
 1. Use the full conversation history to understand what has already been discussed and answered.
-2. Decide if the seller's response was good, missed the mark, or needs a warning. Base this on the rubric and the buyer's actual words.
-3. If the buyer asked a question, raised an objection, or expressed concern, the next suggestion must directly address that point first. Use the product knowledge base if needed.
-4. If the buyer already answered or revealed information that satisfies a pending framework step, mark that step as covered (include in already_covered) and move to the NEXT logical step. Do not ask a question whose answer the buyer already gave.
-5. If the buyer did not raise a new concern, suggest the next logical step forward in the framework, skipping nothing that is still pending.
-6. Never suggest going back to a step that is already covered or that the buyer has already answered.
-7. If the seller said something factually wrong about the product, list it in product_corrections. Otherwise leave that array empty.
-8. If no rubric checkpoint is clearly hit this turn, set checkpoint_hit and checkpoint_name to null.
-9. Be concise. Do not lecture. Do not contradict the rubric or the conversation history. Do not suggest actions the seller already took.
-
-Examples of good responses:
-- Seller: "We cover the Philippines." Buyer: "Are you sure?" → nudge: "Confirm Philippines coverage with specifics." suggested_next: "Share the countries and compliance details you cover."
-- Seller: "Tell me about your current process." Buyer: "We do it manually." → nudge: "Good discovery question." suggested_next: "Ask what breaks down most in that manual process."
-- Seller: "Our pricing is $99." (knowledge base says $199) → nudge: "Pricing correction needed." suggested_next: "Clarify the correct pricing before continuing." product_corrections: [{claim:"$99", correction:"$199 per month", severity:"error", topic:"pricing"}]
-- Seller: "Got it. No, that's definitely not ideal." Buyer: "Exactly. So, how does Aspire handle those kinds of urgent payroll glitches compared to what I'm dealing with now?" → nudge: "Buyer wants proof of handling." suggested_next: "Explain Aspire's urgent payroll process and SLA, then ask how their current vendor handles escalations."
+2. Decide if the seller's response was good, missed the mark, or needs a warning.
+3. If the buyer asked a question, raised an objection, or expressed concern, the next suggestion must directly address that point first.
+4. If the buyer already answered or revealed information that satisfies a pending framework step, mark that step as covered and move to the NEXT logical step.
+5. Never suggest going back to a step that is already covered.
+6. If the seller said something factually wrong about the product, list it in product_corrections. Otherwise leave that array empty.
+7. Be concise. Do not lecture. Do not suggest actions the seller already took.
 
 Return ONLY valid JSON:
 {
@@ -180,7 +228,7 @@ Return ONLY valid JSON:
   "checkpoint_name": "<checkpoint name or null>",
   "quality": "good" | "warning" | "missed",
   "nudge": "<one clear coaching sentence, max 15 words, tied to the last exchange>",
-  "suggested_next": "<one concrete next action, max 15 words; address the buyer's concern first, then move forward>",
+  "suggested_next": "<one concrete next action, max 15 words>",
   "already_covered": ["<checkpoint IDs already hit>"],
   "product_corrections": [
     {
@@ -193,21 +241,21 @@ Return ONLY valid JSON:
 }`;
 
     const userMsg = `LATEST EXCHANGE:
-Seller: "${sellerText.trim()}"
-Buyer: "${(buyerText || "").trim()}"`;
+${participantLabel}: "${sellerText.trim()}"
+${counterpartLabel}: "${(buyerText || "").trim()}"`;
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: isInterview ? "gpt-4o" : "gpt-4o-mini",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userMsg },
         ],
         response_format: { type: "json_object" },
-        temperature: 0.2,
-        max_tokens: 400,
+        temperature: isInterview ? 0.3 : 0.2,
+        max_tokens: isInterview ? 500 : 400,
       }),
     });
 
@@ -234,7 +282,7 @@ Buyer: "${(buyerText || "").trim()}"`;
         })
       : [];
 
-    return NextResponse.json({ fallback: false, ...result, product_corrections: productCorrections });
+    return NextResponse.json({ fallback: false, ...result, product_corrections: productCorrections, is_interview: isInterview });
   } catch (err) {
     console.error("[coach-turn] error:", err);
     return NextResponse.json({ fallback: true });
