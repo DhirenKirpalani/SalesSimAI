@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
 
     if (!organizationId) {
       const response = NextResponse.json({ organization: null, members: [] });
-      response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
+      response.headers.set("Cache-Control", "private, no-cache");
       return response;
     }
 
@@ -182,7 +182,7 @@ export async function GET(req: NextRequest) {
     const isAdmin = org.created_by === user.id || myMembership?.role === "admin";
 
     const response = NextResponse.json({ organization: org, members, isAdmin, creator, currentUserId: user.id });
-    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
+    response.headers.set("Cache-Control", "private, no-cache");
     return response;
   } catch (err) {
     console.error("[api/company/org GET]", err);

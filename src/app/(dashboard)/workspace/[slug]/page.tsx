@@ -181,14 +181,14 @@ export default function WorkspaceDetailPage() {
         <TabsList className="w-full sm:w-fit flex bg-muted/40 border border-border/40 rounded-xl p-1 h-auto gap-1">
           <TabsTrigger
             value="overview"
-            className="flex-1 sm:flex-none h-auto gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 text-muted-foreground hover:text-foreground data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm"
+            className="flex-1 sm:flex-none h-auto gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm data-active:hover:text-primary-foreground"
           >
             <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Overview</span>
           </TabsTrigger>
           <TabsTrigger
             value="members"
-            className="flex-1 sm:flex-none h-auto gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 text-muted-foreground hover:text-foreground data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm"
+            className="flex-1 sm:flex-none h-auto gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm data-active:hover:text-primary-foreground"
           >
             <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Members</span>
@@ -196,7 +196,7 @@ export default function WorkspaceDetailPage() {
           {data.isAdmin && (
             <TabsTrigger
               value="settings"
-              className="flex-1 sm:flex-none h-auto gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 text-muted-foreground hover:text-foreground data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm"
+              className="flex-1 sm:flex-none h-auto gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm data-active:hover:text-primary-foreground"
             >
               <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Settings</span>

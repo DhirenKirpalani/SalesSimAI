@@ -121,6 +121,17 @@ DISCOVERY IS THE SELLER'S JOB:
 The seller must discover your real situation by listening and asking good questions. You will not hand them a neatly packaged problem statement. Make them work for it. But do not be impossible — if they earn the information, share it.`;
 }
 
+const INTERVIEW_SCENARIO_TYPES = ["First Round Interview", "Product Knowledge Interview"];
+
+export function getAgentId(scenarioType?: string): string {
+  if (scenarioType && INTERVIEW_SCENARIO_TYPES.includes(scenarioType)) {
+    return process.env.NEXT_PUBLIC_ELEVENLABS_INTERVIEW_AGENT_ID
+      || process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID
+      || "";
+  }
+  return process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID ?? "";
+}
+
 export function buildVoiceConfig(
   sessionId: string,
   language: VoiceLanguage = "en",
@@ -160,7 +171,7 @@ export function buildVoiceConfig(
   }
 
   return {
-    agentId: process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID ?? "",
+    agentId: getAgentId(persona?.scenarioType),
     language: getElevenLabsLanguage(language),
     voiceId,
     speed: 1.0,

@@ -6,6 +6,7 @@ import { Room, RoomEvent, Track } from "livekit-client";
 import { createClient } from "@/lib/supabase/client";
 import { useVoiceCall, VoiceStatus, VoiceLanguage } from "@/hooks/useVoiceCall";
 import type { PersonaContext } from "@/lib/voice-config";
+import { getAgentId } from "@/lib/voice-config";
 import { useCoaching } from "@/hooks/useCoaching";
 import { VoiceCallPanel } from "@/components/VoiceCallPanel";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
@@ -13,6 +14,7 @@ import { VoiceCallSidebar } from "@/components/VoiceCallSidebar";
 import { VoiceCallRightSidebar } from "@/components/VoiceCallRightSidebar";
 import { Video, Mic, MessageSquare, Send, User, Building2, Briefcase, List, Smile, MessageCircle, ArrowLeft, Target, CheckCircle2, Menu, X, BookOpen, Lightbulb } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { resolveFramework, getFrameworkById } from "@/lib/evaluation-frameworks";
 
 type Status = "idle" | "connecting" | "connected" | "paused" | "error";
 
@@ -106,19 +108,13 @@ interface CoachTurnResult {
 
 interface FeedbackResult {
   overall_score: number;
-  breakdown: {
-    metrics: number;
-    economic_buyer: number;
-    decision_criteria: number;
-    decision_process: number;
-    identify_pain: number;
-    champion: number;
-  };
+  breakdown: Record<string, number>;
   strengths: string[];
   weaknesses: string[];
   missed_opportunities: string[];
   coaching_recommendations: string[];
   coaching_moments?: CoachingMoment[];
+  framework?: string;
 }
 
 function parseCheckpointIds(criteria: string): { id: string; name: string }[] {
@@ -403,12 +399,13 @@ function HeyGenTestInner() {
   });
   const [activeTab, setActiveTab] = useState<"profile" | "background" | "style">("profile");
 
-  // First Discovery Call has no style tab
+  // Interview scenarios and First Discovery Call have no style tab
+  const hasStyleTab = scenarioType !== "First Discovery Call" && scenarioType !== "First Round Interview";
   useEffect(() => {
-    if (scenarioType === "First Discovery Call" && activeTab === "style") {
+    if (!hasStyleTab && activeTab === "style") {
       setActiveTab("background");
     }
-  }, [scenarioType, activeTab]);
+  }, [hasStyleTab, activeTab]);
   const [sellerInitials, setSellerInitials] = useState("U");
   const [sellerAvatarUrl, setSellerAvatarUrl] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
@@ -944,7 +941,7 @@ function HeyGenTestInner() {
       console.log(`%c[simulation] �️ Voice call starting — scenario controlled voice`, "color:#a78bfa;font-weight:bold;font-size:13px");
       const effectiveVoiceId = elevenlabsVoiceId ?? undefined;
       addLog(`🎙️ Voice: ${effectiveVoiceId ?? "dashboard default"}`);
-      const agentId = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
+      const agentId = getAgentId(scenarioType ?? undefined);
       if (effectiveVoiceId && agentId) {
         addLog(`🎙️ Updating ElevenLabs agent voice to ${effectiveVoiceId}…`);
         const updateRes = await fetch("/api/elevenlabs/update-agent-voice", {
@@ -1295,7 +1292,7 @@ function HeyGenTestInner() {
             }
             setFeedback({
               overall_score: 0,
-              breakdown: { metrics: 0, economic_buyer: 0, decision_criteria: 0, decision_process: 0, identify_pain: 0, champion: 0 },
+              breakdown: {},
               strengths: [],
               weaknesses: [],
               missed_opportunities: [],
@@ -1305,24 +1302,9 @@ function HeyGenTestInner() {
           } else {
             const coachData = await coachRes.json().catch(() => ({}));
             if (coachData.evaluation) {
-              const mb = coachData.evaluation.meddic_breakdown;
-              const breakdown = mb
-                ? {
-                    metrics: mb["Metrics"] ?? 0,
-                    economic_buyer: mb["Economic Buyer"] ?? 0,
-                    decision_criteria: mb["Decision Criteria"] ?? 0,
-                    decision_process: mb["Decision Process"] ?? 0,
-                    identify_pain: mb["Identify Pain"] ?? 0,
-                    champion: mb["Champion"] ?? 0,
-                  }
-                : {
-                    metrics: coachData.evaluation.discovery_score ?? 0,
-                    economic_buyer: coachData.evaluation.empathy_score ?? 0,
-                    decision_criteria: coachData.evaluation.objection_score ?? 0,
-                    decision_process: 0,
-                    identify_pain: coachData.evaluation.discovery_score ?? 0,
-                    champion: 0,
-                  };
+              const fwId = coachData.evaluation.framework;
+              const fw = fwId ? getFrameworkById(fwId) : resolveFramework(scenarioType ?? undefined);
+              const breakdown = fw.normalizeBreakdown(coachData.evaluation);
               setFeedback({
                 overall_score: coachData.evaluation.overall_score,
                 breakdown,
@@ -1331,6 +1313,7 @@ function HeyGenTestInner() {
                 missed_opportunities: coachData.evaluation.missed_opportunities,
                 coaching_recommendations: coachData.evaluation.recommendations,
                 coaching_moments: [],
+                framework: fw.id,
               });
             }
           }
@@ -1408,7 +1391,7 @@ function HeyGenTestInner() {
       } catch { /* ignore */ }
       finally { setFeedbackLoading(false); }
     }
-  }, [stop, resolvedScenarioName, addLog, callMode, voiceSessionId, textSessionId]);
+  }, [stop, resolvedScenarioName, addLog, callMode, voiceSessionId, textSessionId, scenarioType]);
 
   // Restore active session refs from localStorage after refresh
   useEffect(() => {
@@ -1866,9 +1849,9 @@ function HeyGenTestInner() {
                     {/* Tabs */}
                     <div className="flex items-center justify-center sm:justify-start gap-2 mb-6 p-1 bg-muted/50 rounded-xl w-fit mx-auto sm:mx-0">
                       {(
-                        scenarioType === "First Discovery Call"
-                          ? (["profile", "background"] as const)
-                          : (["profile", "background", "style"] as const)
+                        hasStyleTab
+                          ? (["profile", "background", "style"] as const)
+                          : (["profile", "background"] as const)
                       ).map((tab) => (
                         <button
                           key={tab}
@@ -2290,6 +2273,7 @@ function HeyGenTestInner() {
                 buyerPainPoints={personaDetails.painPoints}
                 callSteps={CALL_STEPS}
                 currentStep={currentStep}
+                scenarioType={scenarioType}
               />
             </div>
 
@@ -2304,7 +2288,7 @@ function HeyGenTestInner() {
                   </SheetTrigger>
                   <SheetContent side="left" className="w-[85vw] max-w-sm bg-[#0B0E14] border-white/10 p-0">
                     <SheetHeader className="px-4 py-3 border-b border-white/10">
-                      <SheetTitle className="text-sm font-semibold text-white">Seller Cheat Sheet</SheetTitle>
+                      <SheetTitle className="text-sm font-semibold text-white">{scenarioType === "First Round Interview" || scenarioType === "Product Knowledge Interview" ? "Interview Prep" : "Seller Cheat Sheet"}</SheetTitle>
                     </SheetHeader>
                     <div className="overflow-y-auto h-[calc(100%-3.25rem)]">
                       <VoiceCallSidebar
@@ -2317,6 +2301,7 @@ function HeyGenTestInner() {
                         buyerPainPoints={personaDetails.painPoints}
                         callSteps={CALL_STEPS}
                         currentStep={currentStep}
+                        scenarioType={scenarioType}
                       />
                     </div>
                   </SheetContent>
@@ -2743,7 +2728,7 @@ function HeyGenTestInner() {
                   )}
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-orange-400 font-semibold">MEDDIC Analysis</p>
+                  <p className="text-[10px] uppercase tracking-wider text-orange-400 font-semibold">{(feedback?.framework ? (feedback.framework === "star" ? "STAR" : "MEDDIC") : resolveFramework(scenarioType ?? undefined).name) + " Analysis"}</p>
                   <h2 className="font-semibold text-base text-white">{resolvedScenarioName ?? "Call Review"}</h2>
                 </div>
               </div>
@@ -2783,7 +2768,7 @@ function HeyGenTestInner() {
               </div>
             </div>
 
-            {feedbackLoading && <p className="text-white text-sm animate-pulse">Analyzing your call with MEDDIC framework…</p>}
+            {feedbackLoading && <p className="text-white text-sm animate-pulse">Analyzing your call with {feedback?.framework ? (feedback.framework === "star" ? "STAR" : "MEDDIC") : resolveFramework(scenarioType ?? undefined).name} framework…</p>}
             {feedback && (
               <>
                 {feedback.overall_score === 0 && !feedback.strengths?.length && !feedback.weaknesses?.length ? (
@@ -2792,29 +2777,27 @@ function HeyGenTestInner() {
                     <p className="text-gray-300 text-xs mt-1">Make sure the conversation has at least 2 turns before ending the call.</p>
                   </div>
                 ) : null}
-                {feedback.breakdown && (
+                {feedback.breakdown && Object.keys(feedback.breakdown).length > 0 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {([
-                      { key: "metrics", label: "Metrics" },
-                      { key: "economic_buyer", label: "Econ Buyer" },
-                      { key: "decision_criteria", label: "Criteria" },
-                      { key: "decision_process", label: "Process" },
-                      { key: "identify_pain", label: "Pain" },
-                      { key: "champion", label: "Champion" },
-                    ] as { key: keyof FeedbackResult["breakdown"]; label: string }[]).map(({ key, label }) => {
-                      const val = feedback.breakdown[key];
-                      return (
-                        <div key={key} className="bg-white/5 rounded-lg p-2.5 flex flex-col gap-1.5 border border-white/5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] text-gray-300 font-medium">{label}</span>
-                            <span className="text-xs font-bold text-orange-500">{val}</span>
+                    {(() => {
+                      const fw = feedback.framework
+                        ? getFrameworkById(feedback.framework)
+                        : resolveFramework(scenarioType ?? undefined);
+                      return fw.dimensions.map((dim) => {
+                        const val = feedback.breakdown[dim.key] ?? 0;
+                        return (
+                          <div key={dim.key} className="bg-white/5 rounded-lg p-2.5 flex flex-col gap-1.5 border border-white/5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-gray-300 font-medium">{dim.label}</span>
+                              <span className="text-xs font-bold text-orange-500">{val}</span>
+                            </div>
+                            <div className="h-1 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full rounded-full bg-orange-500" style={{ width: `${val}%` }} />
+                            </div>
                           </div>
-                          <div className="h-1 bg-muted rounded-full overflow-hidden">
-                            <div className="h-full rounded-full bg-orange-500" style={{ width: `${val}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

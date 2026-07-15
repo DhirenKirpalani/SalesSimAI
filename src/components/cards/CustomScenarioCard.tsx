@@ -146,7 +146,7 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
                   <p className="text-xs text-muted-foreground mt-0.5">{scenario.seller_company}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
-                  {scenario.product_type && (
+                  {scenario.product_type && scenario.scenario_type !== "First Round Interview" && (
                     <Badge variant="secondary" className={cn("text-[10px] sm:text-xs font-medium", PRODUCT_TYPE_COLORS[scenario.product_type] ?? "bg-muted text-muted-foreground")}>
                       {PRODUCT_TYPE_LABELS[scenario.product_type] ?? scenario.product_type}
                     </Badge>
@@ -301,7 +301,7 @@ export function CustomScenarioCard({ scenario, onDeleted, table = "custom_scenar
               <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="text-[10px]">{scenario.scenario_type}</Badge>
-                  {scenario.product_type && (
+                  {scenario.product_type && scenario.scenario_type !== "First Round Interview" && (
                     <Badge variant="outline" className="text-[10px]">
                       {PRODUCT_TYPE_LABELS[scenario.product_type] ?? scenario.product_type}
                     </Badge>

@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
+import { getFrameworkById, MEDDIC } from "@/lib/evaluation-frameworks";
 
 interface CoachingMoment {
   buyer_quote: string;
@@ -40,19 +41,13 @@ interface CoachingMoment {
 
 interface Analysis {
   overall_score: number;
-  breakdown: {
-    metrics: number;
-    economic_buyer: number;
-    decision_criteria: number;
-    decision_process: number;
-    identify_pain: number;
-    champion: number;
-  };
+  breakdown: Record<string, number>;
   strengths: string[];
   weaknesses: string[];
   missed_opportunities: string[];
   coaching_recommendations: string[];
   coaching_moments?: CoachingMoment[];
+  framework?: string;
 }
 
 interface SessionSummary {
@@ -147,11 +142,11 @@ function AnalysisContent() {
         const voiceAnalysis: Analysis = {
           overall_score: coaching.overall_score ?? 0,
           breakdown: {
-            metrics: coaching.discovery_score ?? 0,
+            identify_pain: coaching.discovery_score ?? 0,
+            metrics: 0,
             economic_buyer: coaching.empathy_score ?? 0,
-            decision_criteria: 0,
+            decision_criteria: coaching.objection_score ?? 0,
             decision_process: 0,
-            identify_pain: coaching.objection_score ?? 0,
             champion: 0,
           },
           strengths: (coaching.recommendations ?? []).slice(0, 3),
@@ -217,15 +212,13 @@ function AnalysisContent() {
     return sessions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   }, [sessions, page]);
 
+  const fw = analysis?.framework ? getFrameworkById(analysis.framework) : MEDDIC;
   const radarData = analysis
-    ? [
-        { subject: "Metrics", A: analysis.breakdown.metrics, fullMark: 100 },
-        { subject: "Economic Buyer", A: analysis.breakdown.economic_buyer, fullMark: 100 },
-        { subject: "Decision Criteria", A: analysis.breakdown.decision_criteria, fullMark: 100 },
-        { subject: "Decision Process", A: analysis.breakdown.decision_process, fullMark: 100 },
-        { subject: "Identify Pain", A: analysis.breakdown.identify_pain, fullMark: 100 },
-        { subject: "Champion", A: analysis.breakdown.champion, fullMark: 100 },
-      ]
+    ? fw.dimensions.map((dim) => ({
+        subject: dim.label,
+        A: analysis.breakdown[dim.key] ?? 0,
+        fullMark: 100,
+      }))
     : [];
 
   if (loading || generating) {
@@ -274,13 +267,13 @@ function AnalysisContent() {
         <div>
           <PageHeaderLogo />
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Analysis</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">AI-generated MEDDIC insights across your practice sessions. Select a session to dive deeper.</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">AI-generated insights across your practice sessions. Select a session to dive deeper.</p>
         </div>
 
         {sessions.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <StatCard label="Avg MEDDIC" value={avgScore ?? "—"} icon={TrendingUp} trend="neutral" />
-            <StatCard label="Best MEDDIC" value={bestScore ?? "—"} icon={Trophy} trend="neutral" />
+            <StatCard label="Avg Score" value={avgScore ?? "—"} icon={TrendingUp} trend="neutral" />
+            <StatCard label="Best Score" value={bestScore ?? "—"} icon={Trophy} trend="neutral" />
             <StatCard label="Sessions Analyzed" value={analyzedSessions.length} icon={BarChart3} trend="neutral" />
             <StatCard label="Practice Time" value={`${totalMins}m`} icon={Clock} trend="neutral" />
           </div>
@@ -329,7 +322,7 @@ function AnalysisContent() {
                     <div className="flex items-start gap-2">
                       <p className="font-medium text-sm truncate flex-1 min-w-0">{s.scenario_name ?? "Untitled"}</p>
                       {s.analysis && (
-                        <Badge variant="secondary" className="text-[10px] bg-violet-500/10 text-violet-600 border-violet-500/20 shrink-0 mt-0.5">MEDDIC</Badge>
+                        <Badge variant="secondary" className="text-[10px] bg-violet-500/10 text-violet-600 border-violet-500/20 shrink-0 mt-0.5">{s.analysis?.framework === "star" ? "STAR" : "MEDDIC"}</Badge>
                       )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] text-muted-foreground">
@@ -340,7 +333,7 @@ function AnalysisContent() {
                       {score !== null && (
                         <span className="flex items-center gap-1">
                           <TrendingUp className="w-3 h-3" />
-                          MEDDIC {score}/100
+                          {s.analysis?.framework === "star" ? "STAR" : "MEDDIC"} {score}/100
                         </span>
                       )}
                     </div>
@@ -440,12 +433,9 @@ function AnalysisContent() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         <RadarScoreChart data={radarData} />
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 content-start">
-          <ScoreCard label="Metrics" score={analysis.breakdown.metrics} />
-          <ScoreCard label="Economic Buyer" score={analysis.breakdown.economic_buyer} />
-          <ScoreCard label="Decision Criteria" score={analysis.breakdown.decision_criteria} />
-          <ScoreCard label="Decision Process" score={analysis.breakdown.decision_process} />
-          <ScoreCard label="Identify Pain" score={analysis.breakdown.identify_pain} />
-          <ScoreCard label="Champion" score={analysis.breakdown.champion} />
+          {fw.dimensions.map((dim) => (
+            <ScoreCard key={dim.key} label={dim.label} score={analysis.breakdown[dim.key] ?? 0} />
+          ))}
         </div>
       </div>
 

@@ -34,6 +34,17 @@ const FRAMEWORKS: Record<string, CoachingStep[]> = {
     { id: 7, name: "Stakeholders", keywords: ["who else", "involve", "decision", "team", "stakeholder", "approval", "buy-in", "cfo", "ceo", "cto", "vp", "head of", "committee", "board"] },
     { id: 8, name: "Blockers", keywords: ["stop", "block", "concern", "worry", "risk", "hesitation", "barrier", "prevent", "objection", "concerned about"] },
   ],
+  "First Round Interview": [
+    { id: 0, name: "Tell Me About Yourself", keywords: ["tell me about yourself", "background", "walk me through", "experience", "career", "who are you", "introduce"] },
+    { id: 1, name: "Why This Role", keywords: ["why", "interested", "this role", "this position", "motivation", "why are you here", "what drew you"] },
+    { id: 2, name: "Challenge (STAR)", keywords: ["challenge", "difficult", "obstacle", "hard time", "faced with", "overcome", "tough situation", "complex"] },
+    { id: 3, name: "Failure (STAR)", keywords: ["failed", "failure", "mistake", "wrong", "didn't work", "learned", "what went wrong", "didn't succeed"] },
+    { id: 4, name: "Conflict (STAR)", keywords: ["conflict", "disagreed", "disagreement", "argument", "tension", "clash", "pushback", "confrontation", "didn't see eye to eye"] },
+    { id: 5, name: "Influence (STAR)", keywords: ["influence", "persuade", "convince", "buy-in", "stakeholder", "without authority", "get someone to", "win over"] },
+    { id: 6, name: "Strengths & Weaknesses", keywords: ["strength", "weakness", "improve", "area for growth", "good at", "developing", "working on", "self-aware"] },
+    { id: 7, name: "Career Vision", keywords: ["future", "3 years", "5 years", "see yourself", "career goals", "ambition", "where do you want", "long term"] },
+    { id: 8, name: "Questions for Interviewer", keywords: ["any questions", "questions for me", "what would you like to know", "do you have questions"] },
+  ],
   "Product Knowledge Interview": [
     { id: 0, name: "Product Overview", keywords: ["overview", "what is", "describe", "explain", "positioning", "value proposition", "what does", "core offering", "about"] },
     { id: 1, name: "Key Features", keywords: ["feature", "capability", "functionality", "what can it do", "how does it work", "key benefit", "main functions", "what it does"] },
@@ -198,6 +209,19 @@ export function getSuggestedQuestions(ctx: ScenarioContext): Record<number, stri
     8: [`Ready to get started?`, `What do you need to move forward?`],
   };
 
+  const firstRoundInterview: Record<number, string[]> = {
+    0: [`Start with a concise overview — who you are, what you've done, and where you're headed. 60-90 seconds max.`, `Walk me through your career journey. What are the key themes?`, `Give me the highlights — what should I know about your background?`],
+    1: [`Why this role specifically? What about it excites you?`, `What made you apply for this position?`, `How does this role fit into your career goals?`],
+    2: [`Tell me about a time you faced a significant challenge. Use STAR — Situation, Task, Action, Result.`, `Walk me through a difficult situation at work and how you handled it.`, `Describe a time when something was really hard. What did you do?`],
+    3: [`Tell me about a time you failed. What happened and what did you learn?`, `Share a mistake you made and how you grew from it.`, `When did things not go as planned? What was the lesson?`],
+    4: [`Describe a conflict with a colleague. How did you resolve it?`, `Tell me about a time you disagreed with someone at work.`, `Walk me through a tense situation and how you navigated it.`],
+    5: [`Tell me about a time you had to influence someone without authority.`, `Describe a situation where you needed buy-in from a stakeholder.`, `When did you have to persuade someone to see things your way?`],
+    6: [`What's your greatest strength? And what are you working to improve?`, `What do you do best? Where do you have room to grow?`, `Tell me about a strength and a weakness you're actively developing.`],
+    7: [`Where do you see yourself in the next 3-5 years?`, `What's your long-term career vision?`, `What are you working toward professionally?`],
+    8: [`Do you have any questions for me about the role or the team?`, `What would you like to know about this position?`, `Any questions you'd like to ask me?`],
+  };
+
+  if (type.toLowerCase().includes("first round")) return firstRoundInterview;
   if (type.toLowerCase().includes("product knowledge")) return productKnowledge;
   if (type.toLowerCase().includes("objection")) return objection;
   if (type.toLowerCase().includes("closing") || type.toLowerCase().includes("negotiation")) return closing;
@@ -402,6 +426,19 @@ export function getStepTip(stepId: DiscoveryStepId, ctx?: ScenarioContext): stri
     8: "Don't leave without commitment. What do they need to move forward? Get the answer before the call ends.",
   };
 
+  const firstRoundTips: Record<number, string> = {
+    0: "Keep it concise — 60-90 seconds. Hit the highlights: who you are, what you've done, and why you're here. Don't recite your resume.",
+    1: "Be specific about why THIS role excites you. Generic answers like 'I'm passionate about X' don't land. Connect it to your experience.",
+    2: "Use STAR: Situation (context), Task (your responsibility), Action (what YOU did), Result (outcome with numbers if possible). Don't skip the result.",
+    3: "Show humility. Own the failure, explain what happened without blaming others, and emphasize what you learned. Growth mindset is what they're looking for.",
+    4: "Show emotional intelligence. Describe the conflict objectively, your approach to resolution, and the outcome. Never badmouth the other person.",
+    5: "Highlight your ability to build relationships and influence without authority. Show how you understood their perspective and found common ground.",
+    6: "Be honest about weaknesses — pick a real one that you're actively working on. Avoid clichés like 'I'm a perfectionist.' Show self-awareness.",
+    7: "Show ambition but be realistic. Connect your future goals to the role you're interviewing for. Demonstrate that you've thought about your career path.",
+    8: "Always have 2-3 thoughtful questions prepared. Ask about the team, challenges, or growth opportunities. Never say 'I don't have any questions.'",
+  };
+
+  if (type.toLowerCase().includes("first round")) return firstRoundTips[stepId] ?? "Keep the conversation moving forward.";
   if (type.toLowerCase().includes("product knowledge")) return productTips[stepId] ?? "Keep the conversation moving forward.";
   if (type.toLowerCase().includes("objection")) return objectionTips[stepId] ?? "Keep the conversation moving forward.";
   if (type.toLowerCase().includes("closing") || type.toLowerCase().includes("negotiation")) return closingTips[stepId] ?? "Keep the conversation moving forward.";
