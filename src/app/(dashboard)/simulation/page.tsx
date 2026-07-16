@@ -25,6 +25,20 @@ interface StyleSections {
   howToEngage: string;
 }
 
+function generateFirstRoundFirstMessage(interviewerName: string, interviewerTitle: string, company: string): string {
+  const templates = [
+    `Hi, thanks for coming in today. I'm ${interviewerName}, ${interviewerTitle} at ${company}. How are you doing?`,
+    `Hey, appreciate you making the time. I'm ${interviewerName}, ${interviewerTitle} here at ${company}. How's your day going?`,
+    `Good to meet you. I'm ${interviewerName}, ${interviewerTitle} at ${company}. Thanks for joining. How are you?`,
+    `Hi there, I'm ${interviewerName}, ${interviewerTitle} with ${company}. Thanks for coming in. How have you been?`,
+    `Welcome, thanks for being here. I'm ${interviewerName}, ${interviewerTitle} at ${company}. How are things?`,
+    `Hey, thanks for hopping on. I'm ${interviewerName}, ${interviewerTitle} at ${company}. How's it going today?`,
+    `Hi, I'm ${interviewerName}, ${interviewerTitle} at ${company}. Appreciate you taking the time. How are you feeling today?`,
+    `Good to see you. I'm ${interviewerName}, ${interviewerTitle} here at ${company}. Thanks for coming. How's your week been?`,
+  ];
+  return templates[Math.floor(Math.random() * templates.length)];
+}
+
 function generateProductKnowledgeFirstMessage(candidateName: string, interviewerName: string, company: string): string {
   const templates = [
     `Hi ${candidateName}, I'm ${interviewerName} from ${company}. Thanks for joining the call. How are you?`,
@@ -1554,6 +1568,8 @@ function HeyGenTestInner() {
             firstMessage:
               scenario.scenario_type === "Product Knowledge Interview"
                 ? generateProductKnowledgeFirstMessage(candidateName ?? "there", persona?.name ?? "Priya", scenario.seller_company ?? "Aspire")
+                : scenario.scenario_type === "First Round Interview"
+                ? generateFirstRoundFirstMessage(persona?.name ?? "Jordan Lee", persona?.jobTitle ?? "VP of Sales", persona?.company ?? "Brex")
                 : "",
           };
 
