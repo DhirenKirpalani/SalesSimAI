@@ -6,7 +6,7 @@ import { Room, RoomEvent, Track } from "livekit-client";
 import { createClient } from "@/lib/supabase/client";
 import { useVoiceCall, VoiceStatus, VoiceLanguage } from "@/hooks/useVoiceCall";
 import type { PersonaContext } from "@/lib/voice-config";
-import { getAgentId } from "@/lib/voice-config";
+import { getAgentId, buildInterviewSystemPrompt, buildSystemPrompt } from "@/lib/voice-config";
 import { useCoaching } from "@/hooks/useCoaching";
 import { VoiceCallPanel } from "@/components/VoiceCallPanel";
 import { CoachingOverlay } from "@/components/CoachingOverlay";
@@ -25,17 +25,34 @@ interface StyleSections {
   howToEngage: string;
 }
 
-function generateFirstRoundFirstMessage(interviewerName: string, interviewerTitle: string, company: string): string {
+function generateFirstRoundFirstMessage(candidateName: string, interviewerName: string, interviewerTitle: string, company: string): string {
+  const firstName = interviewerName.split(" ")[0];
+  const title = `${interviewerTitle} at ${company}`;
+  const titleHere = `${interviewerTitle} here at ${company}`;
+
   const templates = [
-    `Hi, thanks for coming in today. I'm ${interviewerName}, ${interviewerTitle} at ${company}. How are you doing?`,
-    `Hey, appreciate you making the time. I'm ${interviewerName}, ${interviewerTitle} here at ${company}. How's your day going?`,
-    `Good to meet you. I'm ${interviewerName}, ${interviewerTitle} at ${company}. Thanks for joining. How are you?`,
-    `Hi there, I'm ${interviewerName}, ${interviewerTitle} with ${company}. Thanks for coming in. How have you been?`,
-    `Welcome, thanks for being here. I'm ${interviewerName}, ${interviewerTitle} at ${company}. How are things?`,
-    `Hey, thanks for hopping on. I'm ${interviewerName}, ${interviewerTitle} at ${company}. How's it going today?`,
-    `Hi, I'm ${interviewerName}, ${interviewerTitle} at ${company}. Appreciate you taking the time. How are you feeling today?`,
-    `Good to see you. I'm ${interviewerName}, ${interviewerTitle} here at ${company}. Thanks for coming. How's your week been?`,
+    `Hey ${candidateName}. How are you doing? I'm ${firstName}, ${title}. Thanks for making the time today.`,
+    `Hi ${candidateName}, nice to meet you. I'm ${firstName}, ${titleHere}. How's your day been so far?`,
+    `Hey ${candidateName}. I'm ${firstName}, ${title}. Appreciate you joining today. How are things?`,
+    `Hi ${candidateName}. I'm ${firstName}, ${titleHere}. Thanks for taking the time. Before we dive in, how are you doing?`,
+    `Hey ${candidateName}. Good to meet you. I'm ${firstName}, ${title}. Hopefully your day's been going well.`,
+    `Hi ${candidateName}. Thanks for joining me today. I'm ${firstName}, ${titleHere}. How's everything going?`,
+    `Hey ${candidateName}. I'm ${firstName}, ${title}. We'll keep this pretty conversational today.`,
+    `Hi ${candidateName}. Nice to finally meet you. I'm ${firstName}, ${titleHere}. Appreciate you making the time.`,
+    `Hey ${candidateName}. ${firstName} here. Thanks for joining. How are you doing today?`,
+    `Hi ${candidateName}. I'm ${firstName}, ${title}. Ready to jump in whenever you are.`,
+    `Hey ${candidateName}. Good to meet you. I'm ${firstName}, ${titleHere}. We'll just spend some time getting to know each other today.`,
+    `Hi ${candidateName}. Appreciate you coming in. I'm ${firstName}, ${title}. How's your day going?`,
+    `Hey ${candidateName}. Thanks for making the time. I'm ${firstName}, ${titleHere}. Looking forward to our conversation.`,
+    `Hi ${candidateName}. I'm ${firstName}, ${title}. Nothing too formal today — we'll just have a conversation.`,
+    `Hey ${candidateName}. Good to meet you. I'm ${firstName}, ${titleHere}. Whenever you're comfortable, we can get started.`,
+    `Hi ${candidateName}. Thanks for joining today. I'm ${firstName}, ${title}. Before we begin, how are things?`,
+    `Hey ${candidateName}. I'm ${firstName}, ${titleHere}. Appreciate you taking the time to chat today.`,
+    `Hi ${candidateName}. Good to meet you. I'm ${firstName}, ${title}. Looking forward to hearing about your experience.`,
+    `Hey ${candidateName}. I'm ${firstName}, ${titleHere}. Hope everything's going well. Thanks for joining today.`,
+    `Hi ${candidateName}. Thanks for making the time. I'm ${firstName}, ${title}. Let's have a good conversation today.`,
   ];
+
   return templates[Math.floor(Math.random() * templates.length)];
 }
 
@@ -968,12 +985,16 @@ function HeyGenTestInner() {
       const effectiveVoiceId = elevenlabsVoiceId ?? undefined;
       addLog(`🎙️ Voice: ${effectiveVoiceId ?? "dashboard default"}`);
       const agentId = getAgentId(scenarioType ?? undefined);
+      const isInterviewScenario = scenarioType === "First Round Interview" || scenarioType === "Product Knowledge Interview";
+      const systemPrompt = isInterviewScenario
+        ? buildInterviewSystemPrompt()
+        : buildSystemPrompt(personaContextRef.current ?? undefined);
       if (effectiveVoiceId && agentId) {
-        addLog(`🎙️ Updating ElevenLabs agent voice to ${effectiveVoiceId}…`);
+        addLog(`🎙️ Updating ElevenLabs agent voice + prompt…`);
         const updateRes = await fetch("/api/elevenlabs/update-agent-voice", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ agentId, voiceId: effectiveVoiceId }),
+          body: JSON.stringify({ agentId, voiceId: effectiveVoiceId, systemPrompt }),
         });
         if (!updateRes.ok) {
           const updateData = await updateRes.json().catch(() => ({}));
@@ -981,6 +1002,10 @@ function HeyGenTestInner() {
         } else {
           const updateData = await updateRes.json().catch(() => ({}));
           addLog(`🎙️ Agent voice update → requested: ${effectiveVoiceId}, confirmed: ${updateData.voiceId ?? "unknown"}, verified: ${updateData.verified ? "yes" : "no"}`);
+          console.log("%c[simulation] 📝 PROMPT VERIFICATION", "color:#f59e0b;font-weight:bold;font-size:13px", {
+            promptVerified: updateData.promptVerified,
+            promptSnippet: updateData.promptSnippet,
+          });
         }
       }
 
@@ -1569,7 +1594,7 @@ function HeyGenTestInner() {
               scenario.scenario_type === "Product Knowledge Interview"
                 ? generateProductKnowledgeFirstMessage(candidateName ?? "there", persona?.name ?? "Priya", scenario.seller_company ?? "Aspire")
                 : scenario.scenario_type === "First Round Interview"
-                ? generateFirstRoundFirstMessage(persona?.name ?? "Jordan Lee", persona?.jobTitle ?? "VP of Sales", persona?.company ?? "Brex")
+                ? generateFirstRoundFirstMessage(candidateName ?? "there", persona?.name ?? "Jordan Lee", persona?.jobTitle ?? "VP of Sales", persona?.company ?? "Brex")
                 : "",
           };
 
@@ -1804,7 +1829,7 @@ function HeyGenTestInner() {
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-white/20 border-t-primary rounded-full animate-spin" />
-            <p className="text-sm text-muted-foreground">Loading session…</p>
+            <p className="text-sm text-white/50">Loading session…</p>
           </div>
         </div>
       </div>
@@ -1817,7 +1842,7 @@ function HeyGenTestInner() {
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="max-w-md text-center">
             <p className="text-red-400 font-medium mb-2">Failed to load session</p>
-            <p className="text-sm text-muted-foreground mb-4">{sessionConfig.error}</p>
+            <p className="text-sm text-white/50 mb-4">{sessionConfig.error}</p>
             <button
               onClick={() => router.push("/dashboard")}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:opacity-90"
@@ -2272,12 +2297,7 @@ function HeyGenTestInner() {
                 <span className="absolute inset-0 rounded-full bg-orange-500/30 animate-ping" />
                 <span className="absolute inset-1 rounded-full bg-orange-500/20 animate-pulse" />
                 <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full ring-2 ring-orange-500/40 overflow-hidden bg-gradient-to-br from-orange-500/20 to-orange-600/10 flex items-center justify-center">
-                  {status === "connecting" && callMode === "voice" ? (
-                    <svg className="w-10 h-10 text-orange-500 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                  ) : ((callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? undefined) ? (
+                  {((callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? undefined) ? (
                     <img
                       src={(callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? undefined}
                       alt={resolvedPersonaName ?? avatarNameParam ?? "Avatar"}

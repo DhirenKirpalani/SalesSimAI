@@ -521,7 +521,7 @@ export function TopNavbar() {
               {unreadCount > 0 && (
                 <button
                   onClick={markAllRead}
-                  className="text-xs text-primary hover:underline shrink-0"
+                  className="text-xs text-primary hover:underline shrink-0 mr-10"
                 >
                   Mark all as read
                 </button>
