@@ -230,26 +230,47 @@ async function fetchSinglePage(url: string): Promise<string> {
   return "";
 }
 
-// Discover real pages via sitemap.xml or RSS feed
+// Discover real pages via sitemap.xml (handles sitemap index files recursively)
 async function discoverPages(baseUrl: string): Promise<string[]> {
   const base = getBaseUrl(baseUrl);
   const discovered: string[] = [];
+  const seenSitemaps = new Set<string>();
 
-  // Try sitemap
-  try {
-    const sitemapUrl = `${base}/sitemap.xml`;
-    const res = await fetch(sitemapUrl, { signal: AbortSignal.timeout(5000) });
-    if (res.ok) {
+  async function fetchSitemap(sitemapUrl: string, depth: number): Promise<void> {
+    if (depth > 2 || seenSitemaps.has(sitemapUrl)) return;
+    seenSitemaps.add(sitemapUrl);
+
+    try {
+      const res = await fetch(sitemapUrl, { signal: AbortSignal.timeout(5000) });
+      if (!res.ok) return;
       const xml = await res.text();
-      const locMatches = xml.matchAll(/<loc>([^<]+)<\/loc>/g);
-      for (const match of locMatches) {
-        const url = match[1]?.trim();
-        if (url && !discovered.includes(url)) discovered.push(url);
+
+      // Check if this is a sitemap index (contains <sitemap> tags)
+      const isSitemapIndex = xml.includes("<sitemapindex") || xml.includes("<sitemap>");
+
+      if (isSitemapIndex) {
+        // Extract nested sitemap URLs and recurse
+        const subSitemapMatches = xml.matchAll(/<sitemap>[\s\S]*?<loc>([^<]+)<\/loc>[\s\S]*?<\/sitemap>/g);
+        for (const match of subSitemapMatches) {
+          const subUrl = match[1]?.trim();
+          if (subUrl) await fetchSitemap(subUrl, depth + 1);
+        }
+      } else {
+        // Regular sitemap — extract page URLs
+        const locMatches = xml.matchAll(/<loc>([^<]+)<\/loc>/g);
+        for (const match of locMatches) {
+          const url = match[1]?.trim();
+          if (url && !discovered.includes(url)) discovered.push(url);
+        }
       }
-      if (discovered.length > 0) {
-        console.log(`[extract] Found ${discovered.length} pages from sitemap.xml`);
-        return discovered.slice(0, 10);
-      }
+    } catch { /* ignore */ }
+  }
+
+  try {
+    await fetchSitemap(`${base}/sitemap.xml`, 0);
+    if (discovered.length > 0) {
+      console.log(`[extract] Found ${discovered.length} pages from sitemap(s)`);
+      return discovered.slice(0, 10);
     }
   } catch { /* ignore */ }
 

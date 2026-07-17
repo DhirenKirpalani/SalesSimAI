@@ -68,7 +68,7 @@ function ScenarioTypeMultiSelect({
         <ChevronDown className="w-4 h-4 text-muted-foreground" />
       </button>
       {open && (
-        <div className="absolute z-10 left-0 right-0 sm:left-0 sm:right-0 lg:w-full rounded-lg border border-border bg-card shadow-lg p-2 max-h-64 lg:max-h-80 overflow-y-auto">
+        <div className="absolute z-50 left-0 right-0 sm:left-0 sm:right-0 lg:w-full rounded-lg border border-border bg-card shadow-lg p-2 max-h-64 lg:max-h-80 overflow-y-auto">
           <div className="flex items-center justify-between px-2 py-1 mb-1">
             <button type="button" onClick={selectAll} className="text-[10px] text-primary hover:underline">
               Select all
@@ -124,6 +124,7 @@ const SCENARIO_TYPES = [
   "Renewal",
   "Executive Presentation",
   "Product Knowledge Interview",
+  "First Round Interview",
   "Global EOR Onboarding",
   "Multi-Country Payroll Rollout",
   "Compliance & Benefits Review",
@@ -140,8 +141,8 @@ const PRODUCT_TYPES = [
 const GENERATION_STEPS = [
   { id: "fetch", label: "Fetching knowledge base", description: "Loading URLs and uploaded documents", icon: Database },
   { id: "extract", label: "Extracting company profile", description: "AI is reading and structuring your company context", icon: FileSearch },
-  { id: "persona", label: "Building buyer personas", description: "Creating 3 realistic buyers with goals and pain points", icon: UserCog },
-  { id: "scenario", label: "Generating 3 scenarios", description: "Crafting distinct sales situations and opening lines", icon: MessageSquare },
+  { id: "persona", label: "Building personas", description: "Creating realistic personas with goals and pain points", icon: UserCog },
+  { id: "scenario", label: "Generating scenarios", description: "Crafting distinct situations and opening lines", icon: MessageSquare },
   { id: "finalize", label: "Finalizing scenarios", description: "Preparing the review form", icon: Wand2 },
 ];
 
@@ -266,6 +267,8 @@ export default function CreateFromKBPage() {
   const [scenarioCount, setScenarioCount] = useState<number>(3);
   const [selectedScenarioTypes, setSelectedScenarioTypes] = useState<string[]>([...SCENARIO_TYPES]);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [previewData, setPreviewData] = useState<{ systemPrompt: string; userContent: string; profile: any; documentsUsed: number; urlsUsed: number; selectedUrls: string[]; selectedDocNames: string[]; scenarioTypes: string[]; count: number } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const selectedScenario = scenarios[selectedIndex];
 
@@ -322,6 +325,41 @@ export default function CreateFromKBPage() {
     })();
   }, []);
 
+  const previewGeneration = async () => {
+    setPreviewLoading(true);
+    setLoading(true);
+    setGenerating(true);
+    setActiveStep(0);
+    setError("");
+    setStatus("generating");
+    try {
+      const res = await fetch("/api/scenarios/generate-from-kb", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          avatarId: avatarId || undefined,
+          voiceId: voiceId || undefined,
+          selectedUrls,
+          selectedDocIds,
+          count: scenarioCount,
+          scenarioTypes: selectedScenarioTypes,
+          preview: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Preview failed");
+      setPreviewData(data);
+      setStatus("select");
+    } catch (e: any) {
+      setError(e.message || "Failed to preview generation");
+      setStatus("error");
+    } finally {
+      setPreviewLoading(false);
+      setLoading(false);
+      setGenerating(false);
+    }
+  };
+
   const generateScenarios = async () => {
     setLoading(true);
     setGenerating(true);
@@ -370,6 +408,10 @@ export default function CreateFromKBPage() {
 
   const stopGeneration = () => {
     abortControllerRef.current?.abort();
+    setPreviewLoading(false);
+    setLoading(false);
+    setGenerating(false);
+    setStatus("select");
   };
 
   const handleSaveAll = async () => {
@@ -482,7 +524,7 @@ export default function CreateFromKBPage() {
 
       {/* Source selection */}
       {(status === "select" || status === "loading") && (
-        <Card className="rounded-2xl border shadow-sm">
+        <Card className="rounded-2xl border shadow-sm overflow-visible">
           <CardContent className="py-5 sm:py-6 px-4 sm:px-6 space-y-6 sm:space-y-8">
             {/* URLs */}
             <div className="space-y-3">
@@ -654,16 +696,16 @@ export default function CreateFromKBPage() {
                 {selectedUrls.length + selectedDocIds.length} source{selectedUrls.length + selectedDocIds.length === 1 ? "" : "s"} selected
               </p>
               <Button
-                onClick={generateScenarios}
-                disabled={!canGenerate || loading || selectedScenarioTypes.length === 0}
+                onClick={previewGeneration}
+                disabled={!canGenerate || loading || previewLoading || selectedScenarioTypes.length === 0}
                 className="rounded-lg gap-2 h-11 sm:h-9"
               >
-                {loading ? (
+                {previewLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Sparkles className="w-4 h-4" />
                 )}
-                {loading ? "Loading sources..." : "Generate Scenarios"}
+                {previewLoading ? "Gathering sources..." : "Generate Preview"}
               </Button>
             </div>
           </CardContent>
@@ -675,8 +717,12 @@ export default function CreateFromKBPage() {
         <Card className="rounded-2xl border shadow-sm">
           <CardContent className="py-8 px-6 space-y-6">
             <div className="space-y-1">
-              <p className="text-sm font-medium text-foreground">Generating {scenarioCount} scenario{scenarioCount === 1 ? "" : "s"} from your knowledge base</p>
-              <p className="text-xs text-muted-foreground">This may take 30–60 seconds as AI reads your URLs and documents.</p>
+              <p className="text-sm font-medium text-foreground">
+                {previewLoading ? "Preparing preview from your knowledge base" : `Generating ${scenarioCount} scenario${scenarioCount === 1 ? "" : "s"} from your knowledge base`}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {previewLoading ? "Gathering sources and building the prompt for review." : "This may take 30–60 seconds as AI reads your URLs and documents."}
+              </p>
             </div>
             <GenerationSteps activeStep={activeStep} />
             <div className="flex items-center justify-between">
@@ -793,6 +839,7 @@ export default function CreateFromKBPage() {
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
+                {selectedScenario.scenario_type !== "Product Knowledge Interview" && selectedScenario.scenario_type !== "First Round Interview" && (
                 <div className="space-y-2">
                   <Label className="text-xs">Product Type</Label>
                   <Select
@@ -809,7 +856,8 @@ export default function CreateFromKBPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
+                )}
+                <div className={cn("space-y-2", selectedScenario.scenario_type === "Product Knowledge Interview" || selectedScenario.scenario_type === "First Round Interview" ? "col-span-2" : "")}>
                   <Label className="text-xs">Scenario Type</Label>
                   <Select
                     value={selectedScenario.scenario_type}
@@ -1175,6 +1223,83 @@ export default function CreateFromKBPage() {
             </Button>
           </div>
 
+        </div>
+      )}
+
+      {/* Preview Modal */}
+      {previewData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setPreviewData(null)}>
+          <div className="bg-card rounded-2xl border shadow-xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <div>
+                <h2 className="text-sm font-semibold">Prompt Review</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {previewData.urlsUsed} URL{previewData.urlsUsed === 1 ? "" : "s"} · {previewData.documentsUsed} doc{previewData.documentsUsed === 1 ? "" : "s"} · {previewData.count} scenario{previewData.count === 1 ? "" : "s"} · {previewData.scenarioTypes.length} type{previewData.scenarioTypes.length === 1 ? "" : "s"}
+                </p>
+              </div>
+              <button onClick={() => setPreviewData(null)} className="text-muted-foreground hover:text-foreground text-xl leading-none">×</button>
+            </div>
+            <div className="overflow-y-auto px-5 py-4 space-y-4 flex-1">
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-foreground">Selected Sources</h3>
+                <div className="space-y-1">
+                  {previewData.selectedUrls.length > 0 ? (
+                    previewData.selectedUrls.map((url) => (
+                      <p key={url} className="text-xs text-muted-foreground">🌐 {url}</p>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No URLs selected</p>
+                  )}
+                  {previewData.selectedDocNames.length > 0 ? (
+                    previewData.selectedDocNames.map((name) => (
+                      <p key={name} className="text-xs text-muted-foreground">📄 {name}</p>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No documents selected</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-foreground">Allowed Scenario Types</h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {previewData.scenarioTypes.map((type) => (
+                    <span key={type} className="text-[10px] px-2 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">{type}</span>
+                  ))}
+                </div>
+              </div>
+
+              {previewData.profile && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-foreground">Extracted Company Profile</h3>
+                  <pre className="text-[10px] bg-muted/50 rounded-lg p-3 overflow-x-auto max-h-48 whitespace-pre-wrap">{JSON.stringify(previewData.profile, null, 2)}</pre>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-foreground">System Prompt (sent to OpenAI)</h3>
+                <pre className="text-[10px] bg-muted/50 rounded-lg p-3 overflow-x-auto max-h-64 whitespace-pre-wrap">{previewData.systemPrompt}</pre>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-foreground">User Content (sent to OpenAI)</h3>
+                <pre className="text-[10px] bg-muted/50 rounded-lg p-3 overflow-x-auto max-h-64 whitespace-pre-wrap">{previewData.userContent}</pre>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
+              <Button variant="ghost" onClick={() => setPreviewData(null)} className="rounded-lg">Back</Button>
+              <Button
+                onClick={() => {
+                  setPreviewData(null);
+                  generateScenarios();
+                }}
+                className="rounded-lg gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                Confirm & Generate
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
