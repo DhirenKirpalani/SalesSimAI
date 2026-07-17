@@ -91,6 +91,93 @@ interface GeneratedScenario {
 
 function buildScenarioGenerationPrompt(count: number, allowedScenarioTypes: string[]): string {
   const typeList = allowedScenarioTypes.join(", ");
+  const isInterviewOnly = allowedScenarioTypes.length > 0 &&
+    allowedScenarioTypes.every((t) => t === "Product Knowledge Interview" || t === "First Round Interview");
+  const hasInterviewTypes = allowedScenarioTypes.some((t) => t === "Product Knowledge Interview" || t === "First Round Interview");
+
+  if (isInterviewOnly) {
+    return `You are an expert sales enablement AI. You receive two sources:
+1. WEBSITE CONTEXT: structured company/product context extracted from the vendor's website.
+2. UPLOADED DOCUMENTS: raw documents that may contain additional product details, training materials, or scenario briefs.
+
+Create exactly ${count} distinct ${count === 1 ? "scenario" : "scenarios"} for a PRODUCT KNOWLEDGE INTERVIEW.
+
+In a Product Knowledge Interview, the candidate is a sales rep applying to sell ${allowedScenarioTypes.includes("Product Knowledge Interview") ? "this company's products" : "at this company"}. The AI persona is the INTERVIEWER — a hiring manager or sales enablement lead who tests the candidate's knowledge of the product, competitors, use cases, pricing, and value propositions.
+
+The interviewer does NOT teach, explain, or coach. They ask questions, listen to answers, note gaps, and move on.
+
+CRITICAL INSTRUCTIONS:
+- Use the WEBSITE CONTEXT as the PRIMARY source for product knowledge. Extract specific features, pricing, competitors, use cases, value props, and differentiators.
+- If UPLOADED DOCUMENTS are provided, use them as additional product context.
+- The interviewer persona works at the seller company (not a buyer company).
+- The interviewer should ask questions that a real hiring manager would ask to verify the candidate knows the product deeply.
+
+SCENARIO TYPE CONSTRAINTS:
+- You may ONLY use these scenario types: ${typeList}
+
+Return ONLY valid JSON in this exact shape:
+
+{
+  "scenarios": [
+    {
+      "seller_company": "<company name from profile>",
+      "seller_product": "<short product description>",
+      "product_type": "<one of: payment, eor, cards>",
+      "seller_description": "<2-3 sentence description of the company and product the candidate is interviewing to sell. Include key value, differentiation, and target customer.>",
+      "scenario_type": "<one of: ${typeList}>",
+      "difficulty": "<Beginner|Intermediate|Advanced|Expert>",
+      "duration": <5|10|15|20>,
+      "context_note": "<Detailed scenario briefing for the AI interviewer. Include: what product areas to test, specific features to ask about, competitors to reference, pricing questions, use case scenarios, and what a strong answer looks like (internally — never shared with candidate). List 8-12 specific product knowledge questions the interviewer should draw from.>",
+      "custom_persona": {
+        "name": "<first name only>",
+        "jobTitle": "<specific role at the seller company, e.g. Sales Enablement Manager, VP of Sales, Head of Revenue>",
+        "company": "<the SELLER company name from the profile, not a buyer company>",
+        "industry": "<the seller company's industry>",
+        "personality": "<rich personality description, 2-3 sentences. Professional, knowledgeable, direct. Tests depth without being condescending.>",
+        "personalityTraits": "<3-4 bullet traits — e.g. Direct, Knowledgeable, Fast-paced, Fair>",
+        "painPoints": ["<knowledge gap to test 1>", "<knowledge gap to test 2>"],
+        "painPointsCurrentProcess": "<what the interviewer expects candidates to know before applying>",
+        "painPointsImpact": "<why product knowledge matters for this role — lost deals, misaligned pitches, etc.>",
+        "goals": ["<specific product knowledge area to test 1>", "<specific product knowledge area to test 2>"],
+        "companyGoal": "<what the sales team is trying to achieve — e.g. 'Hire reps who can articulate value on day 1'>",
+        "personalMotivation": "<what the interviewer cares about — finding reps who truly understand the product>",
+        "communicationStyle": "<how the interviewer speaks — direct, concise, moves quickly through topics>",
+        "communicationLanguage": "<specific phrases or tone — e.g. 'Can you explain how our FX pricing works?' 'What's our main differentiator vs Airwallex?'>",
+        "priorVendorExperience": "<N/A for interview scenarios — set to 'Not applicable'>",
+        "decisionCriteria": "<what the interviewer evaluates — accuracy, depth, ability to articulate value, competitive awareness>",
+        "hiddenConcern": "<what the interviewer worries about — e.g. 'Previous hires struggled to articulate value beyond surface-level features'>",
+        "meetingSource": "<e.g. Internal interview, Final round interview, Sales team assessment>",
+        "budgetStatus": "<N/A for interview scenarios — set to 'Not applicable'>",
+        "timelinePressure": "<e.g. 'Hiring for Q3 quota, need to fill 3 rep positions'>",
+        "sampleDialogues": "<2-3 realistic lines. Format as Interviewer: \\"...\\" Candidate: \\"...\\" Interviewer: \\"...\\""
+      },
+      "avatar_name": "<matching first name from custom_persona.name>",
+      "voice_avatar_image_url": "",
+      "elevenlabs_voice_id": "",
+      "evaluation_framework": "<one of: MEDDIC, BANT, SPIN, Challenger, Sandler, ValueSelling, Standard>",
+      "custom_evaluation_framework": "",
+      "scoring_criteria": "<5-7 checkpoint rubric for product knowledge evaluation. Each checkpoint must be a concrete, observable knowledge area. Format as numbered list.>"
+    }
+  ]
+}
+
+Rules for the ${count} ${count === 1 ? "scenario" : "scenarios"}:
+- Use the specific products, features, pricing, competitors, use cases, and differentiators from the website context to build realistic interview questions.
+- Each scenario should test a DIFFERENT product area or angle (e.g. one on pricing/FX, one on card features, one on competitive positioning).
+- The interviewer persona should be someone who works at the seller company and knows the product deeply.
+- context_note must include 8-12 SPECIFIC product knowledge questions derived from the website content. These are the questions the interviewer will draw from during the interview.
+- Reference real competitors, features, pricing details, and use cases from the sources.
+- product_type should be the best guess from: payment (fintech/payroll/expense), eor (global hiring/HR), cards (corporate cards/expense). If unsure, use "payment".
+- The interviewer is professional and direct, not rude. They note knowledge gaps and move to the next question.
+- Every field in the JSON must be filled with a non-empty value. Leave no blank strings except voice_avatar_image_url and elevenlabs_voice_id.
+- Use the exact JSON keys shown above. Do not rename them.`;
+  }
+
+  // Default: sales roleplay prompt (with optional interview types mixed in)
+  const interviewNote = hasInterviewTypes
+    ? `\n\nNOTE: Some allowed scenario types are interview types (Product Knowledge Interview, First Round Interview). For those types, generate an INTERVIEWER persona (not a buyer) who works at the seller company and tests the candidate's product knowledge. The interviewer does NOT teach or explain — they ask questions, note gaps, and move on. The custom_persona.company should be the SELLER company, not a buyer company. The context_note should list 8-12 specific product knowledge questions derived from the website content.`
+    : "";
+
   return `You are an expert sales enablement AI. You receive two sources:
 1. WEBSITE CONTEXT: structured seller company/product context extracted from the vendor's website.
 2. UPLOADED DOCUMENTS (PRIMARY SOURCE): raw documents, likely containing the buyer persona, buyer knowledge, buyer behavior, and scenario brief for a sales simulation.
@@ -144,7 +231,7 @@ Return ONLY valid JSON in this exact shape:
         "meetingSource": "<how the meeting was booked — e.g. Inbound demo request from website, Warm referral from existing customer, Met at fintech conference, LinkedIn outreach, SDR cold call, Partner introduction. Make it specific.>",
         "budgetStatus": "<budget authority and constraints — e.g. 'Can approve up to $50K; above needs CFO sign-off.'>",
         "timelinePressure": "<decision timeline — e.g. 'Needs to go live in 6 weeks before APAC expansion.'>",
-        "sampleDialogues": "<2-3 realistic lines the buyer might say at the start of the call or when pushed. Format as Buyer: \"...\" Seller: \"...\" Buyer: \"...\""
+        "sampleDialogues": "<2-3 realistic lines the buyer might say at the start of the call or when pushed. Format as Buyer: \\"...\\" Seller: \\"...\\" Buyer: \\"...\\"""
       },
       "avatar_name": "<matching first name from custom_persona.name>",
       "voice_avatar_image_url": "",
@@ -174,7 +261,7 @@ Rules for the ${count} scenarios:
 - product_type should be the best guess from: payment (fintech/payroll/expense), eor (global hiring/HR), cards (corporate cards/expense). If unsure, use "payment".
 - Make the buyers skeptical, realistic, and hard to sell to. Do not make them too easy.
 - Every field in the JSON must be filled with a non-empty value. Leave no blank strings except voice_avatar_image_url and elevenlabs_voice_id which the UI will set later.
-- Use the exact JSON keys shown above. Do not rename them.`;
+- Use the exact JSON keys shown above. Do not rename them.${interviewNote}`;
 }
 
 async function extractProfileFromUrls(urls: string[], reqOrigin: string): Promise<{ profile: CompanyProfile | null; error?: string }> {
@@ -356,7 +443,7 @@ async function generateScenariosWithLLM(
 
 export async function POST(req: NextRequest) {
   try {
-    const { avatarId, voiceId, selectedUrls, selectedDocIds, count, scenarioTypes } = await req.json();
+    const { avatarId, voiceId, selectedUrls, selectedDocIds, count, scenarioTypes, preview } = await req.json();
     const finalAvatarId = avatarId || process.env.LIVEAVATAR_AVATAR_ID;
     if (!finalAvatarId) return NextResponse.json({ error: "No avatar available. Set LIVEAVATAR_AVATAR_ID env var or select an avatar." }, { status: 400 });
 
@@ -381,13 +468,13 @@ export async function POST(req: NextRequest) {
 
     // Fetch uploaded documents for this org only
     const allDocuments = await fetchOrgDocuments(supabase, organizationId);
-    const selectedDocuments = Array.isArray(selectedDocIds) && selectedDocIds.length > 0
+    const selectedDocuments = Array.isArray(selectedDocIds)
       ? allDocuments.filter((d) => selectedDocIds.includes(d.name))
       : allDocuments;
     const documentsText = selectedDocuments.map((d) => `--- ${d.name} ---\n${d.content}`).join("\n\n");
 
     const allUrls = (org?.source_urls as string[] | null) ?? [];
-    const urlsToUse = Array.isArray(selectedUrls) && selectedUrls.length > 0
+    const urlsToUse = Array.isArray(selectedUrls)
       ? selectedUrls
       : allUrls;
 
@@ -453,6 +540,31 @@ export async function POST(req: NextRequest) {
     const allowedScenarioTypes = Array.isArray(scenarioTypes) && scenarioTypes.length > 0
       ? scenarioTypes.filter((t: unknown) => typeof t === "string")
       : DEFAULT_SCENARIO_TYPES;
+
+    if (preview) {
+      const systemPrompt = buildScenarioGenerationPrompt(requestedCount, allowedScenarioTypes);
+      const userContent = [
+        websiteProfile
+          ? "WEBSITE CONTEXT (seller company / product):\n" + JSON.stringify(websiteProfile, null, 2)
+          : "WEBSITE CONTEXT: none provided.",
+        "",
+        "UPLOADED DOCUMENTS (PRIMARY SOURCE — buyer persona, buyer behavior, scenario brief, hidden facts):",
+        documentsText || "No documents uploaded.",
+      ].join("\n");
+
+      return NextResponse.json({
+        preview: true,
+        systemPrompt,
+        userContent,
+        profile: websiteProfile,
+        documentsUsed: selectedDocuments.length,
+        urlsUsed: urlsToUse.length,
+        selectedUrls: urlsToUse,
+        selectedDocNames: selectedDocuments.map((d) => d.name),
+        scenarioTypes: allowedScenarioTypes,
+        count: requestedCount,
+      });
+    }
 
     const generated = await generateScenariosWithLLM(websiteProfile, documentsText, requestedCount, allowedScenarioTypes);
     const scenariosWithAvatar = generated.map((s) => ({
