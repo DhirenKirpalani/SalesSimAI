@@ -11,9 +11,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { processTurn, applyStateUpdates } from "@/lib/buyer-brain";
 import { buildCompanyRagContext } from "@/lib/vector-store";
+import { buildInterviewSystemPrompt } from "@/lib/voice-config";
 import { CustomPersona } from "@/types";
 import { SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
+
+const INTERVIEW_TYPES = ["First Round Interview", "Product Knowledge Interview"];
 
 function serviceSupabase() {
   return createServiceClient(
@@ -137,35 +140,88 @@ export async function POST(
       }
     }
 
-    console.log("[llm-proxy] running buyer brain for session:", sessionId, "msg:", userText.slice(0, 60), "elapsed:", elapsedMin, "min");
+    console.log("[llm-proxy] running for session:", sessionId, "msg:", userText.slice(0, 60), "elapsed:", elapsedMin, "min");
 
-    // Run buyer brain (GPT-4o)
-    const buyerResponse = await processTurn(
-      persona,
-      contextParts.join("\n"),
-      scenario?.seller_description ?? "",
-      state,
-      recentMessages ?? [],
-      userText,
-      sellerInfo,
-      scenario?.difficulty ?? undefined,
-      scenario?.scenario_type ?? undefined,
-      companyRag,
-      durationMin,
-      elapsedMin
-    );
+    const scenarioType = scenario?.scenario_type ?? "";
+    const isInterview = INTERVIEW_TYPES.includes(scenarioType);
 
-    const newState = applyStateUpdates(state, buyerResponse.state_updates, (recentMessages?.length ?? 0) + 1);
-    const responseText = buyerResponse.message;
+    let responseText: string;
+    let newState: SimulationState;
+    let buyerResponse: any = null;
+
+    if (isInterview) {
+      // Interview scenario — use the interview system prompt with dynamic variables
+      const systemPrompt = buildInterviewSystemPrompt()
+        .replace(/\{\{buyer_name\}\}/g, persona.name)
+        .replace(/\{\{buyer_title\}\}/g, persona.jobTitle)
+        .replace(/\{\{buyer_company\}\}/g, persona.company ?? scenario?.seller_company ?? "the company")
+        .replace(/\{\{buyer_knowledge\}\}/g, scenario?.seller_description ?? "No product knowledge provided.")
+        .replace(/\{\{buyer_behavior\}\}/g, persona.personality ?? "Professional and direct.")
+        .replace(/\{\{scenario_type\}\}/g, scenarioType)
+        .replace(/\{\{context_note\}\}/g, scenario?.context_note ?? "");
+
+      const conversationMessages = [
+        { role: "system", content: systemPrompt },
+        ...(recentMessages ?? []).map((m: any) => ({
+          role: m.role === "user" ? "user" : "assistant",
+          content: m.content,
+        })),
+        { role: "user", content: userText },
+      ];
+
+      const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: conversationMessages,
+          temperature: 0.7,
+          max_tokens: 200,
+        }),
+      });
+
+      if (!openaiRes.ok) {
+        const errText = await openaiRes.text().catch(() => "unknown");
+        console.error("[llm-proxy] interview OpenAI error:", openaiRes.status, errText);
+        return NextResponse.json({ error: "Interview response failed" }, { status: 500 });
+      }
+
+      const openaiData = await openaiRes.json();
+      responseText = openaiData.choices[0].message.content.trim();
+      newState = state; // no state updates for interviews
+
+      console.log("[llm-proxy] interview response:", responseText.slice(0, 80));
+    } else {
+      // Sales roleplay — use buyer brain
+      buyerResponse = await processTurn(
+        persona,
+        contextParts.join("\n"),
+        scenario?.seller_description ?? "",
+        state,
+        recentMessages ?? [],
+        userText,
+        sellerInfo,
+        scenario?.difficulty ?? undefined,
+        scenario?.scenario_type ?? undefined,
+        companyRag,
+        durationMin,
+        elapsedMin
+      );
+
+      newState = applyStateUpdates(state, buyerResponse.state_updates, (recentMessages?.length ?? 0) + 1);
+      responseText = buyerResponse.message;
+
+      console.log("[llm-proxy] buyer response:", responseText.slice(0, 80));
+    }
 
     // Persist messages + updated state (fire-and-forget)
     Promise.all([
       supabase.from("simulation_messages").insert({ session_id: sessionId, role: "user", content: userText }),
-      supabase.from("simulation_messages").insert({ session_id: sessionId, role: "buyer", content: responseText, emotion: buyerResponse.emotion, intent: buyerResponse.intent }),
+      supabase.from("simulation_messages").insert({ session_id: sessionId, role: "buyer", content: responseText, emotion: isInterview ? undefined : (buyerResponse as any)?.emotion, intent: isInterview ? undefined : (buyerResponse as any)?.intent }),
       supabase.from("simulation_sessions").update({ state: newState }).eq("id", sessionId),
     ]).catch((e) => console.error("[llm-proxy] supabase persist error:", e));
 
-    console.log("[llm-proxy] buyer response:", responseText.slice(0, 80));
+    console.log("[llm-proxy] response:", responseText.slice(0, 80));
 
     if (!stream) {
       return NextResponse.json({

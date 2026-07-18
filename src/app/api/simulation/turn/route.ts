@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { processTurn, applyStateUpdates } from "@/lib/buyer-brain";
 import { buildCompanyRagContext } from "@/lib/vector-store";
+import { buildInterviewSystemPrompt } from "@/lib/voice-config";
 import { CustomPersona } from "@/types";
 import { SimulationState } from "@/types/simulation";
 import { mockPersonas } from "@/lib/data/mockData";
+
+const INTERVIEW_TYPES = ["First Round Interview", "Product Knowledge Interview"];
 
 export async function POST(req: NextRequest) {
   try {
@@ -112,27 +115,79 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log("[simulation/turn] calling buyer-brain…", { sessionId, msgCount: messages.length, trust: state.trust_level, persona: persona.name, seller: sellerInfo.name });
+    console.log("[simulation/turn] calling…", { sessionId, msgCount: messages.length, trust: state.trust_level, persona: persona.name, seller: sellerInfo.name, scenarioType: scenario.scenario_type });
     const sessionStart = new Date(session.created_at ?? Date.now());
     const elapsedMin = Math.max(0, Math.round((Date.now() - sessionStart.getTime()) / 60000));
 
-    const buyerResponse = await processTurn(
-      persona,
-      richContextNote,
-      scenario.seller_description ?? "",
-      state,
-      messages,
-      message.trim(),
-      sellerInfo,
-      scenario.difficulty ?? undefined,
-      scenario.scenario_type ?? undefined,
-      companyRag,
-      scenario.duration ?? undefined,
-      elapsedMin
-    );
-    console.log("[simulation/turn] buyer-brain response:", buyerResponse.message.slice(0, 100));
+    const scenarioType = scenario.scenario_type ?? "";
+    const isInterview = INTERVIEW_TYPES.includes(scenarioType);
 
-    const newState = applyStateUpdates(state, buyerResponse.state_updates, messages.length + 1);
+    let buyerResponse: { message: string; emotion?: string; intent?: string; state_updates?: any };
+    let newState: SimulationState;
+
+    if (isInterview) {
+      // Interview scenario — use the interview system prompt with dynamic variables
+      const systemPrompt = buildInterviewSystemPrompt()
+        .replace(/\{\{buyer_name\}\}/g, persona.name)
+        .replace(/\{\{buyer_title\}\}/g, persona.jobTitle)
+        .replace(/\{\{buyer_company\}\}/g, persona.company ?? scenario.seller_company ?? "the company")
+        .replace(/\{\{buyer_knowledge\}\}/g, scenario.seller_description ?? "No product knowledge provided.")
+        .replace(/\{\{buyer_behavior\}\}/g, persona.personality ?? "Professional and direct.")
+        .replace(/\{\{scenario_type\}\}/g, scenarioType)
+        .replace(/\{\{context_note\}\}/g, scenario.context_note ?? "");
+
+      const conversationMessages = [
+        { role: "system", content: systemPrompt },
+        ...messages.map((m: any) => ({
+          role: m.role === "user" ? "user" : "assistant",
+          content: m.content,
+        })),
+        { role: "user", content: message.trim() },
+      ];
+
+      const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: conversationMessages,
+          temperature: 0.7,
+          max_tokens: 200,
+        }),
+      });
+
+      if (!openaiRes.ok) {
+        const errText = await openaiRes.text().catch(() => "unknown");
+        console.error("[simulation/turn] interview OpenAI error:", openaiRes.status, errText);
+        return NextResponse.json({ error: "Interview response failed" }, { status: 500 });
+      }
+
+      const openaiData = await openaiRes.json();
+      const responseText = openaiData.choices[0].message.content.trim();
+      buyerResponse = { message: responseText };
+      newState = state; // no state updates for interviews
+
+      console.log("[simulation/turn] interview response:", responseText.slice(0, 100));
+    } else {
+      // Sales roleplay — use buyer brain
+      buyerResponse = await processTurn(
+        persona,
+        richContextNote,
+        scenario.seller_description ?? "",
+        state,
+        messages,
+        message.trim(),
+        sellerInfo,
+        scenario.difficulty ?? undefined,
+        scenario.scenario_type ?? undefined,
+        companyRag,
+        scenario.duration ?? undefined,
+        elapsedMin
+      );
+      newState = applyStateUpdates(state, buyerResponse.state_updates, messages.length + 1);
+
+      console.log("[simulation/turn] buyer-brain response:", buyerResponse.message.slice(0, 100));
+    }
 
     const [userMsgResult, buyerMsgResult] = await Promise.all([
       supabase.from("simulation_messages").insert({

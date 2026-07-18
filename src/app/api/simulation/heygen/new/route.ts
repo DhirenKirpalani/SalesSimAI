@@ -10,17 +10,26 @@ import {
 import { CustomScenario, CustomPersona } from "@/types";
 import { mockPersonas } from "@/lib/data/mockData";
 
+const INTERVIEW_TYPES = ["First Round Interview", "Product Knowledge Interview"];
+
 function buildPersonaPrompt(scenario: CustomScenario, persona: CustomPersona | null) {
-  const name = persona?.name ?? "the buyer";
-  const role = persona?.jobTitle ?? "Decision Maker";
+  const scenarioType = scenario.scenario_type ?? "";
+  const isInterview = INTERVIEW_TYPES.includes(scenarioType);
+  const name = persona?.name ?? (isInterview ? "the interviewer" : "the buyer");
+  const role = persona?.jobTitle ?? (isInterview ? "Hiring Manager" : "Decision Maker");
   const company = persona?.company ?? scenario.seller_company;
   const industry = persona?.industry ?? "";
-  const personality = persona?.personality ?? "professional and reserved";
+  const personality = persona?.personality ?? (isInterview ? "professional and direct" : "professional and reserved");
   const painPoints = persona?.painPoints?.length
     ? persona.painPoints.map((p) => `- ${p}`).join("\n")
     : "- No specific pain points listed";
   const sellerCtx = scenario.seller_description ? `\nWHAT IS BEING SOLD:\n${scenario.seller_description}` : "";
   const callCtx = scenario.context_note ? `\nCALL CONTEXT:\n${scenario.context_note}` : "";
+
+  if (isInterview) {
+    return `You are ${name}, ${role} at ${company}${industry ? ` (${industry})` : ""}.\nPERSONALITY: ${personality}\nKNOWLEDGE AREAS TO TEST:\n${painPoints}${sellerCtx}${callCtx}\n\nGROUND RULES:\n- You are the INTERVIEWER. Stay fully in character.\n- Ask ONE question at a time. Never compound questions.\n- Be natural and conversational. Don't use meta-language like "let's dive in" or "let's switch gears".\n- Sound like a real human. Use casual phrasing, filler words ("so", "well", "I mean").\n- Never use technical formats like "Asia/Jakarta" — say "Jakarta time" or "your time".\n- If the candidate asks to reschedule, handle it briefly — don't become a scheduling assistant.\n- Keep responses concise (1-3 sentences). Speak naturally.`;
+  }
+
   return `You are ${name}, ${role} at ${company}${industry ? ` (${industry})` : ""}.\nPERSONALITY: ${personality}\nYOUR PAIN POINTS:\n${painPoints}${sellerCtx}${callCtx}\n\nGROUND RULES:\n- You are the BUYER. Stay fully in character.\n- Be guarded. Share info only when asked the right questions.\n- Ask for data and proof before committing.\n- Keep responses concise (2-4 sentences). Speak naturally.`;
 }
 
@@ -75,11 +84,15 @@ export async function POST(req: NextRequest) {
       if (!scenarioData) return;
       try {
         const { scenario, persona } = scenarioData;
-        const openingName = persona?.name ?? "the buyer";
+        const openingName = persona?.name ?? "the interviewer";
+        const isInterview = INTERVIEW_TYPES.includes(scenario.scenario_type ?? "");
+        const openingText = isInterview
+          ? `Hi, I'm ${openingName} from ${scenario.seller_company ?? "the company"}. Thanks for joining. How are you?`
+          : `Hi, I'm ${openingName}. Thanks for reaching out — go ahead.`;
         contextId = await createLiveAvatarContext({
           name: `${scenario.name} — ${openingName}`,
           prompt: buildPersonaPrompt(scenario as CustomScenario, persona),
-          opening_text: `Hi, I'm ${openingName}. Thanks for reaching out — go ahead.`,
+          opening_text: openingText,
         });
         console.log("[heygen/new] context:", contextId);
       } catch (e) {
