@@ -1066,6 +1066,17 @@ function HeyGenTestInner() {
 
       setStatus("connected");
       addLog("📝 Text chat started");
+
+      // Add first message for interview scenarios with a typing delay (same as voice calls)
+      const ctx = personaContextRef.current;
+      if (ctx?.firstMessage) {
+        setTextLoading(true);
+        const delay = 2000 + Math.random() * 1500; // 2-3.5 seconds
+        setTimeout(() => {
+          addTranscript("avatar", ctx.firstMessage!);
+          setTextLoading(false);
+        }, delay);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
@@ -1793,7 +1804,7 @@ function HeyGenTestInner() {
 
   // Auto-scroll text chat to bottom on new messages
   useEffect(() => {
-    if (callMode === "text" && textMessagesEndRef.current) {
+    if (callMode === "text" && textMessagesEndRef.current && transcript.length > 0) {
       textMessagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [transcript, textLoading, callMode]);
@@ -2297,15 +2308,15 @@ function HeyGenTestInner() {
                 <span className="absolute inset-0 rounded-full bg-orange-500/30 animate-ping" />
                 <span className="absolute inset-1 rounded-full bg-orange-500/20 animate-pulse" />
                 <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full ring-2 ring-orange-500/40 overflow-hidden bg-gradient-to-br from-orange-500/20 to-orange-600/10 flex items-center justify-center">
-                  {((callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? undefined) ? (
+                  {((callMode === "voice" ? voiceAvatarImageUrl : (voiceAvatarImageUrl ?? avatarImageUrl)) ?? undefined) ? (
                     <img
-                      src={(callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? undefined}
+                      src={(callMode === "voice" ? voiceAvatarImageUrl : (voiceAvatarImageUrl ?? avatarImageUrl)) ?? undefined}
                       alt={resolvedPersonaName ?? avatarNameParam ?? "Avatar"}
                       className="w-full h-full object-cover object-top"
                     />
                   ) : (
                     <svg className="w-14 h-14 sm:w-16 sm:h-16 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" stroke-linejoin="round" strokeWidth={1} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                     </svg>
                   )}
                 </div>
@@ -2466,8 +2477,8 @@ function HeyGenTestInner() {
             <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-white/10 bg-[#111827]">
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  {avatarImageUrl ? (
-                    <img src={avatarImageUrl} alt="" className="w-10 h-10 rounded-full object-cover bg-gray-700" />
+                  {(voiceAvatarImageUrl ?? avatarImageUrl) ? (
+                    <img src={(voiceAvatarImageUrl ?? avatarImageUrl) ?? undefined} alt="" className="w-10 h-10 rounded-full object-cover bg-gray-700" />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
                       <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2495,7 +2506,7 @@ function HeyGenTestInner() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-1">
-              {transcript.length === 0 && (
+              {transcript.length === 0 && !textLoading && (
                 <div className="h-full flex flex-col items-center justify-center space-y-4">
                   {/* Date divider — WhatsApp style */}
                   <div className="bg-[#1E293B]/60 px-4 py-1.5 rounded-lg">
@@ -2522,8 +2533,8 @@ function HeyGenTestInner() {
                   {/* Buyer avatar — left side */}
                   {entry.role === "avatar" && (
                     <div className="shrink-0 w-7 h-7 rounded-full overflow-hidden bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center border border-white/10">
-                      {avatarImageUrl ? (
-                        <img src={avatarImageUrl} alt={resolvedPersonaName ?? "Buyer"} className="w-full h-full object-cover object-top" />
+                      {(voiceAvatarImageUrl ?? avatarImageUrl) ? (
+                        <img src={(voiceAvatarImageUrl ?? avatarImageUrl) ?? undefined} alt={resolvedPersonaName ?? "Buyer"} className="w-full h-full object-cover object-top" />
                       ) : (
                         <span className="text-[10px] text-gray-300 font-semibold">{(resolvedPersonaName ?? "B").slice(0, 1).toUpperCase()}</span>
                       )}
@@ -2567,8 +2578,8 @@ function HeyGenTestInner() {
               {textLoading && (
                 <div className="flex items-end gap-2 justify-start mb-3">
                   <div className="shrink-0 w-7 h-7 rounded-full overflow-hidden bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center border border-white/10">
-                    {avatarImageUrl ? (
-                      <img src={avatarImageUrl} alt={resolvedPersonaName ?? "Buyer"} className="w-full h-full object-cover object-top" />
+                    {(voiceAvatarImageUrl ?? avatarImageUrl) ? (
+                      <img src={(voiceAvatarImageUrl ?? avatarImageUrl) ?? undefined} alt={resolvedPersonaName ?? "Buyer"} className="w-full h-full object-cover object-top" />
                     ) : (
                       <span className="text-[10px] text-gray-300 font-semibold">{(resolvedPersonaName ?? "B").slice(0, 1).toUpperCase()}</span>
                     )}

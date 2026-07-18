@@ -494,6 +494,9 @@ export async function POST(req: NextRequest) {
       heygen_session_db_id: heygenSessionDbId,
       sim_session_db_id: simSessionDbId,
       duration_min: scenarioDuration,
+      persona_prompt: personaPrompt,
+      opening_text: openingText,
+      context_id: contextId ?? null,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
