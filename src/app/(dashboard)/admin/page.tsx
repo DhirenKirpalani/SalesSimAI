@@ -129,25 +129,28 @@ export default function AdminPage() {
         return;
       }
 
-      const memberPerf: MemberPerf[] = [];
-      for (const m of memberProfiles) {
-        const [heygenRes, simRes] = await Promise.all([
-          supabase
-            .from("heygen_sessions")
-            .select("analysis, duration_s, ended_at")
-            .eq("user_id", m.id)
-            .eq("organization_id", organizationId)
-            .not("ended_at", "is", null),
-          supabase
-            .from("simulation_sessions")
-            .select("duration_s, ended_at, simulation_coaching(overall_score)")
-            .eq("user_id", m.id)
-            .eq("organization_id", organizationId)
-            .eq("status", "completed"),
-        ]);
+      const memberIds = memberProfiles.map((m) => m.id);
+      const [heygenBatch, simBatch] = await Promise.all([
+        supabase
+          .from("heygen_sessions")
+          .select("user_id, analysis, duration_s, ended_at")
+          .in("user_id", memberIds)
+          .eq("organization_id", organizationId)
+          .not("ended_at", "is", null),
+        supabase
+          .from("simulation_sessions")
+          .select("user_id, duration_s, ended_at, simulation_coaching(overall_score)")
+          .in("user_id", memberIds)
+          .eq("organization_id", organizationId)
+          .eq("status", "completed"),
+      ]);
 
-        const heygen = heygenRes.data ?? [];
-        const sims = simRes.data ?? [];
+      const allHeygenSessions = heygenBatch.data ?? [];
+      const allSimSessions = simBatch.data ?? [];
+
+      const memberPerf: MemberPerf[] = memberProfiles.map((m) => {
+        const heygen = allHeygenSessions.filter((h) => h.user_id === m.id);
+        const sims = allSimSessions.filter((s) => s.user_id === m.id);
 
         const allScores: number[] = [];
         for (const h of heygen) {
@@ -170,7 +173,7 @@ export default function AdminPage() {
           .filter(Boolean) as string[];
         lastDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
-        memberPerf.push({
+        return {
           id: m.id,
           name: m.full_name || m.email?.split("@")[0] || "",
           email: m.email || "",
@@ -179,8 +182,8 @@ export default function AdminPage() {
           bestScore: allScores.length ? Math.max(...allScores) : 0,
           trainingMins: totalMins,
           lastActive: lastDates[0] ?? null,
-        });
-      }
+        };
+      });
 
       setMembers(memberPerf);
       setMembersLoading(false);
