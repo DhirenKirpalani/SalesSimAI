@@ -203,14 +203,16 @@ export default function DashboardPage() {
           .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
           .eq("user_id", user.id)
           .match(orgFilter)
-          .order("started_at", { ascending: false }),
+          .order("started_at", { ascending: false })
+          .limit(50),
         supabase
           .from("simulation_sessions")
           .select("id, scenario_id, scenario_table, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
           .eq("user_id", user.id)
           .eq("status", "completed")
           .match(orgFilter)
-          .order("started_at", { ascending: false }),
+          .order("started_at", { ascending: false })
+          .limit(50),
       ]);
 
       if (profile?.full_name) {

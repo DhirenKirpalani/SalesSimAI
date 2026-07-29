@@ -49,7 +49,7 @@ export default function ScenariosPage() {
     const organizationId = userProfile?.organization_id ?? null;
     let query = supabase
       .from("custom_scenarios")
-      .select("*")
+      .select("id, user_id, created_by, organization_id, member_name, member_role, seller_company, seller_product, seller_description, preset_persona_id, custom_persona, scenario_type, product_type, difficulty, duration, context_note, name, avatar_id, avatar_name, voice_id, voice_avatar_image_url, elevenlabs_voice_id, scoring_criteria, evaluation_framework, created_at")
       .order("created_at", { ascending: false });
     if (organizationId) {
       query = query.eq("organization_id", organizationId);
@@ -67,7 +67,7 @@ export default function ScenariosPage() {
     const supabase = createClient();
     const { data } = await supabase
       .from("platform_scenarios")
-      .select("*")
+      .select("id, user_id, created_by, organization_id, member_name, member_role, seller_company, seller_product, seller_description, preset_persona_id, custom_persona, scenario_type, product_type, difficulty, duration, context_note, name, avatar_id, avatar_name, voice_id, voice_avatar_image_url, elevenlabs_voice_id, scoring_criteria, evaluation_framework, created_at")
       .order("created_at", { ascending: false });
     if (data) setPlatformDbScenarios(data as CustomScenario[]);
   }, []);

@@ -67,7 +67,8 @@ export default function SimulationsPage() {
       .select("id, scenario_name, call_mode, analysis, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
       .eq("user_id", user.id)
       .or("status.eq.completed,ended_at.not.is.null,analysis.not.is.null")
-      .order("started_at", { ascending: false });
+      .order("started_at", { ascending: false })
+      .limit(100);
     if (organizationId) {
       query = query.eq("organization_id", organizationId);
     }

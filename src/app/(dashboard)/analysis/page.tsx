@@ -93,7 +93,8 @@ function AnalysisContent() {
       .select("id, scenario_name, call_mode, analysis, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
       .eq("user_id", user.id)
       .eq("status", "completed")
-      .order("started_at", { ascending: false });
+      .order("started_at", { ascending: false })
+      .limit(100);
     if (organizationId) {
       query = query.eq("organization_id", organizationId);
     }
