@@ -454,7 +454,7 @@ function CreateScenarioPage() {
                   <Label htmlFor="sellerCompany" className="text-xs font-medium">Company Name</Label>
                   <Input
                     id="sellerCompany"
-                    placeholder="e.g. Aspire, Stripe, Rippling"
+                    placeholder="e.g. NorthPay, Stripe, Rippling"
                     className="rounded-xl h-11"
                     value={form.sellerCompany}
                     onChange={(e) => set("sellerCompany", e.target.value)}
@@ -501,7 +501,7 @@ function CreateScenarioPage() {
 • Any pricing / packaging context
 
 Example:
-Aspire is a B2B fintech platform offering corporate cards, multi-currency accounts, and expense management for growing businesses in Southeast Asia. We help finance teams replace manual processes and spreadsheets with automated approval workflows and real-time spend visibility. Our core differentiator is instant onboarding (no branch visits) and deep ERP integrations with Xero, NetSuite, and QuickBooks. We sell to CFOs, Financial Controllers, and finance ops leaders at companies with 50–500 employees.`}
+NorthPay is a B2B fintech platform offering corporate cards, multi-currency accounts, and expense management for growing businesses in Southeast Asia. We help finance teams replace manual processes and spreadsheets with automated approval workflows and real-time spend visibility. Our core differentiator is instant onboarding (no branch visits) and deep ERP integrations with Xero, NetSuite, and QuickBooks. We sell to CFOs, Financial Controllers, and finance ops leaders at companies with 50–500 employees.`}
                     value={form.sellerDescription}
                     onChange={(e) => set("sellerDescription", e.target.value)}
                   />

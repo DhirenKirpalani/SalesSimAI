@@ -1603,7 +1603,7 @@ function HeyGenTestInner() {
             candidateName,
             firstMessage:
               scenario.scenario_type === "Product Knowledge Interview"
-                ? generateProductKnowledgeFirstMessage(candidateName ?? "there", persona?.name ?? "Priya", scenario.seller_company ?? "Aspire")
+                ? generateProductKnowledgeFirstMessage(candidateName ?? "there", persona?.name ?? "Priya", scenario.seller_company ?? "NorthPay")
                 : scenario.scenario_type === "First Round Interview"
                 ? generateFirstRoundFirstMessage(candidateName ?? "there", persona?.name ?? "Jordan Lee", persona?.jobTitle ?? "VP of Sales", persona?.company ?? "Brex")
                 : "",

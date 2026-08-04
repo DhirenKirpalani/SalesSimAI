@@ -111,8 +111,8 @@ export function Header({ isActive, scrollToSection, scrollToTop, user, loading }
               </div>
             ) : (
               <>
-                <Link className="header-login" href="/login">Login</Link>
-                <Link className="btn btn-primary btn-sm" href="/book-demo">Book a demo</Link>
+                <Link className="header-login" href="/login">Log in</Link>
+                <Link className="btn btn-primary btn-sm" href="/signup">Sign up</Link>
               </>
             )
           )}
@@ -185,8 +185,8 @@ export function Header({ isActive, scrollToSection, scrollToTop, user, loading }
                           Log in
                         </Button>
                       </Link>
-                      <Link href="/book-demo" onClick={() => setMobileOpen(false)}>
-                        <Button className="w-full h-11 rounded-xl text-sm font-semibold">Book a demo</Button>
+                      <Link href="/signup" onClick={() => setMobileOpen(false)}>
+                        <Button className="w-full h-11 rounded-xl text-sm font-semibold">Sign up</Button>
                       </Link>
                     </div>
                   )

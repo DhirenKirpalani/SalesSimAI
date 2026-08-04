@@ -272,7 +272,7 @@ export default function WorkspacePage() {
               <Label htmlFor="workspace-name" className="text-xs">Workspace name</Label>
               <Input
                 id="workspace-name"
-                placeholder="e.g., Aspire"
+                placeholder="e.g., NorthPay"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 disabled={creating}

@@ -16,7 +16,11 @@ export default function AuthCallbackPage() {
     if (hash || search.includes("code=")) {
       supabase.auth.getSession().then(({ data }) => {
         if (data.session) {
-          router.push("/dashboard");
+          const createdAt = data.session.user.created_at;
+          const isNewUser = createdAt
+            ? Date.now() - new Date(createdAt).getTime() < 5 * 60 * 1000
+            : false;
+          router.push(isNewUser ? "/onboarding" : "/dashboard");
         } else if (type === "signup" || type === "email_change") {
           router.push("/login?confirmed=true");
         } else {

@@ -53,7 +53,7 @@ export function UrlChipInput({
       setError(null);
       const url = normalizeUrl(raw);
       if (!url) {
-        setError("Please enter a valid URL (e.g., https://aspire.com)");
+        setError("Please enter a valid URL (e.g., https://northpay.com)");
         return false;
       }
       if (value.includes(url)) {

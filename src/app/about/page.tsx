@@ -7,7 +7,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "About us",
   description:
-    "Day1 is an AI-powered sales practice platform. Learn why we built it, our philosophy, mission, and vision for continuous sales improvement.",
+    "Day1 is the gym for professional communication. Learn why we built it, our philosophy, mission, and vision for helping professionals master the conversations that shape their careers.",
   alternates: {
     canonical: "https://www.day1app.io/about",
   },
@@ -17,29 +17,29 @@ const values = [
   {
     icon: Target,
     title: "Deliberate practice",
-    description: "Reps improve fastest when they can repeat difficult conversations safely and receive instant feedback.",
+    description: "Professionals improve fastest when they can repeat difficult conversations safely and receive immediate, specific feedback.",
   },
   {
     icon: Sparkles,
     title: "AI that coaches",
-    description: "Our AI models simulate real buyers, score every response, and surface coaching opportunities at scale.",
+    description: "Our AI personas respond like real people — interviewers, managers, buyers, stakeholders — and coach you after every session.",
   },
   {
     icon: Users,
-    title: "Built for teams",
-    description: "From first discovery calls to enterprise negotiations, teams use Day1 to prepare before the meeting.",
+    title: "Built for everyone",
+    description: "From job seekers to sales teams, managers to founders — anyone with important conversations at work can practice on Day1.",
   },
   {
     icon: TrendingUp,
     title: "Continuous improvement",
-    description: "Every conversation is another Day 1. We help reps keep the mindset of a beginner and the skills of an expert.",
+    description: "Every conversation is another Day 1. We help professionals keep the mindset of a learner and the skills of an expert.",
   },
 ];
 
 const stats = [
   { value: "1000+", label: "practice conversations" },
   { value: "24/7", label: "AI coaching availability" },
-  { value: "0", label: "real deals put at risk" },
+  { value: "5+", label: "scenario categories" },
 ];
 
 export default function AboutPage() {
@@ -60,9 +60,9 @@ export default function AboutPage() {
               Every expert was once on Day 1.
             </h1>
             <p className="text-base sm:text-xl text-[#68646C] leading-relaxed max-w-2xl mx-auto mb-8 sm:mb-10">
-              Day1 is where sales teams practice the conversations that matter—before they happen with customers.
+              Day1 is where professionals practice the conversations that matter — before they happen in real life.
             </p>
-            <Link className="btn btn-primary inline-flex w-full sm:w-auto justify-center" href="/book-demo">Book a demo →</Link>
+            <Link className="btn btn-primary inline-flex w-full sm:w-auto justify-center" href="/signup">Start for free →</Link>
           </div>
         </section>
 
@@ -98,13 +98,13 @@ export default function AboutPage() {
                   <h2 className="text-2xl sm:text-3xl font-bold text-[#1B1A1E]">Why we built Day1</h2>
                 </div>
                 <p className="text-lg text-[#68646C]">
-                  Modern sales teams move fast. Products evolve. Markets change. Customer expectations shift every day.
+                  Careers are shaped by conversations. Interviews. Negotiations. Difficult feedback. Leadership moments. Deals.
                 </p>
                 <p className="text-[#68646C]">
-                  Yet the way salespeople learn has not changed much. New hires wait weeks before they feel confident. Experienced reps rarely get enough opportunities to practice difficult conversations. Managers do not have enough time to coach every call.
+                  Yet most professionals walk into these moments unprepared. There is no gym for communication. No safe place to practice before the stakes are real. No coach waiting after every conversation.
                 </p>
                 <p className="text-[#68646C]">
-                  Day1 was created to solve that. We built an AI-powered environment where sales professionals can practice realistic conversations, receive immediate feedback, and improve continuously—without risking real customer relationships.
+                  Day1 was built to change that. We created an AI-powered environment where anyone can practice the conversations that matter, receive honest coaching, and improve continuously — without risking real relationships or real outcomes.
                 </p>
                 <p className="font-medium text-[#1B1A1E]">Because growth happens through repetition.</p>
               </div>
@@ -138,7 +138,7 @@ export default function AboutPage() {
                   ))}
                 </div>
                 <p className="text-[#68646C]">
-                  The best sales professionals never believe they have finished learning. They approach every customer conversation with the mindset that there is always something new to understand, something better to say, and another opportunity to improve.
+                  The best communicators never believe they have finished learning. They approach every conversation with curiosity — always something new to understand, something better to say, and another opportunity to improve.
                 </p>
                 <p className="font-medium text-[#1B1A1E]">Every conversation is another Day 1.</p>
               </div>
@@ -151,10 +151,10 @@ export default function AboutPage() {
                   <h2 className="text-2xl sm:text-3xl font-bold text-[#1B1A1E]">Our mission</h2>
                 </div>
                 <p className="text-lg text-[#68646C]">
-                  To help every salesperson become more confident before they speak with customers.
+                  To help every professional become more confident before the conversations that matter.
                 </p>
                 <p className="text-[#68646C]">
-                  We want to make world-class sales coaching available to every individual and every team, regardless of company size. Whether you are preparing for your first discovery call or refining enterprise negotiation skills, Day1 provides a safe place to practice, learn, and grow.
+                  We want to make world-class communication coaching available to every individual, regardless of role or company size. Whether you are preparing for your first interview, a difficult leadership conversation, or a high-stakes negotiation, Day1 provides a safe place to practice, learn, and grow.
                 </p>
               </div>
 
@@ -168,9 +168,9 @@ export default function AboutPage() {
                 <p className="text-lg text-[#68646C]">
                   We believe the future of professional learning is conversational.
                 </p>
-                <p className="text-[#68646C]">AI will not replace great salespeople. It will help create more of them.</p>
+                <p className="text-[#68646C]">AI will not replace great communicators. It will help create more of them.</p>
                 <p className="text-[#68646C]">
-                  Our vision is to build the world&apos;s most intelligent practice platform for customer-facing professionals, enabling continuous learning through realistic conversations, personalized coaching, and actionable insights.
+                  Our vision is to build the world&apos;s most intelligent practice platform for working professionals — enabling continuous growth through realistic conversations, personalized coaching, and measurable skill improvement.
                 </p>
               </div>
 
@@ -179,7 +179,7 @@ export default function AboutPage() {
                   Built for continuous improvement
                 </h2>
                 <p className="text-[#68646C] mb-6 max-w-xl mx-auto">
-                  Day1 is more than a simulation platform. It is where teams prepare before the meeting, where managers scale coaching, and where confidence is built through deliberate practice.
+                  Day1 is more than a simulation platform. It is where professionals prepare before the moment, where coaching happens after every session, and where confidence is built through deliberate, repeated practice.
                 </p>
                 <p className="font-medium text-[#1B1A1E]">
                   Because every great career starts on Day 1. And the best ones never leave it.
@@ -193,12 +193,12 @@ export default function AboutPage() {
         <section className="py-12 sm:py-16 lg:py-24 border-t border-[#E7E4DF] bg-white">
           <div className="wrap text-center px-4 sm:px-6">
             <h2 className="text-2xl sm:text-4xl font-bold text-[#1B1A1E] mb-4" style={{ fontFamily: "Poppins, sans-serif" }}>
-              Ready to make every call your best call?
+              Ready to practice the conversations that matter?
             </h2>
             <p className="text-base text-[#68646C] mb-6 sm:mb-8 max-w-xl mx-auto">
-              Join teams using Day1 to practice, coach, and close with confidence.
+              Join professionals using Day1 to prepare, improve, and show up ready — every time.
             </p>
-            <Link className="btn btn-primary inline-flex w-full sm:w-auto justify-center" href="/book-demo">Book a demo →</Link>
+            <Link className="btn btn-primary inline-flex w-full sm:w-auto justify-center" href="/signup">Start for free →</Link>
           </div>
         </section>
       </main>

@@ -160,7 +160,7 @@ export function LandingNavbar() {
               </Link>
               <Link href="/signup">
                 <Button className="bg-[var(--foreground)] text-[var(--background)] px-5 py-2 rounded-md text-[0.85rem] font-semibold hover:bg-[#1f2a3e] transition-colors">
-                  Book a demo
+                  Sign up
                 </Button>
               </Link>
               <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -233,7 +233,7 @@ export function LandingNavbar() {
                           </Button>
                         </Link>
                         <Link href="/signup" onClick={() => setMobileOpen(false)}>
-                          <Button className="w-full h-11 rounded-xl text-sm font-semibold">Book a demo</Button>
+                          <Button className="w-full h-11 rounded-xl text-sm font-semibold">Sign up</Button>
                         </Link>
                       </div>
                     )}

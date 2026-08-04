@@ -9,10 +9,10 @@ export function HeroVisual() {
           <div className="hero-card hero-card-1">
             <div className="hero-card-panel">
               <div className="hero-card-header">
-                <div className="hero-avatar hero-avatar-company">A</div>
+                <div className="hero-avatar hero-avatar-company">N</div>
                 <div className="hero-card-meta">
                   <div className="hero-card-title">Discovery Session</div>
-                  <div className="hero-card-subtitle">Aspire · B2B Fintech</div>
+                  <div className="hero-card-subtitle">NorthPay · B2B Fintech</div>
                 </div>
                 <div className="hero-duration-badge">
                   <Clock className="w-3 h-3" />
