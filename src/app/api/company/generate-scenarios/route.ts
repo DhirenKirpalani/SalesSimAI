@@ -363,7 +363,7 @@ export async function POST(req: NextRequest) {
     const scenarios = [];
     const personas = profile.buyer_personas?.slice(0, 2) ?? [];
 
-    // 1. Product Knowledge Interview (like Aspire)
+    // 1. Product Knowledge Interview (like NorthPay)
     scenarios.push(generateProductKnowledgeScenario(profile, avatarId, voiceId));
 
     // 2. Discovery Call for first persona

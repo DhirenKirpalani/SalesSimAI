@@ -10,23 +10,23 @@ import { useActiveSection, useAuth } from "./PageLayout";
 const processSteps = [
   {
     id: "capture",
-    title: "1. Capture",
-    body: "Calls, recordings, and context are automatically ingested from your existing tools — no manual uploads or extra steps for reps.",
+    title: "1. Practice",
+    body: "Choose a scenario — interview, sales call, feedback, negotiation — and have a realistic conversation with an AI persona that responds naturally. Voice, video, or text.",
   },
   {
     id: "call-intel",
-    title: "2. Call Intel",
-    body: "Every call is recorded and analyzed automatically. Objections, use cases, and coaching moments are tagged — no extra step for reps.",
+    title: "2. Get Feedback",
+    body: "After every conversation, get detailed coaching — strengths, weaknesses, missed opportunities, better phrasing, and exact rewrites for weak answers.",
   },
   {
     id: "ai-buyer",
-    title: "3. AI Buyer Training",
-    body: "Real objections and hesitations from your calls train the AI buyer, so reps practice against the most current version of your market.",
+    title: "3. Retry",
+    body: "Practice again. Try a different approach. Test new phrasing. Every repetition builds real communication skill — exactly like a gym.",
   },
   {
     id: "battle-cards",
-    title: "4. Live Battle Cards",
-    body: "Objection handling and product knowledge surface in the next live call, right when reps need it — not in a report reviewed days later.",
+    title: "4. Improve",
+    body: "Track your progress over time. See which skills are improving — confidence, clarity, structure, empathy, persuasion — and focus practice where you need it most.",
   },
 ];
 
@@ -192,62 +192,97 @@ export function LandingPage() {
       <section id="hero" className="hero">
         <div className="wrap hero-grid">
           <div>
-            <div className="status-pill"><span className="live-dot"></span>Live from Day 1 — building in public.</div>
-            <h1>Every call makes<br />the whole team <span className="hl">better.</span></h1>
-            <p className="lead">Day1 turns your sales calls into a live intelligence loop. <strong>Objections and use cases surface on the leader dashboard</strong>, the AI buyer gets sharper, and <strong>battle cards go live in the next call</strong> — before the moment is missed.</p>
+            <h1>Practice the conversations<br />that <span className="hl">shape your career.</span></h1>
+            <p className="lead">Interviews. Leadership. Sales. Negotiation. Feedback. <strong>Practice with AI that responds like a real person</strong>, receive coaching, and build confidence before the real conversation.</p>
             <div className="hero-actions">
               {user ? (
                 <Link className="btn btn-primary" href="/dashboard">Go to Dashboard →</Link>
               ) : (
                 <>
-                  <Link className="btn btn-outline" href="#features" onClick={scrollTo("features")}>Discover solution</Link>
-                  <Link className="btn btn-primary" href="/book-demo">Book a demo →</Link>
+                  <Link className="btn btn-primary" href="/signup">Start Practicing →</Link>
                 </>
               )}
             </div>
             <div className="hero-meta">
-              <span><i className="dot"></i>Works with your call recorder</span>
-              <span><i className="dot"></i>No change to how reps sell</span>
+              <span><i className="dot"></i>Voice, video, or text chat</span>
+              <span><i className="dot"></i>Get coached after every session</span>
             </div>
           </div>
           <HeroVisual />
         </div>
       </section>
 
-      <div className="audience-strip">
+      <div className="scenario-strip">
         <div className="wrap">
-          <div className="audience-card">
-            <div className="audience-icon">
-              <svg viewBox="0 0 48 48" fill="none">
-                <rect x="6" y="14" width="36" height="24" rx="6" stroke="currentColor" strokeWidth="2.5"/>
-                <path d="M14 26h8M14 32h20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-                <circle cx="32" cy="22" r="3" fill="currentColor"/>
-                <path d="M12 14v-3a4 4 0 0 1 4-4h16a4 4 0 0 1 4 4v3" stroke="currentColor" strokeWidth="2.5"/>
-              </svg>
-            </div>
-            <h4>For sales leaders</h4>
-            <p>See what's actually happening on the ground, call by call — no more guessing after the deal is lost.</p>
+          <div className="scenario-head">
+            <div className="eyebrow">What you can practice</div>
+            <h2>Every career-defining conversation, covered.</h2>
           </div>
-          <div className="audience-card">
-            <div className="audience-icon">
-              <svg viewBox="0 0 48 48" fill="none">
-                <path d="M24 6c-9.4 0-17 7.6-17 17s7.6 17 17 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-                <path d="M24 6c9.4 0 17 7.6 17 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="4 4"/>
-                <circle cx="24" cy="23" r="6" stroke="currentColor" strokeWidth="2.5"/>
-                <path d="M28 27l6 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-              </svg>
+          <div className="scenario-grid">
+            <div className="scenario-card">
+              <div className="scenario-icon">
+                <svg viewBox="0 0 48 48" fill="none"><rect x="8" y="10" width="32" height="28" rx="6" stroke="currentColor" strokeWidth="2.5"/><path d="M16 22h12M16 30h8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/><circle cx="32" cy="24" r="3" fill="currentColor"/></svg>
+              </div>
+              <h4>Career</h4>
+              <ul>
+                <li>Behavioral interview</li>
+                <li>Hiring manager interview</li>
+                <li>Executive interview</li>
+                <li>Internal promotion</li>
+                <li>Salary negotiation</li>
+              </ul>
             </div>
-            <h4>For reps</h4>
-            <p>Practice against an AI buyer that learns from real objections your team hears every day.</p>
-          </div>
-          <div className="audience-card">
-            <div className="audience-icon">
-              <svg viewBox="0 0 48 48" fill="none">
-                <path d="M24 6l6 12h12L30 30l4 14-10-7-10 7 4-14L6 18h12l6-12z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/>
-              </svg>
+            <div className="scenario-card">
+              <div className="scenario-icon">
+                <svg viewBox="0 0 48 48" fill="none"><path d="M24 6l6 12h12L30 30l4 14-10-7-10 7 4-14L6 18h12l6-12z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/></svg>
+              </div>
+              <h4>Leadership</h4>
+              <ul>
+                <li>Difficult feedback</li>
+                <li>Performance review</li>
+                <li>Conflict resolution</li>
+                <li>Delegation</li>
+                <li>Managing low performers</li>
+              </ul>
             </div>
-            <h4>For product teams</h4>
-            <p>Push a launch, capture what changed, and know reps are tested and ready before the next call.</p>
+            <div className="scenario-card">
+              <div className="scenario-icon">
+                <svg viewBox="0 0 48 48" fill="none"><path d="M24 6c-9.4 0-17 7.6-17 17s7.6 17 17 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/><path d="M24 6c9.4 0 17 7.6 17 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="4 4"/><circle cx="24" cy="23" r="6" stroke="currentColor" strokeWidth="2.5"/><path d="M28 27l6 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>
+              </div>
+              <h4>Sales</h4>
+              <ul>
+                <li>Discovery</li>
+                <li>Qualification</li>
+                <li>Objection handling</li>
+                <li>Negotiation</li>
+                <li>Enterprise demo</li>
+              </ul>
+            </div>
+            <div className="scenario-card">
+              <div className="scenario-icon">
+                <svg viewBox="0 0 48 48" fill="none"><rect x="6" y="14" width="36" height="24" rx="6" stroke="currentColor" strokeWidth="2.5"/><path d="M14 26h8M14 32h20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/><circle cx="32" cy="22" r="3" fill="currentColor"/><path d="M12 14v-3a4 4 0 0 1 4-4h16a4 4 0 0 1 4 4v3" stroke="currentColor" strokeWidth="2.5"/></svg>
+              </div>
+              <h4>Workplace</h4>
+              <ul>
+                <li>Saying no professionally</li>
+                <li>Escalating issues</li>
+                <li>Asking for help</li>
+                <li>Influencing stakeholders</li>
+                <li>Managing up</li>
+              </ul>
+            </div>
+            <div className="scenario-card">
+              <div className="scenario-icon">
+                <svg viewBox="0 0 48 48" fill="none"><path d="M24 8c-7.7 0-14 6.3-14 14 0 7.7 6.3 14 14 14s14-6.3 14-14c0-7.7-6.3-14-14-14z" stroke="currentColor" strokeWidth="2.5"/><path d="M18 22c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/><path d="M24 28v4M20 32h8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/><path d="M10 22h4M34 22h4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>
+              </div>
+              <h4>Customer</h4>
+              <ul>
+                <li>Angry customer</li>
+                <li>Churn prevention</li>
+                <li>Feature request</li>
+                <li>Incident communication</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
@@ -256,8 +291,8 @@ export function LandingPage() {
         <div className="wrap">
           <div className="section-head">
             <div className="eyebrow">Product</div>
-            <h2>A field intel dashboard, not another call recorder.</h2>
-            <p>Five capabilities working off the same feed of real conversations.</p>
+            <h2>The gym for professional communication.</h2>
+            <p>Four pillars that build real communication skills through deliberate practice.</p>
           </div>
           <div className="feature-carousel-wrapper">
             <div className="feature-carousel" ref={featureCarouselRef}>
@@ -265,8 +300,8 @@ export function LandingPage() {
                 <div className="feature-icon">
                   <svg viewBox="0 0 48 48" fill="none"><rect x="6" y="8" width="36" height="32" rx="6" stroke="currentColor" strokeWidth="2.5"/><path d="M14 36V24M14 24l6-6 6 8 8-14 6 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </div>
-                <h4>Call Intelligence Dashboard</h4>
-                <p>See what's happening on the ground across every rep and every deal. Objections, use cases, and call quality, tracked in one view built for sales leaders — not buried in a CRM field.</p>
+                <h4>Coaching</h4>
+                <p>After every conversation, get detailed feedback — strengths, weaknesses, missed opportunities, better phrasing, and exact rewrites for weak answers. A separate AI coach explains why and what to improve.</p>
                 <svg className="feature-image" viewBox="0 0 240 160" fill="none">
                   <rect width="240" height="160" rx="16" fill="#FFF5F0" />
                   <rect x="16" y="16" width="208" height="28" rx="6" fill="#fff" stroke="#FFD6C8" strokeWidth="2" />
@@ -285,8 +320,8 @@ export function LandingPage() {
                 <div className="feature-icon">
                   <svg viewBox="0 0 48 48" fill="none"><rect x="14" y="10" width="20" height="20" rx="10" stroke="currentColor" strokeWidth="2.5"/><path d="M24 20v8M20 24h8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/><path d="M18 36h12M24 30v6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>
                 </div>
-                <h4>AI Buyer Roleplay</h4>
-                <p>Reps practice against an AI buyer that evolves from real calls — sharper and more current with every cycle.</p>
+                <h4>Practice</h4>
+                <p>Realistic conversations with AI personas that respond like real people. Interviewers, managers, customers, stakeholders — each with their own personality, goals, and hidden concerns. No script. Every answer changes the next question.</p>
                 <svg className="feature-image" viewBox="0 0 160 160" fill="none">
                   <rect width="160" height="160" rx="16" fill="#FFF5F0" />
                   <circle cx="80" cy="52" r="28" fill="#FFE8E0" />
@@ -302,8 +337,8 @@ export function LandingPage() {
                 <div className="feature-icon">
                   <svg viewBox="0 0 48 48" fill="none"><path d="M24 6v6M24 36v6M6 24h6M36 24h6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/><circle cx="24" cy="24" r="10" stroke="currentColor" strokeWidth="2.5"/><path d="M20 24h8M24 20v8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>
                 </div>
-                <h4>Collective Call Learning</h4>
-                <p>One rep's toughest objection becomes practice for the whole team, automatically — nobody learns alone.</p>
+                <h4>Repetition</h4>
+                <p>Practice again. Try again. Improve. Exactly like a gym — deliberate, repeated practice builds real communication skills. Start from pre-built scenarios or create your own in minutes.</p>
                 <svg className="feature-image" viewBox="0 0 160 160" fill="none">
                   <rect width="160" height="160" rx="16" fill="#FFF5F0" />
                   <circle cx="80" cy="56" r="24" fill="#FFE8E0" />
@@ -318,8 +353,8 @@ export function LandingPage() {
                 <div className="feature-icon">
                   <svg viewBox="0 0 48 48" fill="none"><path d="M24 6l6 12h12L30 30l4 14-10-7-10 7 4-14L6 18h12l6-12z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/></svg>
                 </div>
-                <h4>Product Launch Readiness</h4>
-                <p>Product leaders upload a launch. Day1 turns it into a knowledge check so reps stay current before it shows up on a live call.</p>
+                <h4>Company Knowledge</h4>
+                <p>Upload your product docs and company info. Day1 uses them to create realistic scenarios and evaluate whether your answers are actually accurate — not just well-delivered.</p>
                 <svg className="feature-image" viewBox="0 0 160 160" fill="none">
                   <rect width="160" height="160" rx="16" fill="#FFF5F0" />
                   <path d="M80 20l12 24h24L96 84l8 28-24-16-24 16 8-28L44 44h24l12-24z" fill="#FF6B45" />
@@ -332,8 +367,8 @@ export function LandingPage() {
                 <div className="feature-icon">
                   <svg viewBox="0 0 48 48" fill="none"><rect x="8" y="10" width="32" height="24" rx="6" stroke="currentColor" strokeWidth="2.5"/><path d="M16 22h6M16 28h12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/><path d="M32 18l-4 8h6l-4 8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </div>
-                <h4>Live Battle Cards</h4>
-                <p>Deployed directly into real calls — objection handling and product knowledge, delivered right when reps need it, not after the call ends.</p>
+                <h4>Progress</h4>
+                <p>Track confidence, clarity, structure, empathy, persuasion, and executive communication over time. See your weakest skills, strongest skills, and where to focus next.</p>
                 <svg className="feature-image" viewBox="0 0 160 160" fill="none">
                   <rect width="160" height="160" rx="16" fill="#FFF5F0" />
                   <rect x="32" y="28" width="96" height="64" rx="10" fill="#fff" stroke="#FF6B45" strokeWidth="2" />
@@ -361,8 +396,8 @@ export function LandingPage() {
         <div className="wrap">
           <div className="section-head">
             <div className="eyebrow">How it works</div>
-            <h2>Capture, learn, and get sharper. All in one loop.</h2>
-            <p>Our process of intelligence.</p>
+            <h2>Practice. Feedback. Retry. Improve.</h2>
+            <p>The learning loop that builds communication skills.</p>
           </div>
           <div className="process-layout">
             <div className="process-tabs">
@@ -509,104 +544,56 @@ export function LandingPage() {
           <div className="persona-banner">
             <div className="section-head center">
               <div className="eyebrow">AI personas</div>
-              <h2 style={{ color: "#fff" }}>Buyers built from your own calls.</h2>
-              <p>Every persona reps practice against is shaped by objections, hesitations, and questions Day1 captures from your team's real calls.</p>
+              <h2 style={{ color: "#fff" }}>Practice against realistic conversation partners.</h2>
+              <p>Every persona has their own personality, goals, hidden concerns, and communication style. No script — every answer changes the conversation.</p>
             </div>
             <div className="persona-marquee">
               <div className="persona-row persona-row-left">
-                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c970a6cc3c8bccf1b492a_01.avif" alt="Sofia Moretti" className="persona-photo" /><div className="persona-info"><div className="name">Priya Nair</div><div className="role">Finance Buyer</div><div className="line">"Walk me through the pricing again."</div></div></div>
-                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0ed60ce341dacc09501e25_33.webp" alt="Hugo Lambert" className="persona-photo" /><div className="persona-info"><div className="name">Daniel Ho</div><div className="role">Procurement</div><div className="line">"What does your competitor do better?"</div></div></div>
-                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c9a595eb16f7015d5c8ed_03.avif" alt="Anna Schmidt" className="persona-photo" /><div className="persona-info"><div className="name">Wei Ling Tan</div><div className="role">Ops Director</div><div className="line">"How does this fit our current stack?"</div></div></div>
-                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c9a599f26b99ef87159c7_02.avif" alt="David Bernard" className="persona-photo" /><div className="persona-info"><div className="name">Marcus Lee</div><div className="role">Skeptical CFO</div><div className="line">"Prove the ROI, not the pitch."</div></div></div>
-                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0ed60c2e8527d759f62697_2.webp" alt="Layla Okonkwo" className="persona-photo" /><div className="persona-info"><div className="name">Amira Yusof</div><div className="role">New Prospect</div><div className="line">"I'm still comparing three vendors."</div></div></div>
-                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c970a6cc3c8bccf1b492a_01.avif" alt="Sofia Moretti" className="persona-photo" /><div className="persona-info"><div className="name">Priya Nair</div><div className="role">Finance Buyer</div><div className="line">"Walk me through the pricing again."</div></div></div>
-                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0ed60ce341dacc09501e25_33.webp" alt="Hugo Lambert" className="persona-photo" /><div className="persona-info"><div className="name">Daniel Ho</div><div className="role">Procurement</div><div className="line">"What does your competitor do better?"</div></div></div>
-                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c9a595eb16f7015d5c8ed_03.avif" alt="Anna Schmidt" className="persona-photo" /><div className="persona-info"><div className="name">Wei Ling Tan</div><div className="role">Ops Director</div><div className="line">"How does this fit our current stack?"</div></div></div>
-                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c9a599f26b99ef87159c7_02.avif" alt="David Bernard" className="persona-photo" /><div className="persona-info"><div className="name">Marcus Lee</div><div className="role">Skeptical CFO</div><div className="line">"Prove the ROI, not the pitch."</div></div></div>
-                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0ed60c2e8527d759f62697_2.webp" alt="Layla Okonkwo" className="persona-photo" /><div className="persona-info"><div className="name">Amira Yusof</div><div className="role">New Prospect</div><div className="line">"I'm still comparing three vendors."</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c970a6cc3c8bccf1b492a_01.avif" alt="Priya Nair" className="persona-photo" /><div className="persona-info"><div className="name">Priya Nair</div><div className="role">Hiring Manager</div><div className="line">"Tell me about a time you failed."</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0ed60ce341dacc09501e25_33.webp" alt="Daniel Ho" className="persona-photo" /><div className="persona-info"><div className="name">Daniel Ho</div><div className="role">Direct Manager</div><div className="line">"This feedback is hard to hear, but..."</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c9a595eb16f7015d5c8ed_03.avif" alt="Wei Ling Tan" className="persona-photo" /><div className="persona-info"><div className="name">Wei Ling Tan</div><div className="role">Sales Prospect</div><div className="line">"What makes you different from X?"</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c9a599f26b99ef87159c7_02.avif" alt="Marcus Lee" className="persona-photo" /><div className="persona-info"><div className="name">Marcus Lee</div><div className="role">Skeptical Investor</div><div className="line">"Why will this work where others failed?"</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0ed60c2e8527d759f62697_2.webp" alt="Amira Yusof" className="persona-photo" /><div className="persona-info"><div className="name">Amira Yusof</div><div className="role">Low Performer</div><div className="line">"I feel like I'm being singled out."</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c970a6cc3c8bccf1b492a_01.avif" alt="Priya Nair" className="persona-photo" /><div className="persona-info"><div className="name">James Okafor</div><div className="role">Executive Interviewer</div><div className="line">"Where do you see yourself in 5 years?"</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0ed60ce341dacc09501e25_33.webp" alt="Daniel Ho" className="persona-photo" /><div className="persona-info"><div className="name">Sofia Reyes</div><div className="role">Angry Customer</div><div className="line">"This is the third time this has happened."</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c9a595eb16f7015d5c8ed_03.avif" alt="Wei Ling Tan" className="persona-photo" /><div className="persona-info"><div className="name">Ryan Chen</div><div className="role">Resistant Colleague</div><div className="line">"I don't think that's how we do things here."</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0c9a599f26b99ef87159c7_02.avif" alt="Marcus Lee" className="persona-photo" /><div className="persona-info"><div className="name">Hannah Berg</div><div className="role">HR Partner</div><div className="line">"Walk me through how you handled the conflict."</div></div></div>
+                <div className="persona-card"><img loading="lazy" src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/6a0ed60c2e8527d759f62697_2.webp" alt="Amira Yusof" className="persona-photo" /><div className="persona-info"><div className="name">Kai Nakamura</div><div className="role">Senior Stakeholder</div><div className="line">"Convince me this is the right priority."</div></div></div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="padding-global">
+      <section className="padding-global comparison-section">
         <div className="wrap">
-          <div className="grid-vertical">
-            <div className="section-head">
-              <div className="eyebrow">Built to fit</div>
-              <h2>Built for enterprise standards</h2>
-              <p>Everything you need to deploy Day1 at scale, with full confidence.</p>
-            </div>
-            <div className="list-card">
-              <div className="card-persona big">
-                <div className="content-card">
-                  <div className="w-embed ent-hero-svg" dangerouslySetInnerHTML={{ __html: flagSvg }} />
-                </div>
-                <div className="container-card-content big">
-                  <div className="heading-4">4 languages<br/>available</div>
-                  <div className="paragraph text-medium-grey">English, Bahasa Indonesia, Malay, and Singaporean English — tailored for teams across Southeast Asia.</div>
-                </div>
-              </div>
-              <div className="card-persona big">
-                <div className="content-card">
-                  <div className="w-embed ent-hero-svg" dangerouslySetInnerHTML={{ __html: shieldSvg }} />
-                </div>
-                <div className="container-card-content big">
-                  <div className="heading-4">Security<br/>and Compliance</div>
-                  <div className="paragraph text-medium-grey">End-to-end encryption, role-based access controls, and isolated organization data. SOC 2 and ISO 27001 certifications are in progress.</div>
-                </div>
-              </div>
-              <div className="card-persona big">
-                <div className="content-card">
-                  <div className="w-embed ent-hero-svg" dangerouslySetInnerHTML={{ __html: bubbleSvg }} />
-                </div>
-                <div className="container-card-content big">
-                  <div className="heading-4">Connected<br/>to your CRM and LMS</div>
-                  <div className="paragraph text-medium-grey">Native integration with your CRM, LMS, and HR tools. Data flows seamlessly, teams save time.</div>
-                </div>
-              </div>
-            </div>
+          <div className="section-head center">
+            <div className="eyebrow">Day1 vs ChatGPT</div>
+            <h2>ChatGPT gives answers.<br />Day1 builds skill.</h2>
+            <p>There's a big difference between getting a response and getting better.</p>
           </div>
-        </div>
-      </section>
-
-      <section className="padding-global">
-        <div className="wrap">
-          <div className="section-head">
-            <h2>The challenges we solve together</h2>
-            <p>Reduce performance gaps, align strategy and execution, accelerate new employee autonomy.</p>
-          </div>
-          <div className="challenges-grid-wrapper">
-            <div className="challenges-grid">
-              <div className="challenges-item">
-                <img src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/68dc0f905c0590c393e0e575_Frame%202147225027.avif" loading="lazy" alt="sales-working-on-muchbetter-ai-to-train-sales" className="challenges-item-bg" />
-                <div className="challenges-item-content">
-                  <p className="heading-4 text-white">Reduce ramp-up time by 30% to 50%</p>
-                  <p className="paragraph medium text-white-80">Enable new hires to reach productivity faster through realistic practice, structured onboarding, and continuous reinforcement from day one.</p>
-                </div>
+          <div className="comparison-table">
+            <div className="comparison-col comparison-col-chatgpt">
+              <div className="comparison-col-header">
+                <div className="comparison-logo chatgpt-logo">ChatGPT</div>
               </div>
-              <div className="challenges-item small">
-                <div className="challenges-item-content">
-                  <p className="number-heading-display">30–50% <br />faster ramp-up</p>
-                  <p className="paragraph medium text-white-80">Cut time to first confident live call</p>
-                </div>
-              </div>
+              <div className="comparison-row bad"><span className="comparison-icon">✕</span>Writes answers <em>for</em> you</div>
+              <div className="comparison-row bad"><span className="comparison-icon">✕</span>No real conversation flow</div>
+              <div className="comparison-row bad"><span className="comparison-icon">✕</span>No performance feedback</div>
+              <div className="comparison-row bad"><span className="comparison-icon">✕</span>No memory of your progress</div>
+              <div className="comparison-row bad"><span className="comparison-icon">✕</span>Can't push back or go off-script</div>
+              <div className="comparison-row bad"><span className="comparison-icon">✕</span>No skill tracking over time</div>
             </div>
-            <div className="challenges-grid odd">
-              <div className="challenges-item small">
-                <div className="challenges-item-content">
-                  <p className="number-heading-display">45% <br />better handling</p>
-                  <p className="paragraph medium text-white-80">Measured in practice, not just training</p>
-                </div>
+            <div className="comparison-col comparison-col-day1">
+              <div className="comparison-col-header">
+                <div className="comparison-logo day1-logo">Day1</div>
               </div>
-              <div className="challenges-item">
-                <img src="https://cdn.prod.website-files.com/68da4dda1d086704a4f1d919/68dc0f900ac2dfa57ce34c10_Frame%202147225035.avif" loading="lazy" alt="sales-ai-coaching-pictures" className="challenges-item-bg" />
-                <div className="challenges-item-content">
-                  <p className="heading-4 text-white">Increase product knowledge and technical objection handling by 45%</p>
-                  <p className="paragraph medium text-white-80">Help teams master complex products, respond confidently to customer questions, and handle technical objections more effectively.</p>
-                </div>
-              </div>
+              <div className="comparison-row good"><span className="comparison-icon">✓</span>Puts you in the conversation</div>
+              <div className="comparison-row good"><span className="comparison-icon">✓</span>Responds dynamically to what you say</div>
+              <div className="comparison-row good"><span className="comparison-icon">✓</span>Detailed coaching after every session</div>
+              <div className="comparison-row good"><span className="comparison-icon">✓</span>Tracks progress across sessions</div>
+              <div className="comparison-row good"><span className="comparison-icon">✓</span>Adapts — every answer changes what comes next</div>
+              <div className="comparison-row good"><span className="comparison-icon">✓</span>Shows you where to improve</div>
             </div>
           </div>
         </div>
@@ -621,7 +608,7 @@ export function LandingPage() {
                 <h2 className="heading-2 text-white">Try the Day1</h2>
                 <h2 className="heading-1-display-2 text-color-white">Experience</h2>
               </div>
-              <div className="paragraph large text-white-80">Don't let engagement rely on memory. Automated notifications bring teams back to practice regularly: turning consistency into performance.</div>
+              <div className="paragraph large text-white-80">The conversations that define your career don't wait for you to be ready. Day1 makes sure you are — through deliberate practice, real coaching, and measurable improvement.</div>
               <div className="div-button">
                 <Link className="button w-inline-block" href={user ? "/dashboard" : "/book-demo"}>
                   <div className="button-content">
@@ -691,11 +678,11 @@ export function LandingPage() {
                     <div className="day1-path-node badge">🏅</div>
                   </div>
                   <div className="day1-path-labels">
-                    <span>Pricing objections</span>
-                    <span>Product Q1 launch</span>
-                    <span>Multi-entity</span>
-                    <span>Enterprise</span>
-                    <span>Advanced close</span>
+                    <span>Behavioral interview</span>
+                    <span>Salary negotiation</span>
+                    <span>Difficult feedback</span>
+                    <span>Stakeholder pitch</span>
+                    <span>Executive interview</span>
                     <span>Badge</span>
                   </div>
                 </div>
@@ -703,18 +690,18 @@ export function LandingPage() {
                   <div className="day1-insight">
                     <div className="day1-insight-title">Performance</div>
                     <div className="day1-insight-sub">Based on the last 3 simulations</div>
-                    <div className="day1-skill"><span>Discovery</span><span className="day1-skill-bar"><span style={{ width: "80%" }}></span></span><span>80%</span></div>
-                    <div className="day1-skill"><span>Objection handling</span><span className="day1-skill-bar"><span style={{ width: "50%" }}></span></span><span>50%</span></div>
-                    <div className="day1-skill"><span>Technical depth</span><span className="day1-skill-bar"><span style={{ width: "60%" }}></span></span><span>60%</span></div>
-                    <div className="day1-skill"><span>Closing</span><span className="day1-skill-bar"><span style={{ width: "80%" }}></span></span><span>80%</span></div>
+                    <div className="day1-skill"><span>Confidence</span><span className="day1-skill-bar"><span style={{ width: "80%" }}></span></span><span>80%</span></div>
+                    <div className="day1-skill"><span>Clarity</span><span className="day1-skill-bar"><span style={{ width: "65%" }}></span></span><span>65%</span></div>
+                    <div className="day1-skill"><span>Structure</span><span className="day1-skill-bar"><span style={{ width: "72%" }}></span></span><span>72%</span></div>
+                    <div className="day1-skill"><span>Empathy</span><span className="day1-skill-bar"><span style={{ width: "55%" }}></span></span><span>55%</span></div>
                   </div>
                   <div className="day1-insight">
                     <div className="day1-insight-title">Strengths</div>
-                    <div className="day1-insight-text">You consistently handle pricing objections and connect the product to business outcomes.</div>
+                    <div className="day1-insight-text">You structure answers clearly and stay composed under pressure — confidence and clarity are your strongest signals.</div>
                   </div>
                   <div className="day1-insight">
                     <div className="day1-insight-title">Focus areas</div>
-                    <div className="day1-insight-text">Push deeper on multi-entity use cases and security questions during enterprise calls.</div>
+                    <div className="day1-insight-text">Work on empathy and active listening — your answers can feel transactional. Try reflecting back before responding.</div>
                   </div>
                 </div>
               </div>
@@ -805,14 +792,14 @@ export function LandingPage() {
       <section id="demo">
         <div className="wrap">
           <div className="cta-banner">
-            <h2>Be one of the first teams running Day1.</h2>
-            <p>We're building this with early design partners — come shape it with us.</p>
+            <h2>Start practicing today.</h2>
+            <p>Free to start. No credit card required. Practice your first conversation in minutes.</p>
             <div className="cta-actions">
               {user ? (
                 <Link className="btn btn-primary" href="/dashboard">Go to Dashboard →</Link>
               ) : (
                 <>
-                  <Link className="btn btn-primary" href="/book-demo">Book a demo</Link>
+                  <Link className="btn btn-primary" href="/signup">Create free account →</Link>
                   <Link className="btn btn-outline" href="/contact">Talk to us</Link>
                 </>
               )}
@@ -829,28 +816,28 @@ export function LandingPage() {
           </div>
           <div className="faq-list">
             <div className="faq-item">
-              <div className="faq-q">What is an AI field intelligence platform for sales?<span className="chev">⌄</span></div>
-              <div className="faq-a"><p>It's a system that turns real sales calls into a live feed of insight — surfacing objections and use cases for leaders, and using that same data to keep AI roleplay and battle cards current for reps.</p></div>
+              <div className="faq-q">What is Day1?<span className="chev">⌄</span></div>
+              <div className="faq-a"><p>Day1 is the gym for professional communication. You practice career-defining conversations — interviews, sales calls, feedback, negotiations — with realistic AI personas, then get personalized coaching after every session.</p></div>
             </div>
             <div className="faq-item">
-              <div className="faq-q">How does Day1 turn call recordings into insights?<span className="chev">⌄</span></div>
-              <div className="faq-a"><p>Calls are analyzed automatically after they happen. Objections, use cases, and coaching moments are tagged and routed to the dashboard — no manual note-taking.</p></div>
+              <div className="faq-q">How is this different from ChatGPT?<span className="chev">⌄</span></div>
+              <div className="faq-a"><p>ChatGPT gives answers. Day1 builds skill. Instead of generating responses for you, Day1 creates realistic conversations that adapt to what you say, evaluates your performance, and tracks your improvement over time.</p></div>
             </div>
             <div className="faq-item">
-              <div className="faq-q">How does the AI buyer stay realistic?<span className="chev">⌄</span></div>
-              <div className="faq-a"><p>The AI buyer is trained on objections and questions actually captured from your team's calls, so roleplay reflects what reps are hearing right now.</p></div>
+              <div className="faq-q">How realistic are the AI personas?<span className="chev">⌄</span></div>
+              <div className="faq-a"><p>Every persona has their own personality, goals, objections, and hidden concerns. They adapt to your answers in real time, so every conversation feels natural — not scripted.</p></div>
             </div>
             <div className="faq-item">
-              <div className="faq-q">Do reps have to change how they make calls?<span className="chev">⌄</span></div>
-              <div className="faq-a"><p>No. Day1 connects to the call recording tool your team already uses. Capture happens in the background — reps just sell.</p></div>
+              <div className="faq-q">What modes can I practice in?<span className="chev">⌄</span></div>
+              <div className="faq-a"><p>You can practice via voice call, video call with an AI avatar, or text chat. Choose the mode that best fits your scenario and comfort level.</p></div>
             </div>
             <div className="faq-item">
-              <div className="faq-q">How do battle cards show up during a real call?<span className="chev">⌄</span></div>
-              <div className="faq-a"><p>When a known objection or product question comes up, the relevant battle card surfaces for the rep in the moment.</p></div>
+              <div className="faq-q">Can I create my own scenarios?<span className="chev">⌄</span></div>
+              <div className="faq-a"><p>Yes. You can start from pre-built scenarios or create custom ones with your own personas, company knowledge, and scoring criteria — all in minutes.</p></div>
             </div>
             <div className="faq-item">
               <div className="faq-q">Who is Day1 for?<span className="chev">⌄</span></div>
-              <div className="faq-a"><p>Sales leaders who want visibility on the ground, reps who want to walk into calls prepared, and product leaders who need launches to land.</p></div>
+              <div className="faq-a"><p>Anyone who has important conversations at work — professionals preparing for interviews, sales teams practicing discovery calls, managers rehearsing difficult feedback, founders pitching investors, and leaders preparing for executive presentations.</p></div>
             </div>
           </div>
         </div>

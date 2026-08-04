@@ -73,7 +73,7 @@ export default function BookDemoPage() {
             See Day1 in action
           </h1>
           <p className="text-base sm:text-lg text-[#68646C] leading-relaxed max-w-2xl mb-8 sm:mb-12">
-            For B2B fintech sales teams and sales leaders. Tell us about your team and we will show you how Day1 turns every call into team-wide readiness.
+            For professionals, teams, and organizations. Tell us about your goals and we will show you how Day1 builds communication skills through realistic practice and coaching.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
@@ -85,7 +85,7 @@ export default function BookDemoPage() {
                 <div>
                   <h2 className="font-semibold text-[#1B1A1E] mb-1" style={{ fontFamily: "Poppins, sans-serif" }}>Personalized walkthrough</h2>
                   <p className="text-sm text-[#68646C]">
-                    A 20-minute demo tailored to your team's call workflow and sales motion.
+                    A 20-minute demo tailored to your goals — individual practice, team readiness, or organizational learning.
                   </p>
                 </div>
               </div>
@@ -94,9 +94,9 @@ export default function BookDemoPage() {
                   <Users className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-[#1B1A1E] mb-1" style={{ fontFamily: "Poppins, sans-serif" }}>Built for sales leaders</h2>
+                  <h2 className="font-semibold text-[#1B1A1E] mb-1" style={{ fontFamily: "Poppins, sans-serif" }}>Built for everyone</h2>
                   <p className="text-sm text-[#68646C]">
-                    See how call intelligence, AI buyer roleplay, and live battle cards fit together.
+                    See how AI roleplay, post-session coaching, and skill tracking work together to build real communication skills.
                   </p>
                 </div>
               </div>
@@ -138,21 +138,21 @@ export default function BookDemoPage() {
                 <label htmlFor="company" className="text-sm font-medium text-[#1B1A1E]">Company</label>
                 <div className="relative">
                   <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9A96A0] pointer-events-none" />
-                  <Input id="company" name="company" placeholder="Acme Fintech" className="h-12 pl-10 rounded-xl" required />
+                  <Input id="company" name="company" placeholder="Acme Inc." className="h-12 pl-10 rounded-xl" required />
                 </div>
               </div>
               <div className="space-y-2">
                 <label htmlFor="team-size" className="text-sm font-medium text-[#1B1A1E]">Team size</label>
                 <div className="relative">
                   <UsersRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9A96A0] pointer-events-none" />
-                  <Input id="team-size" name="team-size" placeholder="e.g. 20–50 reps" className="h-12 pl-10 rounded-xl" />
+                  <Input id="team-size" name="team-size" placeholder="e.g. 1, 10–50, 100+" className="h-12 pl-10 rounded-xl" />
                 </div>
               </div>
               <div className="space-y-2">
                 <label htmlFor="message" className="text-sm font-medium text-[#1B1A1E]">What would you like to see?</label>
                 <div className="relative">
                   <MessageSquare className="absolute left-3 top-3 w-4 h-4 text-[#9A96A0] pointer-events-none" />
-                  <Textarea id="message" name="message" placeholder="Tell us about your current call workflow and main pain points." rows={4} className="pl-10 rounded-xl" />
+                  <Textarea id="message" name="message" placeholder="What conversations do you want to practice? Any specific goals?" rows={4} className="pl-10 rounded-xl" />
                 </div>
               </div>
               <Button

@@ -772,7 +772,7 @@ export default function CompanyKnowledgePage() {
             </p>
             <form onSubmit={handleCreateOrg} className="flex gap-3">
               <Input
-                placeholder="Organization name (e.g., Aspire)"
+                placeholder="Organization name (e.g., NorthPay)"
                 value={newOrgName}
                 onChange={(e) => setNewOrgName(e.target.value)}
                 className="flex-1"

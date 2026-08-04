@@ -98,7 +98,7 @@ function parseCompetitors(text: string | null | undefined): Competitor[] | null 
     const sectionPatterns: { key: CompetitorSection; regex: RegExp }[] = [
       { key: "strengths", regex: /^(strengths?|pros?|advantages?|what they do well):?\s*/i },
       { key: "weaknesses", regex: /^(weaknesses?|cons?|gaps?|limitations?):?\s*/i },
-      { key: "ourEdge", regex: /^(our\s*(edge|advantage)|why\s*(we| Aspire)|how\s*we\s*win|differentiation):?\s*/i },
+      { key: "ourEdge", regex: /^(our\s*(edge|advantage)|why\s*(we| NorthPay)|how\s*we\s*win|differentiation):?\s*/i },
     ];
 
     let sectionHit: { key: CompetitorSection; remaining: string } | null = null;

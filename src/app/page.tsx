@@ -3,16 +3,16 @@ import { LandingPage } from "@/components/landing/LandingPage";
 import { PageLayout } from "@/components/landing/PageLayout";
 
 export const metadata: Metadata = {
-  title: "Day1 | AI Field Intelligence for Sales Teams",
+  title: "Day1 | The Gym for Professional Communication",
   description:
-    "Day1 turns your sales calls into a live intelligence loop — surfacing objections and use cases for leaders and keeping AI roleplay and battle cards current for reps.",
+    "Day1 helps professionals practice the conversations that determine their careers — interviews, sales calls, feedback, negotiations, and more. Build communication skills through realistic AI roleplay, coaching, and deliberate practice.",
   alternates: {
     canonical: "https://www.day1app.io/",
   },
   openGraph: {
-    title: "Day1 | AI Field Intelligence for Sales Teams",
+    title: "Day1 | The Gym for Professional Communication",
     description:
-      "Day1 turns your sales calls into a live intelligence loop — surfacing objections and use cases for leaders and keeping AI roleplay and battle cards current for reps.",
+      "Day1 helps professionals practice the conversations that determine their careers — interviews, sales calls, feedback, negotiations, and more. Build communication skills through realistic AI roleplay, coaching, and deliberate practice.",
     url: "https://www.day1app.io/",
   },
 };
@@ -54,7 +54,7 @@ export default function Home() {
                   priceCurrency: "USD",
                 },
                 description:
-                  "AI-powered sales training platform for B2B teams. Practice discovery calls, objection handling, and fintech sales conversations with realistic AI buyers.",
+                  "Professional communication training platform. Practice interviews, sales calls, feedback, negotiations, and other career-defining conversations with realistic AI personas. Get personalized coaching and track improvement over time.",
                 aggregateRating: {
                   "@type": "AggregateRating",
                   ratingValue: "4.8",
