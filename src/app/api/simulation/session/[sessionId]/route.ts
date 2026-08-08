@@ -43,6 +43,7 @@ export async function GET(
       durationS: session.duration_s,
       callMode: session.call_mode,
       avatarId: state.avatar_id as string | undefined,
+      avatarImageUrl: state.avatar_image_url as string | undefined,
       voiceId: state.voice_id as string | undefined,
       avatarName: state.avatar_name as string | undefined,
       voiceAvatarImageUrl: state.voice_avatar_image_url as string | undefined,

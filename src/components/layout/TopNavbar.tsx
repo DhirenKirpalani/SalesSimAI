@@ -48,7 +48,7 @@ import { Logo } from "@/components/layout/Logo";
 
 const baseMobileNavItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Scenarios", href: "/scenarios", icon: Library },
+  { label: "Practice", href: "/scenarios", icon: Library },
   { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
   { label: "Company Knowledge", href: "/company-knowledge", icon: BookOpen },
@@ -411,9 +411,9 @@ export function TopNavbar() {
       .catch((err) => console.error("[TopNavbar] fetch workspaces error:", err));
   }, []);
 
-  async function handleSwitchWorkspace(workspaceId: string) {
+  async function handleSwitchWorkspace(workspaceId: string | null) {
     if (workspaceId === activeWorkspaceId) return;
-    setSwitchingWorkspaceId(workspaceId);
+    setSwitchingWorkspaceId(workspaceId ?? "personal");
     try {
       const res = await fetch("/api/company/org/switch", {
         method: "POST",
@@ -618,6 +618,18 @@ export function TopNavbar() {
           <div className="px-3 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Workspaces
           </div>
+          <DropdownMenuItem
+            onClick={() => handleSwitchWorkspace(null)}
+            disabled={switchingWorkspaceId === "personal"}
+            className="flex items-center justify-between py-2.5 px-3"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <User className="w-5 h-5 text-muted-foreground" />
+              <span className="truncate text-sm">Personal</span>
+            </div>
+            {activeWorkspaceId === null && <Check className="w-4 h-4 text-primary shrink-0 ml-2" />}
+            {switchingWorkspaceId === "personal" && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0 ml-2" />}
+          </DropdownMenuItem>
           {workspaces.map((workspace) => {
             const isActive = workspace.id === activeWorkspaceId;
             return (

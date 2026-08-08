@@ -5,1196 +5,954 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   ArrowLeft,
-  ArrowRight,
-  Building2,
   Users,
-  Settings2,
-  FileCheck,
   Check,
-  Plus,
   Loader2,
   Clock,
   Sparkles,
-  Image,
+  Send,
+  FileText,
+  ChevronDown,
   Phone,
-  Upload,
-  X,
+  Video,
+  GraduationCap,
+  Handshake,
+  Target,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { mockPersonas } from "@/lib/data/mockData";
 import { cn } from "@/lib/utils";
-import { AvatarPicker } from "@/components/AvatarPicker";
 
-const STEPS = [
-  { id: 1, label: "Your Company", icon: Building2 },
-  { id: 2, label: "Buyer Persona", icon: Users },
-  { id: 3, label: "Avatar", icon: Image },
-  { id: 4, label: "Scenario Setup", icon: Settings2 },
-  { id: 5, label: "Review", icon: FileCheck },
-];
-
-const SCENARIO_TYPES = [
-  "First Discovery Call",
-  "Objection Handling",
-  "Negotiation",
-  "Product Demo",
-  "Pitch",
-  "Win-Back",
-  "Renewal",
-  "Executive Presentation",
-  "Product Knowledge Interview",
-  "First Round Interview",
-];
-
-const DIFFICULTIES = ["Beginner", "Intermediate", "Advanced", "Expert"] as const;
-const DURATIONS = [5, 10, 15, 20];
-
-const PRODUCT_TYPES = [
-  { value: "payment", label: "Payment" },
-  { value: "eor", label: "EoR" },
-  { value: "cards", label: "Cards" },
-] as const;
-
-type ProductType = typeof PRODUCT_TYPES[number]["value"];
-
-const PRODUCT_TYPE_LABELS: Record<ProductType, string> = {
-  payment: "Payment",
-  eor: "EoR",
-  cards: "Cards",
-};
-
-const EVALUATION_FRAMEWORKS = [
-  { value: "", label: "Standard (Discovery-based)" },
-  { value: "MEDDIC", label: "MEDDIC" },
-  { value: "BANT", label: "BANT" },
-  { value: "SPIN", label: "SPIN Selling" },
-  { value: "Challenger", label: "Challenger Sale" },
-  { value: "Sandler", label: "Sandler" },
-  { value: "ValueSelling", label: "ValueSelling" },
-  { value: "Custom", label: "Custom" },
-];
-
-const KNOWN_FRAMEWORK_VALUES = new Set(EVALUATION_FRAMEWORKS.map((f) => f.value));
-function isKnownFramework(value: string | null | undefined): boolean {
-  return !!value && KNOWN_FRAMEWORK_VALUES.has(value);
+interface KbDoc {
+  id: string;
+  name: string;
+  document_type: string;
 }
 
-type Difficulty = typeof DIFFICULTIES[number];
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
 
-interface FormState {
-  sellerCompany: string;
-  sellerProduct: string;
-  productType: "payment" | "eor" | "cards";
-  sellerDescription: string;
-  usePresetPersona: boolean;
-  presetPersonaId: string;
-  customPersonaName: string;
-  customPersonaTitle: string;
-  customPersonaCompany: string;
-  customPersonaIndustry: string;
-  customPersonaPersonality: string;
-  customPersonaPersonalityTraits: string;
-  customPersonaPainPoints: string;
-  customPersonaPainPointsProcess: string;
-  customPersonaPainPointsImpact: string;
-  customPersonaGoals: string;
-  customPersonaCompanyGoal: string;
-  customPersonaPersonalMotivation: string;
-  customPersonaCommStyle: string;
-  customPersonaCommLanguage: string;
-  customPersonaPriorVendor: string;
-  customPersonaDecisionCriteria: string;
-  customPersonaHiddenConcern: string;
-  customPersonaMeetingSource: string;
-  customPersonaBudget: string;
-  customPersonaTimeline: string;
-  customPersonaSampleDialogues: string;
-  scenarioType: string;
-  difficulty: Difficulty;
+interface GeneratedScenario {
+  seller_company: string;
+  seller_product: string;
+  product_type: string;
+  seller_description: string;
+  scenario_type: string;
+  difficulty: string;
   duration: number;
-  contextNote: string;
-  avatarId: string;
-  avatarName: string;
-  voiceId: string;
-  voiceAvatarImageUrl: string;
-  elevenlabsVoiceId: string;
-  scoringCriteria: string;
-  evaluationFramework: string;
-  customEvaluationFramework: string;
+  context_note: string;
+  custom_persona: {
+    name: string;
+    jobTitle: string;
+    company: string;
+    industry: string;
+    personality: string;
+    personalityTraits: string;
+    painPoints: string[];
+    painPointsCurrentProcess: string;
+    painPointsImpact: string;
+    goals: string[];
+    companyGoal: string;
+    personalMotivation: string;
+    communicationStyle: string;
+    communicationLanguage: string;
+    priorVendorExperience: string;
+    decisionCriteria: string;
+    hiddenConcern: string;
+    meetingSource: string;
+    budgetStatus: string;
+    timelinePressure: string;
+    sampleDialogues: string;
+  };
+  scoring_criteria: string;
+  evaluation_framework: string;
 }
 
-const LS_KEY = "day1_createScenario";
-
-const INITIAL: FormState = {
-  sellerCompany: "",
-  sellerProduct: "",
-  productType: "payment",
-  sellerDescription: "",
-  usePresetPersona: true,
-  presetPersonaId: "",
-  customPersonaName: "",
-  customPersonaTitle: "",
-  customPersonaCompany: "",
-  customPersonaIndustry: "",
-  customPersonaPersonality: "",
-  customPersonaPersonalityTraits: "",
-  customPersonaPainPoints: "",
-  customPersonaPainPointsProcess: "",
-  customPersonaPainPointsImpact: "",
-  customPersonaGoals: "",
-  customPersonaCompanyGoal: "",
-  customPersonaPersonalMotivation: "",
-  customPersonaCommStyle: "",
-  customPersonaCommLanguage: "",
-  customPersonaPriorVendor: "",
-  customPersonaDecisionCriteria: "",
-  customPersonaHiddenConcern: "",
-  customPersonaMeetingSource: "",
-  customPersonaBudget: "",
-  customPersonaTimeline: "",
-  customPersonaSampleDialogues: "",
-  scenarioType: "First Discovery Call",
-  difficulty: "Intermediate",
-  duration: 5,
-  contextNote: "",
-  avatarId: "",
-  avatarName: "",
-  voiceId: "",
-  voiceAvatarImageUrl: "",
-  elevenlabsVoiceId: "",
-  scoringCriteria: "",
-  evaluationFramework: "",
-  customEvaluationFramework: "",
+const CATEGORY_SUGGESTIONS: Record<string, { icon: typeof Phone; label: string; text: string }[]> = {
+  interviews: [
+    { icon: GraduationCap, label: "Behavioral", text: "Behavioral interview for a product manager role at a tech startup" },
+    { icon: Users, label: "First Round", text: "First round interview for a senior software engineer position" },
+    { icon: Target, label: "Product Knowledge", text: "Product knowledge interview for a sales role at a SaaS company" },
+    { icon: Phone, label: "Tell Me About Yourself", text: "Practice answering 'Tell me about yourself' for a marketing manager role" },
+  ],
+  sales: [
+    { icon: Phone, label: "Cold Call", text: "I want to practice a cold call to a VP of Finance at a logistics company" },
+    { icon: Target, label: "Discovery Call", text: "Discovery call with a Head of Operations at a mid-size manufacturer" },
+    { icon: Handshake, label: "Objection Handling", text: "Handling objections from a prospect who thinks the price is too high" },
+    { icon: Target, label: "Product Demo", text: "Product demo for a CFO who is concerned about ROI" },
+  ],
+  leadership: [
+    { icon: Users, label: "Difficult Feedback", text: "Giving difficult feedback to a underperforming team member" },
+    { icon: Target, label: "Performance Review", text: "Annual performance review with a senior developer" },
+    { icon: Handshake, label: "Managing Conflict", text: "Resolving conflict between two team members on my team" },
+    { icon: Users, label: "Coaching", text: "Coaching a team member who wants to grow into a leadership role" },
+  ],
+  corporate_communication: [
+    { icon: Target, label: "Saying No", text: "Saying no professionally to a stakeholder requesting an unrealistic deadline" },
+    { icon: Users, label: "Stakeholder Update", text: "Giving a status update to executives on a delayed project" },
+    { icon: Handshake, label: "Escalation", text: "Escalating an issue to leadership when a vendor is failing to deliver" },
+    { icon: Target, label: "Managing Priorities", text: "Discussing shifting priorities with a cross-functional team" },
+  ],
+  negotiation: [
+    { icon: Handshake, label: "Salary", text: "Salary negotiation for a new job offer" },
+    { icon: Target, label: "Budget", text: "Budget discussion with my manager for next quarter's headcount" },
+    { icon: Handshake, label: "Vendor", text: "Negotiating pricing with a vendor who is raising their rates" },
+    { icon: Handshake, label: "Scope", text: "Scope negotiation with a client requesting extra work outside the contract" },
+  ],
+  customer_success: [
+    { icon: Phone, label: "Onboarding", text: "Onboarding call with a new customer who is eager to go live quickly" },
+    { icon: Handshake, label: "Renewal", text: "Renewal discussion with a customer considering downgrading their plan" },
+    { icon: Target, label: "Churn Risk", text: "Handling a churn risk call with a frustrated customer experiencing issues" },
+    { icon: Phone, label: "Upsell", text: "Upsell conversation with a customer who has outgrown their current tier" },
+  ],
+  product_management: [
+    { icon: Target, label: "PRD Review", text: "PRD review with engineering and design teams for a new feature" },
+    { icon: Users, label: "Sprint Planning", text: "Sprint planning discussion with engineers pushing back on scope" },
+    { icon: Target, label: "Roadmap Pitch", text: "Pitching a roadmap change to the executive team" },
+    { icon: Handshake, label: "Engineering Tradeoff", text: "Discussing technical tradeoffs with a lead engineer on architecture" },
+  ],
+  presentations: [
+    { icon: Target, label: "Investor Pitch", text: "Investor pitch for a Series A funding round" },
+    { icon: Target, label: "Quarterly Review", text: "Quarterly business review presentation to the board" },
+    { icon: Target, label: "Product Launch", text: "Product launch presentation to the sales and marketing teams" },
+    { icon: Users, label: "All-Hands", text: "Team all-hands presentation on company strategy and goals" },
+  ],
+  professional_english: [
+    { icon: Phone, label: "Small Talk", text: "Small talk and networking at a professional conference" },
+    { icon: Target, label: "Email Tone", text: "Practicing professional email tone for a client follow-up" },
+    { icon: Users, label: "Meeting Participation", text: "Participating actively in a cross-functional team meeting" },
+    { icon: Target, label: "Presentation Delivery", text: "Delivering a short presentation in English to an international audience" },
+  ],
 };
 
-function loadFromStorage(): { step: number; form: FormState } | null {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return { step: parsed.step ?? 1, form: { ...INITIAL, ...parsed.form } };
-  } catch {
-    return null;
-  }
-}
+const DEFAULT_SUGGESTIONS = [
+  { icon: Phone, label: "Cold Call", text: "I want to practice a cold call to a VP of Finance at a logistics company" },
+  { icon: GraduationCap, label: "Interview", text: "Behavioral interview for a product manager role at a tech startup" },
+  { icon: Handshake, label: "Negotiation", text: "Negotiating a renewal with a skeptical customer who wants a discount" },
+  { icon: Target, label: "Product Demo", text: "Product demo for a CFO who is concerned about ROI" },
+];
+
+const CATEGORY_LABELS: Record<string, string> = {
+  interviews: "Interviews",
+  sales: "Sales",
+  leadership: "Leadership",
+  corporate_communication: "Corporate Communication",
+  negotiation: "Negotiation",
+  customer_success: "Customer Success",
+  product_management: "Product Management",
+  presentations: "Presentations",
+  professional_english: "Professional English",
+};
 
 function CreateScenarioPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const editId = searchParams.get("editId");
-  const editTable = searchParams.get("editTable") || "custom_scenarios";
-  const isEditMode = !!editId;
+  const category = searchParams.get("category") || "";
 
-  const [step, setStep] = useState(1);
-  const [form, setForm] = useState<FormState>(INITIAL);
-  const [saving, setSaving] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
-  const [loadingEdit, setLoadingEdit] = useState(isEditMode);
-  const [uploadingVoiceAvatar, setUploadingVoiceAvatar] = useState(false);
-  const voiceAvatarInputRef = useRef<HTMLInputElement>(null);
+  const [scenario, setScenario] = useState<GeneratedScenario | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showKb, setShowKb] = useState(false);
+  const [kbDocs, setKbDocs] = useState<KbDoc[]>([]);
+  const [selectedKbIds, setSelectedKbIds] = useState<string[]>([]);
+  const [statusText, setStatusText] = useState("");
+  const [mode, setMode] = useState<"video" | "voice">("video");
+  const [avatars, setAvatars] = useState<{ id: string; name: string; preview_image_url: string | null; gender: string | null }[]>([]);
+  const [selectedAvatarId, setSelectedAvatarId] = useState("");
+  const [selectedVoiceId, setSelectedVoiceId] = useState("");
+  const [avatarsLoading, setAvatarsLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const statusIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Restore from localStorage on client mount (avoid hydration mismatch)
-  useEffect(() => {
-    if (isEditMode) return;
-    const saved = loadFromStorage();
-    if (saved) {
-      setStep(saved.step);
-      setForm(saved.form);
-    }
-  }, [isEditMode]);
+  const ELEVENLABS_VOICES = [
+    { id: "8qPG2eSETnKl5ezq52Js", name: "Female Voice 1", gender: "female", imageUrl: "https://haqghlhwfpyrvfluyrkv.supabase.co/storage/v1/object/public/voice-avatars/3b36069a-1e17-45ac-9ccd-11af34c39617/1782747409955.jpg" },
+    { id: "Y7xQSS5ZtS4xv4VJotWd", name: "Female Voice 2", gender: "female", imageUrl: "https://haqghlhwfpyrvfluyrkv.supabase.co/storage/v1/object/public/voice-avatars/3b36069a-1e17-45ac-9ccd-11af34c39617/1782748798191.jpg" },
+    { id: "FXMPPfJPpDj0GSwJ6ASO", name: "Male Voice 1", gender: "male", imageUrl: "https://haqghlhwfpyrvfluyrkv.supabase.co/storage/v1/object/public/voice-avatars/3b36069a-1e17-45ac-9ccd-11af34c39617/1782747998663.jpg" },
+  ];
 
-  // Load existing scenario in edit mode
   useEffect(() => {
-    if (!isEditMode || !editId) return;
-    let cancelled = false;
     (async () => {
-      setLoadingEdit(true);
-      const supabase = createClient();
-      const { data } = await supabase.from(editTable).select("*").eq("id", editId).single();
-      if (!cancelled && data) {
-        const cp = data.custom_persona as Record<string, unknown> | null;
-        setForm({
-          sellerCompany: data.seller_company ?? "",
-          sellerProduct: data.seller_product ?? "",
-          productType: (data.product_type as "payment" | "eor" | "cards") ?? "payment",
-          sellerDescription: data.seller_description ?? "",
-          usePresetPersona: !cp && !!data.preset_persona_id,
-          presetPersonaId: data.preset_persona_id ?? "",
-          customPersonaName: cp?.name ? String(cp.name) : "",
-          customPersonaTitle: cp?.jobTitle ? String(cp.jobTitle) : "",
-          customPersonaCompany: cp?.company ? String(cp.company) : "",
-          customPersonaIndustry: cp?.industry ? String(cp.industry) : "",
-          customPersonaPersonality: cp?.personality ? String(cp.personality) : "",
-          customPersonaPersonalityTraits: Array.isArray(cp?.personalityTraits) ? (cp.personalityTraits as string[]).join("\n") : (cp?.personalityTraits ? String(cp.personalityTraits) : ""),
-          customPersonaPainPoints: Array.isArray(cp?.painPoints) ? (cp.painPoints as string[]).join("\n") : "",
-          customPersonaPainPointsProcess: cp?.painPointsCurrentProcess ? String(cp.painPointsCurrentProcess) : "",
-          customPersonaPainPointsImpact: cp?.painPointsImpact ? String(cp.painPointsImpact) : "",
-          customPersonaGoals: Array.isArray(cp?.goals) ? (cp.goals as string[]).join("\n") : "",
-          customPersonaCompanyGoal: cp?.companyGoal ? String(cp.companyGoal) : "",
-          customPersonaPersonalMotivation: cp?.personalMotivation ? String(cp.personalMotivation) : "",
-          customPersonaCommStyle: cp?.communicationStyle ? String(cp.communicationStyle) : "",
-          customPersonaCommLanguage: cp?.communicationLanguage ? String(cp.communicationLanguage) : "",
-          customPersonaPriorVendor: cp?.priorVendorExperience ? String(cp.priorVendorExperience) : "",
-          customPersonaDecisionCriteria: cp?.decisionCriteria ? String(cp.decisionCriteria) : "",
-          customPersonaHiddenConcern: cp?.hiddenConcern ? String(cp.hiddenConcern) : "",
-          customPersonaMeetingSource: cp?.meetingSource ? String(cp.meetingSource) : "",
-          customPersonaBudget: cp?.budgetStatus ? String(cp.budgetStatus) : "",
-          customPersonaTimeline: cp?.timelinePressure ? String(cp.timelinePressure) : "",
-          customPersonaSampleDialogues: cp?.sampleDialogues ? String(cp.sampleDialogues) : "",
-          scenarioType: data.scenario_type ?? "First Discovery Call",
-          difficulty: (data.difficulty as Difficulty) ?? "Intermediate",
-          duration: data.duration ?? 5,
-          contextNote: data.context_note ?? "",
-          avatarId: data.avatar_id ?? "",
-          avatarName: data.avatar_name ?? "",
-          voiceId: data.voice_id ?? "",
-          voiceAvatarImageUrl: data.voice_avatar_image_url ?? "",
-          elevenlabsVoiceId: data.elevenlabs_voice_id ?? "",
-          scoringCriteria: data.scoring_criteria ?? "",
-          evaluationFramework: isKnownFramework(data.evaluation_framework) ? data.evaluation_framework : "Custom",
-          customEvaluationFramework: isKnownFramework(data.evaluation_framework) ? "" : (data.evaluation_framework ?? ""),
-        });
+      try {
+        const res = await fetch("/api/company/documents?limit=100");
+        if (res.ok) {
+          const data = await res.json();
+          setKbDocs((data.documents ?? []).map((d: any) => ({
+            id: d.id,
+            name: d.name,
+            document_type: d.document_type,
+          })));
+        }
+      } catch (e) {
+        console.error("[create] failed to load KB docs:", e);
       }
-      setLoadingEdit(false);
     })();
-    return () => { cancelled = true; };
-  }, [isEditMode, editId, editTable]);
+  }, []);
 
-  // Persist state whenever step or form changes (skip in edit mode)
   useEffect(() => {
-    if (isEditMode) return;
-    localStorage.setItem(LS_KEY, JSON.stringify({ step, form }));
-  }, [step, form, isEditMode]);
+    if (scenario && mode === "video" && avatars.length === 0 && !avatarsLoading) {
+      setAvatarsLoading(true);
+      fetch("/api/heygen-test/avatars?page=1&page_size=50")
+        .then((r) => r.json())
+        .then((data) => setAvatars(data.avatars ?? []))
+        .catch(() => setAvatars([]))
+        .finally(() => setAvatarsLoading(false));
+    }
+  }, [scenario, mode, avatars.length, avatarsLoading]);
 
-  const set = (field: keyof FormState, value: string | boolean | number) =>
-    setForm((f) => ({ ...f, [field]: value }));
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-  const selectedPresetPersona = mockPersonas.find((p) => p.id === form.presetPersonaId);
-
-  const scenarioName = form.sellerCompany && form.scenarioType
-    ? `${form.sellerCompany} — ${form.scenarioType}`
-    : "Untitled Scenario";
-
-  const canGoNext = () => {
-    // Allow free navigation - no validation required
-    return true;
+  const handleSend = async () => {
+    if (!input.trim() || generating) return;
+    await handleSendWith(input.trim());
+    setInput("");
   };
 
-  const handleVoiceAvatarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingVoiceAvatar(true);
+  const STATUS_MESSAGES = [
+    "Analyzing your request...",
+    "Reviewing knowledge base...",
+    "Designing the persona...",
+    "Crafting the scenario...",
+    "Building scoring criteria...",
+    "Finalizing details...",
+  ];
+
+  const startStatusRotation = () => {
+    let idx = 0;
+    setStatusText(STATUS_MESSAGES[0]);
+    statusIntervalRef.current = setInterval(() => {
+      idx = (idx + 1) % STATUS_MESSAGES.length;
+      setStatusText(STATUS_MESSAGES[idx]);
+    }, 2500);
+  };
+
+  const stopStatusRotation = () => {
+    if (statusIntervalRef.current) {
+      clearInterval(statusIntervalRef.current);
+      statusIntervalRef.current = null;
+    }
+    setStatusText("");
+  };
+
+  const handleSendWith = async (message: string) => {
+    if (!message.trim() || generating) return;
+
+    const userMessage = message.trim();
+    const newMessages = [...messages, { role: "user" as const, content: userMessage }];
+    setMessages(newMessages);
+    setGenerating(true);
+    setError("");
+    startStatusRotation();
+
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/scenarios/voice-avatar", { method: "POST", body: formData });
+      const res = await fetch("/api/scenario/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: newMessages,
+          kbDocIds: selectedKbIds,
+          category,
+        }),
+      });
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Upload failed");
-      set("voiceAvatarImageUrl", data.url);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Upload failed";
-      setError(msg);
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to generate scenario");
+      }
+
+      if (data.type === "question") {
+        // AI is asking a clarifying question
+        setMessages((prev) => [...prev, { role: "assistant", content: data.message }]);
+      } else if (data.type === "scenario" && data.scenario) {
+        setScenario(data.scenario);
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: `I've created your scenario: **${data.scenario.scenario_type}** with **${data.scenario.custom_persona.name}** (${data.scenario.custom_persona.jobTitle} at ${data.scenario.custom_persona.company}). Review it below and start when ready!`,
+        }]);
+      } else if (data.scenario) {
+        // Backward compat: direct scenario response
+        setScenario(data.scenario);
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: `I've created your scenario: **${data.scenario.scenario_type}** with **${data.scenario.custom_persona.name}** (${data.scenario.custom_persona.jobTitle} at ${data.scenario.custom_persona.company}). Review it below and start when ready!`,
+        }]);
+      }
+    } catch (e: any) {
+      setError(e.message || "Something went wrong");
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: "Sorry, I couldn't generate the scenario. Please try again with more detail.",
+      }]);
     } finally {
-      setUploadingVoiceAvatar(false);
-      if (voiceAvatarInputRef.current) voiceAvatarInputRef.current.value = "";
+      stopStatusRotation();
+      setGenerating(false);
     }
   };
 
-  const handleSave = async () => {
+  const handleSaveAndStart = async () => {
+    if (!scenario) return;
     setSaving(true);
     setError("");
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setError("Not authenticated."); setSaving(false); return; }
 
-    const { data: userProfile } = await supabase
-      .from("profiles")
-      .select("organization_id")
-      .eq("id", user.id)
-      .single();
-    const organizationId = userProfile?.organization_id ?? null;
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setError("Not authenticated."); setSaving(false); return; }
 
-    const payload: Record<string, unknown> = {
-      seller_company: form.sellerCompany,
-      seller_product: form.sellerProduct,
-      product_type: form.productType,
-      seller_description: form.sellerDescription,
-      preset_persona_id: form.usePresetPersona ? form.presetPersonaId : null,
-      custom_persona: !form.usePresetPersona ? {
-        name: form.customPersonaName,
-        jobTitle: form.customPersonaTitle,
-        company: form.customPersonaCompany,
-        industry: form.customPersonaIndustry,
-        personality: form.customPersonaPersonality,
-        personalityTraits: form.customPersonaPersonalityTraits.split("\n").map((s) => s.trim()).filter(Boolean),
-        painPoints: form.customPersonaPainPoints.split("\n").map((s) => s.trim()).filter(Boolean),
-        painPointsCurrentProcess: form.customPersonaPainPointsProcess || undefined,
-        painPointsImpact: form.customPersonaPainPointsImpact || undefined,
-        goals: form.customPersonaGoals.split("\n").map((s) => s.trim()).filter(Boolean),
-        companyGoal: form.customPersonaCompanyGoal || undefined,
-        personalMotivation: form.customPersonaPersonalMotivation || undefined,
-        communicationStyle: form.customPersonaCommStyle || undefined,
-        communicationLanguage: form.customPersonaCommLanguage || undefined,
-        priorVendorExperience: form.customPersonaPriorVendor || undefined,
-        decisionCriteria: form.customPersonaDecisionCriteria || undefined,
-        hiddenConcern: form.customPersonaHiddenConcern || undefined,
-        meetingSource: form.customPersonaMeetingSource || undefined,
-        budgetStatus: form.customPersonaBudget || undefined,
-        timelinePressure: form.customPersonaTimeline || undefined,
-        sampleDialogues: form.customPersonaSampleDialogues || undefined,
-      } : null,
-      scenario_type: form.scenarioType,
-      difficulty: form.difficulty,
-      duration: form.duration,
-      context_note: form.contextNote || null,
-      avatar_id: form.avatarId || null,
-      avatar_name: form.avatarName || null,
-      voice_id: form.voiceId || null,
-      voice_avatar_image_url: form.voiceAvatarImageUrl || null,
-      elevenlabs_voice_id: form.elevenlabsVoiceId || null,
-      scoring_criteria: form.scoringCriteria || null,
-      evaluation_framework: form.evaluationFramework === "Custom"
-        ? (form.customEvaluationFramework || "Custom")
-        : (form.evaluationFramework || null),
-    };
+      const { data: userProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", user.id)
+        .single();
+      const organizationId = userProfile?.organization_id ?? null;
 
-    if (isEditMode && editId) {
-      const { error: dbErr } = await supabase.from(editTable).update(payload).eq("id", editId);
-      if (dbErr) { setError(dbErr.message); setSaving(false); return; }
-      router.push("/scenarios");
-    } else {
-      const { error: dbErr } = await supabase.from("custom_scenarios").insert({
-        ...payload,
+      const scenarioName = `${scenario.seller_company} — ${scenario.scenario_type}`;
+
+      // Map scenario_type to a category value for product_type
+      // so the scenario appears in the right category page
+      const SCENARIO_TYPE_TO_CATEGORY: Record<string, string> = {
+        "First Discovery Call": "sales",
+        "Objection Handling": "sales",
+        "Product Demo": "sales",
+        "Pitch": "sales",
+        "Negotiation": "negotiation",
+        "Win-Back": "customer_success",
+        "Renewal": "customer_success",
+        "Executive Presentation": "presentations",
+        "Product Knowledge Interview": "product_management",
+        "First Round Interview": "interviews",
+        "Behavioral Interview": "interviews",
+      };
+      const productType = category || SCENARIO_TYPE_TO_CATEGORY[scenario.scenario_type] || "sales";
+
+      const payload = {
         name: scenarioName,
         user_id: user.id,
         created_by: user.id,
         organization_id: organizationId,
-      });
+        seller_company: scenario.seller_company,
+        seller_product: scenario.seller_product,
+        product_type: productType,
+        seller_description: scenario.seller_description,
+        scenario_type: scenario.scenario_type,
+        difficulty: scenario.difficulty,
+        duration: scenario.duration,
+        context_note: scenario.context_note,
+        custom_persona: scenario.custom_persona,
+        preset_persona_id: null,
+        avatar_id: selectedAvatarId || null,
+        avatar_name: avatars.find((a) => a.id === selectedAvatarId)?.name ?? scenario.custom_persona.name,
+        voice_id: null,
+        elevenlabs_voice_id: selectedVoiceId || null,
+        voice_avatar_image_url: ELEVENLABS_VOICES.find((v) => v.id === selectedVoiceId)?.imageUrl ?? null,
+        scoring_criteria: scenario.scoring_criteria,
+        evaluation_framework: scenario.evaluation_framework,
+      };
+
+      const { data: inserted, error: dbErr } = await supabase
+        .from("custom_scenarios")
+        .insert(payload)
+        .select("id")
+        .single();
+
       if (dbErr) { setError(dbErr.message); setSaving(false); return; }
-      localStorage.removeItem(LS_KEY);
-      router.push("/scenarios");
+
+      // Start simulation
+      const simRes = await fetch("/api/simulation/prepare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scenarioId: inserted.id,
+          scenarioTable: "custom_scenarios",
+          scenarioName,
+          avatarName: scenario.custom_persona.name,
+          avatarId: mode === "video" ? (selectedAvatarId || undefined) : undefined,
+          avatarImageUrl: mode === "video" ? (avatars.find((a) => a.id === selectedAvatarId)?.preview_image_url ?? undefined) : undefined,
+          voiceAvatarImageUrl: mode === "voice"
+            ? (ELEVENLABS_VOICES.find((v) => v.id === selectedVoiceId)?.imageUrl ?? undefined)
+            : undefined,
+          elevenlabsVoiceId: mode === "voice" ? (selectedVoiceId || undefined) : undefined,
+          callMode: mode,
+        }),
+      });
+
+      const simData = await simRes.json().catch(() => ({}));
+      if (!simRes.ok || !simData.sessionId) {
+        // Saved but couldn't start sim — go to scenarios page
+        router.push("/scenarios");
+      } else {
+        router.push(`/simulation?sessionId=${simData.sessionId}`);
+      }
+    } catch (e: any) {
+      setError(e.message || "Failed to save scenario");
+      setSaving(false);
     }
+  };
+
+  const toggleKbDoc = (id: string) => {
+    setSelectedKbIds((prev) =>
+      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]
+    );
   };
 
   return (
     <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex items-center gap-2 sm:gap-3">
-        <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9" onClick={() => router.push("/scenarios")}>
+        <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9" onClick={() => router.back()}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight">{isEditMode ? "Edit Scenario" : "Create Custom Scenario"}</h1>
-          <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">{isEditMode ? "Update the scenario details below." : "Build a simulation tailored to your product and buyers"}</p>
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight">
+            {category ? `Create ${CATEGORY_LABELS[category] || "Custom"} Scenario` : "Create Custom Scenario"}
+          </h1>
+          <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">Describe what you want to practice — AI builds the scenario for you.</p>
         </div>
       </div>
 
-      {/* Step indicators */}
-      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1">
-        {STEPS.map((s, i) => {
-          const Icon = s.icon;
-          const active = step === s.id;
-          const done = step > s.id;
-          return (
-            <div key={s.id} className="flex items-center gap-2">
-              <button
-                onClick={() => setStep(s.id)}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all cursor-pointer hover:scale-105 shrink-0 border",
-                  done ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20" :
-                  active ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" :
-                  "bg-muted text-muted-foreground border-border hover:bg-muted/80"
-                )}
-              >
-                {done ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
-                <span className={cn("hidden", active && "inline sm:inline")}>{s.label}</span>
-              </button>
-              {i < STEPS.length - 1 && (
-                <div className={cn("flex-1 h-px min-w-2 sm:w-4 bg-border", done && "bg-emerald-500/30")} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Step content */}
       <AnimatePresence mode="wait">
         <motion.div
-          key={step}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
+          key={scenario ? "review" : "chat"}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.2 }}
         >
-          {/* Step 1: Your Company */}
-          {step === 1 && (
-            <Card className="rounded-2xl border shadow-sm">
-              <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
-                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-primary" />
-                  Tell us about your company
-                </CardTitle>
-                <p className="text-[11px] sm:text-xs text-muted-foreground">This becomes the context the AI buyer understands — what you&apos;re selling and why it matters.</p>
-              </CardHeader>
-              <CardContent className="space-y-4 px-4 sm:px-6">
-                <div className="space-y-2">
-                  <Label htmlFor="sellerCompany" className="text-xs font-medium">Company Name</Label>
-                  <Input
-                    id="sellerCompany"
-                    placeholder="e.g. NorthPay, Stripe, Rippling"
-                    className="rounded-xl h-11"
-                    value={form.sellerCompany}
-                    onChange={(e) => set("sellerCompany", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sellerProduct" className="text-xs font-medium">What do you sell?</Label>
-                  <Input
-                    id="sellerProduct"
-                    placeholder="e.g. B2B expense management SaaS for scale-ups in SEA"
-                    className="rounded-xl h-11"
-                    value={form.sellerProduct}
-                    onChange={(e) => set("sellerProduct", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Product Type</Label>
-                  <Select value={form.productType} onValueChange={(v) => set("productType", v as ProductType)}>
-                    <SelectTrigger className="rounded-xl h-11">
-                      <SelectValue placeholder="Select product type">
-                        {PRODUCT_TYPE_LABELS[form.productType]}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PRODUCT_TYPES.map((p) => (
-                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sellerDescription" className="text-xs font-medium">
-                    Company & Product Brief
-                    <span className="ml-1 text-muted-foreground font-normal">(min. 20 chars)</span>
-                  </Label>
-                  <Textarea
-                    id="sellerDescription"
-                    className="rounded-xl min-h-[140px] sm:min-h-[180px] text-sm"
-                    placeholder={`Write a brief like you'd give to a new hire. Include:
-• What problem you solve
-• Who your ideal customer is
-• Key value propositions
-• Differentiators vs competitors
-• Any pricing / packaging context
-
-Example:
-NorthPay is a B2B fintech platform offering corporate cards, multi-currency accounts, and expense management for growing businesses in Southeast Asia. We help finance teams replace manual processes and spreadsheets with automated approval workflows and real-time spend visibility. Our core differentiator is instant onboarding (no branch visits) and deep ERP integrations with Xero, NetSuite, and QuickBooks. We sell to CFOs, Financial Controllers, and finance ops leaders at companies with 50–500 employees.`}
-                    value={form.sellerDescription}
-                    onChange={(e) => set("sellerDescription", e.target.value)}
-                  />
-                  <p className="text-[11px] text-muted-foreground">{form.sellerDescription.length} characters</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Step 2: Buyer Persona */}
-          {step === 2 && (
-            <Card className="rounded-2xl border shadow-sm">
-              <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
-                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                  <Users className="w-4 h-4 text-primary" />
-                  Choose a buyer persona
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">Who will you be selling to? Pick a preset or build your own.</p>
-              </CardHeader>
-              <CardContent className="space-y-5 px-4 sm:px-6 pb-5 sm:pb-6">
-                {/* Toggle */}
-                <div className="flex rounded-xl border overflow-hidden">
-                  <button
-                    className={cn("flex-1 py-2 text-xs font-medium transition-colors", form.usePresetPersona ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
-                    onClick={() => set("usePresetPersona", true)}
-                  >
-                    Preset Personas
-                  </button>
-                  <button
-                    className={cn("flex-1 py-2 text-xs font-medium transition-colors", !form.usePresetPersona ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
-                    onClick={() => set("usePresetPersona", false)}
-                  >
-                    Build My Own
-                  </button>
-                </div>
-
-                {form.usePresetPersona ? (
-                  <div className="space-y-2">
-                    {mockPersonas.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => set("presetPersonaId", p.id)}
-                        className={cn(
-                          "w-full text-left rounded-xl border p-3 transition-all",
-                          form.presetPersonaId === p.id
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/40 hover:bg-muted/30"
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="text-sm font-medium">{p.name}</p>
-                            <p className="text-xs text-muted-foreground">{p.jobTitle} · {p.company}</p>
-                          </div>
-                          {form.presetPersonaId === p.id && (
-                            <div className="flex-shrink-0 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                              <Check className="w-3 h-3 text-primary-foreground" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {p.painPoints.slice(0, 2).map((pt) => (
-                            <span key={pt} className="text-[10px] bg-muted px-1.5 py-0.5 rounded-md text-muted-foreground">{pt}</span>
-                          ))}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Full Name</Label>
-                        <Input className="rounded-xl" placeholder="Daniel Lim" value={form.customPersonaName} onChange={(e) => set("customPersonaName", e.target.value)} />
+          {!scenario ? (
+            /* ── Chat Screen ── */
+            <div className="space-y-4">
+              {/* Chat card */}
+              <Card className="rounded-2xl border shadow-sm flex flex-col overflow-hidden">
+                {/* Chat area */}
+                <CardContent className="flex-1 p-4 sm:p-6 overflow-y-auto" style={{ minHeight: messages.length === 0 ? "420px" : "200px", maxHeight: "500px" }}>
+                  {messages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center py-6">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-4 ring-1 ring-primary/10">
+                        <Sparkles className="w-7 h-7 text-primary" />
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Job Title</Label>
-                        <Input className="rounded-xl" placeholder="Financial Controller" value={form.customPersonaTitle} onChange={(e) => set("customPersonaTitle", e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Company</Label>
-                        <Input className="rounded-xl" placeholder="BloomCommerce" value={form.customPersonaCompany} onChange={(e) => set("customPersonaCompany", e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Industry</Label>
-                        <Input className="rounded-xl" placeholder="E-commerce, Fintech..." value={form.customPersonaIndustry} onChange={(e) => set("customPersonaIndustry", e.target.value)} />
+                      <h2 className="text-base font-semibold mb-1">What do you want to practice?</h2>
+                      <p className="text-xs text-muted-foreground mb-5 max-w-sm">Describe a scenario in your own words and I&apos;ll build a complete practice session for you.</p>
+                      <div className="grid grid-cols-2 gap-2.5 w-full max-w-md">
+                        {(category && CATEGORY_SUGGESTIONS[category] ? CATEGORY_SUGGESTIONS[category] : DEFAULT_SUGGESTIONS).map((s) => {
+                          const Icon = s.icon;
+                          return (
+                            <button
+                              key={s.label}
+                              onClick={() => handleSendWith(s.text)}
+                              className="group flex flex-col items-start gap-2 rounded-xl border border-border p-3 text-left hover:border-primary/40 hover:bg-primary/5 transition-all"
+                            >
+                              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                                <Icon className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold mb-0.5">{s.label}</p>
+                                <p className="text-[11px] text-muted-foreground line-clamp-2">{s.text}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Meeting Source</Label>
-                      <Input
-                        className="rounded-xl text-sm"
-                        placeholder="Inbound demo request, LinkedIn outreach, warm referral..."
-                        value={form.customPersonaMeetingSource}
-                        onChange={(e) => set("customPersonaMeetingSource", e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Personality / Behaviour <span className="font-normal text-muted-foreground">(one per line)</span></Label>
-                      <Textarea
-                        className="rounded-xl text-sm min-h-[80px]"
-                        placeholder={"Analytical and detail-oriented\nProfessional but slightly skeptical\nDoes not reveal problems immediately\nWill answer when asked good discovery questions\nPushes back on vague claims"}
-                        value={form.customPersonaPersonalityTraits}
-                        onChange={(e) => set("customPersonaPersonalityTraits", e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Current Process</Label>
-                      <Textarea
-                        className="rounded-xl text-sm min-h-[60px]"
-                        placeholder={"Expenses approved through email and spreadsheets\nFinance manually reconciles transactions monthly\nLimited visibility into department spending"}
-                        value={form.customPersonaPainPointsProcess}
-                        onChange={(e) => set("customPersonaPainPointsProcess", e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Impact</Label>
-                      <Textarea
-                        className="rounded-xl text-sm min-h-[60px]"
-                        placeholder={"Finance team spends too much time on admin\nErrors happen during reconciliation\nReporting takes longer than it should"}
-                        value={form.customPersonaPainPointsImpact}
-                        onChange={(e) => set("customPersonaPainPointsImpact", e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Other Pain Points <span className="font-normal text-muted-foreground">(one per line)</span></Label>
-                      <Textarea
-                        className="rounded-xl text-sm min-h-[60px]"
-                        placeholder={"Lack of visibility into team spend\nAudit prep takes weeks"}
-                        value={form.customPersonaPainPoints}
-                        onChange={(e) => set("customPersonaPainPoints", e.target.value)}
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Company Goal</Label>
-                        <Input className="rounded-xl text-sm" placeholder="Improve finance operations" value={form.customPersonaCompanyGoal} onChange={(e) => set("customPersonaCompanyGoal", e.target.value)} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Personal Motivation</Label>
-                        <Input className="rounded-xl text-sm" placeholder="Reduce manual work and look more strategic to CFO" value={form.customPersonaPersonalMotivation} onChange={(e) => set("customPersonaPersonalMotivation", e.target.value)} />
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium">Other Goals <span className="font-normal text-muted-foreground">(one per line)</span></Label>
-                      <Textarea
-                        className="rounded-xl text-sm min-h-[60px]"
-                        placeholder={"Get budget approval by Q3\nUnderstand integration requirements"}
-                        value={form.customPersonaGoals}
-                        onChange={(e) => set("customPersonaGoals", e.target.value)}
-                      />
-                    </div>
-
-                    {/* Advanced persona fields */}
-                    <div className="pt-2">
-                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Advanced (for realism)</p>
-                      <div className="grid grid-cols-1 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[11px] font-medium">Communication Language / Environment</Label>
-                          <Textarea
-                            className="rounded-xl text-sm min-h-[60px]"
-                            placeholder={"Singapore business environment\nProfessional casual communication\nShort responses\nMay naturally mix English with Singlish/Bahasa\nMatch seller's language\nDoes not overshare information\nPolite but skeptical"}
-                            value={form.customPersonaCommLanguage}
-                            onChange={(e) => set("customPersonaCommLanguage", e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[11px] font-medium">Communication Style</Label>
-                          <Input className="rounded-xl text-sm" placeholder="Short sentences, never volunteers numbers..." value={form.customPersonaCommStyle} onChange={(e) => set("customPersonaCommStyle", e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-[11px] font-medium">Prior Vendor Experience</Label>
-                          <Input className="rounded-xl text-sm" placeholder="Tried Expensify 2 years ago..." value={form.customPersonaPriorVendor} onChange={(e) => set("customPersonaPriorVendor", e.target.value)} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[11px] font-medium">Decision Criteria</Label>
-                          <Input className="rounded-xl text-sm" placeholder="Must have Xero integration..." value={form.customPersonaDecisionCriteria} onChange={(e) => set("customPersonaDecisionCriteria", e.target.value)} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[11px] font-medium">Hidden Concern</Label>
-                          <Input className="rounded-xl text-sm" placeholder="Worried team will resist change..." value={form.customPersonaHiddenConcern} onChange={(e) => set("customPersonaHiddenConcern", e.target.value)} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[11px] font-medium">Budget Status</Label>
-                          <Input className="rounded-xl text-sm" placeholder="Needs CFO sign-off >$30k/year..." value={form.customPersonaBudget} onChange={(e) => set("customPersonaBudget", e.target.value)} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[11px] font-medium">Timeline Pressure</Label>
-                          <Input className="rounded-xl text-sm" placeholder="Audit in 6 weeks..." value={form.customPersonaTimeline} onChange={(e) => set("customPersonaTimeline", e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="space-y-1.5 mt-3">
-                        <Label className="text-[11px] font-medium">Sample Dialogue <span className="font-normal text-muted-foreground">(few-shot examples)</span></Label>
-                        <Textarea
-                          className="rounded-xl text-sm min-h-[100px]"
-                          placeholder={`Seller: "We automate expense management."\nYou: "We already have a process. What part of automate?"\n\nSeller: "Can I show you a demo?"\nYou: "Not sure we're there yet."`}
-                          value={form.customPersonaSampleDialogues}
-                          onChange={(e) => set("customPersonaSampleDialogues", e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Step 3: Avatar */}
-          {step === 3 && (
-            <Card className="rounded-2xl border shadow-sm">
-              <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
-                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                  <Image className="w-4 h-4 text-primary" />
-                  Choose an avatar
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">Pick the LiveAvatar that represents your buyer persona.</p>
-              </CardHeader>
-              <CardContent className="space-y-4 px-4 sm:px-6 pb-5 sm:pb-6">
-                <AvatarPicker
-                  selected={form.avatarId}
-                  onSelect={(id, voiceId, name) => {
-                    set("avatarId", id);
-                    set("avatarName", name);
-                    set("voiceId", voiceId ?? "");
-                  }}
-                />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Step 4: Scenario Setup */}
-          {step === 4 && (
-            <Card className="rounded-2xl border shadow-sm">
-              <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
-                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                  <Settings2 className="w-4 h-4 text-primary" />
-                  Configure the scenario
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">Set the call type, difficulty, and any contextual backstory.</p>
-              </CardHeader>
-              <CardContent className="space-y-5 px-4 sm:px-6 pb-5 sm:pb-6">
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Call Type</Label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {SCENARIO_TYPES.map((type) => (
-                      <button
-                        key={type}
-                        onClick={() => set("scenarioType", type)}
-                        className={cn(
-                          "rounded-xl border px-3 py-2 text-xs font-medium text-left transition-all",
-                          form.scenarioType === type
-                            ? "border-primary bg-primary/5 text-primary"
-                            : "border-border hover:border-primary/40 text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs font-medium">Difficulty</Label>
-                    <Select value={form.difficulty} onValueChange={(v) => set("difficulty", v as Difficulty)}>
-                      <SelectTrigger className="rounded-xl">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DIFFICULTIES.map((d) => (
-                          <SelectItem key={d} value={d}>{d}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-medium">Duration</Label>
-                    <Select value={String(form.duration)} onValueChange={(v) => set("duration", Number(v))}>
-                      <SelectTrigger className="rounded-xl">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DURATIONS.map((d) => (
-                          <SelectItem key={d} value={String(d)}>{d} min</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="contextNote" className="text-xs font-medium">
-                    Context / Backstory <span className="font-normal text-muted-foreground">(optional)</span>
-                  </Label>
-                  <Textarea
-                    id="contextNote"
-                    className="rounded-xl text-sm min-h-[100px]"
-                    placeholder={`Add any context that sets the scene. For example:
-"You met Daniel at the SEA Finance Summit last week. He mentioned 'finance is a bit messy' before taking your card. This is your follow-up call — he hasn't shared any documents and is coming in to listen."`}
-                    value={form.contextNote}
-                    onChange={(e) => set("contextNote", e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Evaluation Framework <span className="font-normal text-muted-foreground">(optional)</span></Label>
-                  <Select value={form.evaluationFramework} onValueChange={(v) => set("evaluationFramework", v ?? "")}>
-                    <SelectTrigger className="rounded-xl w-full">
-                      <SelectValue placeholder="Select a framework" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-border shadow-lg">
-                      {EVALUATION_FRAMEWORKS.map((f) => (
-                        <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {form.evaluationFramework === "Custom" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="customEvaluationFramework" className="text-xs font-medium">Custom Framework Name</Label>
-                    <Input
-                      id="customEvaluationFramework"
-                      className="rounded-xl"
-                      placeholder="e.g. Force Management, Command of the Message"
-                      value={form.customEvaluationFramework}
-                      onChange={(e) => set("customEvaluationFramework", e.target.value)}
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="scoringCriteria" className="text-xs font-medium">
-                    Scoring Criteria <span className="font-normal text-muted-foreground">(optional)</span>
-                  </Label>
-                  <Textarea
-                    id="scoringCriteria"
-                    className="rounded-xl text-sm min-h-[120px]"
-                    placeholder={`Describe what success looks like for this scenario. This shapes how the AI evaluates your sales reps.
-
-Examples:
-• Uncovered the buyer's real pain (not just surface complaints)
-• Mapped the full decision process and timeline
-• Identified 2+ business metrics they care about
-• Handled budget objection without discounting
-• Gained commitment to a next step with a specific date`}
-                    value={form.scoringCriteria}
-                    onChange={(e) => set("scoringCriteria", e.target.value)}
-                  />
-                </div>
-
-                <div className="border-t pt-5 mt-2">
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide mb-4">
-                    <Phone className="w-3.5 h-3.5" />
-                    Voice Call Settings
-                  </div>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium">
-                        Voice Call Avatar <span className="font-normal text-muted-foreground">(optional)</span>
-                      </Label>
-                      <div className="flex items-center gap-3">
-                        {form.voiceAvatarImageUrl && (
-                          <img
-                            src={form.voiceAvatarImageUrl}
-                            alt="Voice avatar preview"
-                            className="w-12 h-12 rounded-lg object-cover border shrink-0"
-                          />
-                        )}
-                        <input
-                          ref={voiceAvatarInputRef}
-                          type="file"
-                          accept="image/*"
-                          onChange={handleVoiceAvatarFileSelect}
-                          className="hidden"
-                          disabled={uploadingVoiceAvatar}
-                        />
+                  ) : (
+                    <div className="space-y-3">
+                      {messages.map((msg, i) => (
                         <div
-                          onClick={() => !uploadingVoiceAvatar && voiceAvatarInputRef.current?.click()}
+                          key={i}
                           className={cn(
-                            "w-full flex items-center gap-2 px-3 py-2.5 rounded-md border border-input bg-background text-sm transition-colors",
-                            uploadingVoiceAvatar
-                              ? "opacity-60 cursor-not-allowed"
-                              : "cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                            "flex",
+                            msg.role === "user" ? "justify-end" : "justify-start"
                           )}
                         >
-                          {uploadingVoiceAvatar ? (
-                            <Loader2 className="w-4 h-4 text-muted-foreground shrink-0 animate-spin" />
-                          ) : (
-                            <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+                          {msg.role === "assistant" && (
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mr-2 shrink-0 ring-1 ring-primary/10">
+                              <Sparkles className="w-3.5 h-3.5 text-primary" />
+                            </div>
                           )}
-                          <span className="truncate flex-1">
-                            {uploadingVoiceAvatar
-                              ? "Uploading…"
-                              : form.voiceAvatarImageUrl
-                                ? "Change avatar"
-                                : "Click to upload an image"}
-                          </span>
-                          {form.voiceAvatarImageUrl && !uploadingVoiceAvatar && (
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                set("voiceAvatarImageUrl", "");
-                                if (voiceAvatarInputRef.current) voiceAvatarInputRef.current.value = "";
-                              }}
-                              className="ml-auto text-muted-foreground hover:text-red-500 cursor-pointer shrink-0"
-                            >
-                              <X className="w-4 h-4" />
-                            </span>
-                          )}
+                          <div
+                            className={cn(
+                              "rounded-2xl px-3.5 py-2.5 text-sm max-w-[80%]",
+                              msg.role === "user"
+                                ? "bg-primary text-primary-foreground rounded-br-md"
+                                : "bg-muted text-foreground rounded-bl-md"
+                            )}
+                          >
+                            {msg.content}
+                          </div>
                         </div>
+                      ))}
+                      {generating && (
+                        <div className="flex justify-start items-center">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mr-2 shrink-0 ring-1 ring-primary/10">
+                            <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
+                          </div>
+                          <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground animate-pulse">{statusText || "Thinking..."}</span>
+                          </div>
+                        </div>
+                      )}
+                      <div ref={chatEndRef} />
+                    </div>
+                  )}
+                </CardContent>
+
+                {/* KB selector (inline, subtle) */}
+                {kbDocs.length > 0 && (
+                  <div className="border-t px-4 sm:px-6 py-2.5">
+                    <button
+                      onClick={() => setShowKb(!showKb)}
+                      className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors w-full"
+                    >
+                      <ChevronDown className={cn("w-3 h-3 transition-transform", showKb && "rotate-180")} />
+                      <FileText className="w-3 h-3" />
+                      Knowledge Base
+                      {selectedKbIds.length > 0 && (
+                        <Badge variant="secondary" className="text-[9px] ml-0.5 h-4 px-1.5">{selectedKbIds.length}</Badge>
+                      )}
+                    </button>
+                    {showKb && (
+                      <div className="space-y-1 max-h-32 overflow-y-auto rounded-lg border p-1.5 mt-2">
+                        {kbDocs.map((doc) => (
+                          <label
+                            key={doc.id}
+                            className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 cursor-pointer transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedKbIds.includes(doc.id)}
+                              onChange={() => toggleKbDoc(doc.id)}
+                              className="w-3.5 h-3.5 rounded border-input"
+                            />
+                            <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
+                            <span className="text-[11px] font-medium truncate flex-1">{doc.name}</span>
+                            <Badge variant="outline" className="text-[8px] shrink-0 h-4 px-1">{doc.document_type}</Badge>
+                          </label>
+                        ))}
                       </div>
-                      <p className="text-[11px] text-muted-foreground">Upload a PNG/JPG image. It will be shown in the voice call panel during audio-only simulations.</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="elevenlabsVoiceId" className="text-xs font-medium">
-                        ElevenLabs Voice ID <span className="font-normal text-muted-foreground">(optional)</span>
-                      </Label>
-                      <Input
-                        id="elevenlabsVoiceId"
-                        className="rounded-xl"
-                        placeholder="e.g. Y7xQSS5ZtS4xv4VJotWd"
-                        value={form.elevenlabsVoiceId}
-                        onChange={(e) => set("elevenlabsVoiceId", e.target.value)}
-                      />
-                      <p className="text-[11px] text-muted-foreground">ElevenLabs voice ID used for the audio-only buyer voice. Leave empty to use the agent default.</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Step 5: Review */}
-          {step === 5 && (
-            <Card className="rounded-2xl border shadow-sm">
-              <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
-                <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                  <FileCheck className="w-4 h-4 text-primary" />
-                  Review your scenario
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">Everything looks good? Save and start your simulation.</p>
-              </CardHeader>
-              <CardContent className="space-y-4 px-4 sm:px-6 pb-5 sm:pb-6">
-                {/* Scenario name */}
-                <div className="flex items-start justify-between rounded-xl border p-3 bg-muted/30">
-                  <div>
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Scenario</p>
-                    <p className="font-semibold text-sm">{scenarioName}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-[10px]">{form.difficulty}</Badge>
-                    <Badge variant="outline" className="text-[10px] gap-1">
-                      <Clock className="w-2.5 h-2.5" />{form.duration} min
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Seller brief */}
-                <div className="rounded-xl border p-3 space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">You&apos;re selling</p>
-                  <p className="text-sm font-medium">{form.sellerProduct}</p>
-                  <p className="text-xs text-muted-foreground">at <span className="font-medium text-foreground">{form.sellerCompany}</span></p>
-                  <p className="text-xs text-muted-foreground mt-2 line-clamp-3">{form.sellerDescription}</p>
-                  <div className="pt-2">
-                    <Badge variant="outline" className="text-[10px]">
-                      {PRODUCT_TYPE_LABELS[form.productType]}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Avatar */}
-                {form.avatarId && (
-                  <div className="rounded-xl border p-3 space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Avatar</p>
-                    <p className="text-sm font-medium">{form.avatarName ? form.avatarName.split(" ")[0] : form.avatarId}</p>
+                    )}
                   </div>
                 )}
 
-                {/* Buyer */}
-                <div className="rounded-xl border p-3 space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Buyer persona</p>
-                  {form.usePresetPersona && selectedPresetPersona ? (
-                    <>
-                      <p className="text-sm font-medium">{selectedPresetPersona.name}</p>
-                      <p className="text-xs text-muted-foreground">{selectedPresetPersona.jobTitle} · {selectedPresetPersona.company}</p>
-                      <p className="text-xs text-muted-foreground mt-1 italic">{selectedPresetPersona.personality}</p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-sm font-medium">{form.customPersonaName}</p>
-                      <p className="text-xs text-muted-foreground">{form.customPersonaTitle} · {form.customPersonaCompany}</p>
-                      {form.customPersonaPersonality && <p className="text-xs text-muted-foreground mt-1 italic">{form.customPersonaPersonality}</p>}
-                    </>
-                  )}
-                </div>
-
-                {/* Persona details */}
-                <div className="rounded-xl border p-3 space-y-3">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Persona details</p>
-                  {form.customPersonaPersonalityTraits && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Personality / Behaviour</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaPersonalityTraits}</p>
-                    </div>
-                  )}
-                  {form.customPersonaPainPointsProcess && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Current Process</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaPainPointsProcess}</p>
-                    </div>
-                  )}
-                  {form.customPersonaPainPointsImpact && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Impact</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaPainPointsImpact}</p>
-                    </div>
-                  )}
-                  {form.customPersonaPainPoints && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Other Pain Points</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaPainPoints}</p>
-                    </div>
-                  )}
-                  {form.customPersonaCompanyGoal && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Company Goal</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaCompanyGoal}</p>
-                    </div>
-                  )}
-                  {form.customPersonaPersonalMotivation && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Personal Motivation</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaPersonalMotivation}</p>
-                    </div>
-                  )}
-                  {form.customPersonaGoals && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Other Goals</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaGoals}</p>
-                    </div>
-                  )}
-                  {form.customPersonaCommLanguage && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Communication Language / Environment</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaCommLanguage}</p>
-                    </div>
-                  )}
-                  {form.customPersonaCommStyle && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Communication Style</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaCommStyle}</p>
-                    </div>
-                  )}
-                  {form.customPersonaPriorVendor && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Prior Vendor Experience</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaPriorVendor}</p>
-                    </div>
-                  )}
-                  {form.customPersonaDecisionCriteria && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Decision Criteria</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaDecisionCriteria}</p>
-                    </div>
-                  )}
-                  {form.customPersonaHiddenConcern && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Hidden Concern</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaHiddenConcern}</p>
-                    </div>
-                  )}
-                  {form.customPersonaBudget && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Budget Status</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaBudget}</p>
-                    </div>
-                  )}
-                  {form.customPersonaTimeline && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Timeline Pressure</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaTimeline}</p>
-                    </div>
-                  )}
-                  {form.customPersonaSampleDialogues && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Sample Dialogue</p>
-                      <p className="text-xs text-muted-foreground whitespace-pre-line">{form.customPersonaSampleDialogues}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Call type */}
-                <div className="rounded-xl border p-3 space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Call type</p>
-                  <p className="text-sm font-medium">{form.scenarioType}</p>
-                </div>
-
-                {/* Context note */}
-                {form.contextNote && (
-                  <div className="rounded-xl border p-3 space-y-1 bg-primary/5 border-primary/20">
-                    <p className="text-xs font-medium text-primary uppercase tracking-wide">Backstory</p>
-                    <p className="text-xs text-muted-foreground">{form.contextNote}</p>
+                {/* Input bar */}
+                <div className="border-t p-3 sm:p-4">
+                  <div className="flex items-end gap-2">
+                    <Textarea
+                      className="rounded-xl text-sm min-h-[44px] max-h-28 resize-none border-border"
+                      placeholder="Describe what you want to practice..."
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                      disabled={generating}
+                    />
+                    <Button
+                      className="rounded-xl shrink-0 h-11 w-11 p-0"
+                      onClick={handleSend}
+                      disabled={!input.trim() || generating}
+                    >
+                      {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    </Button>
                   </div>
-                )}
+                </div>
+              </Card>
 
-                {/* Evaluation */}
-                {form.evaluationFramework && (
-                  <div className="rounded-xl border p-3 space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Evaluation Framework</p>
-                    <p className="text-sm font-medium">
-                      {form.evaluationFramework === "Custom"
-                        ? (form.customEvaluationFramework || "Custom")
-                        : (EVALUATION_FRAMEWORKS.find(f => f.value === form.evaluationFramework)?.label || form.evaluationFramework)}
+              {error && (
+                <p className="text-xs text-red-500 bg-red-500/10 rounded-xl px-3 py-2">{error}</p>
+              )}
+            </div>
+          ) : (
+            /* ── Review Screen — Detailed ── */
+            <div className="space-y-4">
+              <Card className="rounded-2xl border shadow-sm">
+                <CardHeader className="pb-3 sm:pb-4 px-4 sm:px-6">
+                  <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+                    <Check className="w-4 h-4 text-primary" />
+                    Your Scenario is Ready
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">Review all details below. Edit any field or start practicing now.</p>
+                </CardHeader>
+                <CardContent className="space-y-5 px-4 sm:px-6 pb-5 sm:pb-6">
+                  {/* Scenario overview */}
+                  <div className="flex items-center justify-between rounded-xl border p-3 bg-muted/30">
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Scenario</p>
+                      <p className="font-semibold text-sm truncate">{scenario.seller_product || "Untitled"}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="outline" className="text-[10px]">{scenario.scenario_type}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{scenario.difficulty}</Badge>
+                      <Badge variant="outline" className="text-[10px] gap-1">
+                        <Clock className="w-2.5 h-2.5" />{scenario.duration} min
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Seller info */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Seller Info</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="rounded-lg border p-2.5">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">Company</p>
+                        <p className="text-xs font-medium">{scenario.seller_company}</p>
+                      </div>
+                      <div className="rounded-lg border p-2.5">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">Product</p>
+                        <p className="text-xs font-medium">{scenario.seller_product}</p>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border p-2.5">
+                      <p className="text-[10px] text-muted-foreground mb-0.5">Description</p>
+                      <p className="text-xs">{scenario.seller_description}</p>
+                    </div>
+                  </div>
+
+                  {/* Persona details */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5" /> Persona
                     </p>
-                  </div>
-                )}
-                {form.scoringCriteria && (
-                  <div className="rounded-xl border p-3 space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Scoring Criteria</p>
-                    <p className="text-xs text-muted-foreground whitespace-pre-line">{form.scoringCriteria}</p>
-                  </div>
-                )}
-
-                {(form.voiceAvatarImageUrl || form.elevenlabsVoiceId) && (
-                  <div className="rounded-xl border p-3 space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Voice Call Settings</p>
-                    {form.voiceAvatarImageUrl && (
-                      <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted border">
-                          <img src={form.voiceAvatarImageUrl} alt="Voice avatar" className="w-full h-full object-cover" />
-                        </div>
-                        <p className="text-xs text-muted-foreground">Voice call avatar uploaded</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="rounded-lg border p-2.5">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">Name</p>
+                        <p className="text-xs font-medium">{scenario.custom_persona.name}</p>
+                      </div>
+                      <div className="rounded-lg border p-2.5">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">Job Title</p>
+                        <p className="text-xs font-medium">{scenario.custom_persona.jobTitle}</p>
+                      </div>
+                      <div className="rounded-lg border p-2.5">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">Company</p>
+                        <p className="text-xs font-medium">{scenario.custom_persona.company}</p>
+                      </div>
+                      <div className="rounded-lg border p-2.5">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">Industry</p>
+                        <p className="text-xs font-medium">{scenario.custom_persona.industry}</p>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border p-2.5">
+                      <p className="text-[10px] text-muted-foreground mb-0.5">Personality</p>
+                      <p className="text-xs">{scenario.custom_persona.personality}</p>
+                    </div>
+                    {scenario.custom_persona.personalityTraits && (
+                      <div className="rounded-lg border p-2.5">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">Traits</p>
+                        <p className="text-xs">{scenario.custom_persona.personalityTraits}</p>
                       </div>
                     )}
-                    {form.elevenlabsVoiceId && (
-                      <p className="text-xs text-muted-foreground">Voice ID: <span className="font-medium text-foreground">{form.elevenlabsVoiceId}</span></p>
+                  </div>
+
+                  {/* Pain points & goals */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Pain Points</p>
+                      <ul className="space-y-1">
+                        {scenario.custom_persona.painPoints?.map((p, i) => (
+                          <li key={i} className="text-xs flex items-start gap-1.5">
+                            <span className="text-muted-foreground shrink-0">•</span>
+                            <span>{p}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Goals</p>
+                      <ul className="space-y-1">
+                        {scenario.custom_persona.goals?.map((g, i) => (
+                          <li key={i} className="text-xs flex items-start gap-1.5">
+                            <span className="text-muted-foreground shrink-0">•</span>
+                            <span>{g}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Additional persona details */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Persona Context</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {scenario.custom_persona.painPointsCurrentProcess && (
+                        <div className="rounded-lg border p-2.5">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Current Process Pain</p>
+                          <p className="text-xs">{scenario.custom_persona.painPointsCurrentProcess}</p>
+                        </div>
+                      )}
+                      {scenario.custom_persona.painPointsImpact && (
+                        <div className="rounded-lg border p-2.5">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Pain Impact</p>
+                          <p className="text-xs">{scenario.custom_persona.painPointsImpact}</p>
+                        </div>
+                      )}
+                      {scenario.custom_persona.companyGoal && (
+                        <div className="rounded-lg border p-2.5">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Company Goal</p>
+                          <p className="text-xs">{scenario.custom_persona.companyGoal}</p>
+                        </div>
+                      )}
+                      {scenario.custom_persona.personalMotivation && (
+                        <div className="rounded-lg border p-2.5">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Personal Motivation</p>
+                          <p className="text-xs">{scenario.custom_persona.personalMotivation}</p>
+                        </div>
+                      )}
+                      {scenario.custom_persona.communicationStyle && (
+                        <div className="rounded-lg border p-2.5">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Communication Style</p>
+                          <p className="text-xs">{scenario.custom_persona.communicationStyle}</p>
+                        </div>
+                      )}
+                      {scenario.custom_persona.communicationLanguage && (
+                        <div className="rounded-lg border p-2.5">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Communication Language</p>
+                          <p className="text-xs">{scenario.custom_persona.communicationLanguage}</p>
+                        </div>
+                      )}
+                      {scenario.custom_persona.priorVendorExperience && (
+                        <div className="rounded-lg border p-2.5">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Prior Vendor Experience</p>
+                          <p className="text-xs">{scenario.custom_persona.priorVendorExperience}</p>
+                        </div>
+                      )}
+                      {scenario.custom_persona.decisionCriteria && (
+                        <div className="rounded-lg border p-2.5">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Decision Criteria</p>
+                          <p className="text-xs">{scenario.custom_persona.decisionCriteria}</p>
+                        </div>
+                      )}
+                      {scenario.custom_persona.hiddenConcern && (
+                        <div className="rounded-lg border p-2.5">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Hidden Concern</p>
+                          <p className="text-xs">{scenario.custom_persona.hiddenConcern}</p>
+                        </div>
+                      )}
+                      {scenario.custom_persona.meetingSource && (
+                        <div className="rounded-lg border p-2.5">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Meeting Source</p>
+                          <p className="text-xs">{scenario.custom_persona.meetingSource}</p>
+                        </div>
+                      )}
+                      {scenario.custom_persona.budgetStatus && (
+                        <div className="rounded-lg border p-2.5">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Budget Status</p>
+                          <p className="text-xs">{scenario.custom_persona.budgetStatus}</p>
+                        </div>
+                      )}
+                      {scenario.custom_persona.timelinePressure && (
+                        <div className="rounded-lg border p-2.5">
+                          <p className="text-[10px] text-muted-foreground mb-0.5">Timeline Pressure</p>
+                          <p className="text-xs">{scenario.custom_persona.timelinePressure}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Sample dialogues */}
+                  {scenario.custom_persona.sampleDialogues && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sample Dialogues</p>
+                      <div className="rounded-lg border p-2.5 bg-muted/30">
+                        <p className="text-xs italic whitespace-pre-line">{scenario.custom_persona.sampleDialogues}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Context note */}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Context / Backstory</p>
+                    <div className="rounded-lg border p-2.5 bg-muted/30">
+                      <p className="text-xs whitespace-pre-line">{scenario.context_note}</p>
+                    </div>
+                  </div>
+
+                  {/* Scoring criteria */}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Scoring Criteria</p>
+                    <div className="rounded-lg border p-2.5 bg-muted/30">
+                      <p className="text-xs whitespace-pre-line">{scenario.scoring_criteria}</p>
+                    </div>
+                  </div>
+
+                  {/* Evaluation framework */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">Evaluation Framework:</span>
+                    <Badge variant="outline" className="text-[10px]">{scenario.evaluation_framework}</Badge>
+                  </div>
+
+                  {/* KB indicator */}
+                  {selectedKbIds.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <FileText className="w-3.5 h-3.5" />
+                      {selectedKbIds.length} KB document{selectedKbIds.length > 1 ? "s" : ""} included
+                    </div>
+                  )}
+
+                  {/* Practice mode with persona previews */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Practice Mode</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Video Call card */}
+                      <button
+                        className={cn(
+                          "rounded-xl border p-3 text-left transition-all",
+                          mode === "video" ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border hover:border-primary/30"
+                        )}
+                        onClick={() => setMode("video")}
+                      >
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <div className={cn(
+                            "w-7 h-7 rounded-lg flex items-center justify-center",
+                            mode === "video" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                          )}>
+                            <Video className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-xs font-semibold">Video Call</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-primary/5 flex items-center justify-center shrink-0 ring-1 ring-border">
+                            <Users className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium truncate">{scenario.custom_persona.name}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">AI Avatar</p>
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Voice Call card */}
+                      <button
+                        className={cn(
+                          "rounded-xl border p-3 text-left transition-all",
+                          mode === "voice" ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border hover:border-primary/30"
+                        )}
+                        onClick={() => setMode("voice")}
+                      >
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <div className={cn(
+                            "w-7 h-7 rounded-lg flex items-center justify-center",
+                            mode === "voice" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                          )}>
+                            <Phone className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-xs font-semibold">Voice Call</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/20 to-blue-500/5 flex items-center justify-center shrink-0 ring-1 ring-border">
+                            <Phone className="w-4 h-4 text-blue-500" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium truncate">{scenario.custom_persona.name}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">Voice Only</p>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Avatar selection for video mode */}
+                    {mode === "video" && (
+                      <div className="space-y-2 pt-1">
+                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Select Avatar</p>
+                        {avatarsLoading ? (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                            <div className="w-3 h-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                            Loading avatars...
+                          </div>
+                        ) : avatars.length === 0 ? (
+                          <p className="text-[10px] text-muted-foreground py-2">No avatars available. A default avatar will be used.</p>
+                        ) : (
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
+                            {avatars.map((av) => (
+                              <button
+                                key={av.id}
+                                onClick={() => setSelectedAvatarId(av.id)}
+                                className={cn(
+                                  "rounded-lg border p-1.5 flex flex-col items-center gap-1 transition-all",
+                                  selectedAvatarId === av.id ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border hover:border-primary/30"
+                                )}
+                              >
+                                {av.preview_image_url ? (
+                                  <img src={av.preview_image_url} alt={av.name} className="w-12 h-12 rounded-full object-cover" />
+                                ) : (
+                                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/30 to-primary/5 flex items-center justify-center">
+                                    <Users className="w-5 h-5 text-muted-foreground" />
+                                  </div>
+                                )}
+                                <p className="text-[9px] font-medium text-center truncate w-full">{av.name}</p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Voice selection for voice mode */}
+                    {mode === "voice" && (
+                      <div className="space-y-2 pt-1">
+                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Select Voice</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {ELEVENLABS_VOICES.map((v) => (
+                            <button
+                              key={v.id}
+                              onClick={() => setSelectedVoiceId(v.id)}
+                              className={cn(
+                                "rounded-lg border p-2.5 flex flex-col items-center gap-1.5 transition-all",
+                                selectedVoiceId === v.id ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border hover:border-primary/30"
+                              )}
+                            >
+                              <img src={v.imageUrl} alt={v.name} className={cn("w-12 h-12 rounded-full object-cover", selectedVoiceId === v.id && "ring-2 ring-primary")} />
+                              <p className="text-[9px] font-medium text-center">{v.name}</p>
+                              <p className="text-[8px] text-muted-foreground capitalize">{v.gender}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
-                )}
 
-                {error && (
-                  <p className="text-xs text-red-500 bg-red-500/10 rounded-xl px-3 py-2">{error}</p>
-                )}
-              </CardContent>
-            </Card>
+                  {error && (
+                    <p className="text-xs text-red-500 bg-red-500/10 rounded-xl px-3 py-2">{error}</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Actions */}
+              <div className="flex flex-col-reverse sm:flex-row gap-2">
+                <Button
+                  variant="outline"
+                  className="rounded-xl gap-1 h-11 sm:h-9"
+                  onClick={() => {
+                    setScenario(null);
+                    setMessages([]);
+                  }}
+                  disabled={saving}
+                >
+                  Start Over
+                </Button>
+                <Button
+                  className="rounded-xl gap-1 h-11 sm:h-9 flex-1"
+                  onClick={handleSaveAndStart}
+                  disabled={saving}
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  Save & Start Simulation
+                </Button>
+              </div>
+            </div>
           )}
         </motion.div>
       </AnimatePresence>
-
-      {/* Navigation */}
-      <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
-        <Button
-          variant="ghost"
-          className="rounded-xl h-11 sm:h-9"
-          onClick={() => setStep((s) => s - 1)}
-          disabled={step === 1}
-        >
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          Back
-        </Button>
-
-        {step < 5 ? (
-          <Button
-            className="rounded-xl gap-1 h-11 sm:h-9"
-            onClick={() => setStep((s) => s + 1)}
-            disabled={!canGoNext() || loadingEdit}
-          >
-            Continue
-            <ArrowRight className="w-4 h-4" />
-          </Button>
-        ) : (
-          <div className="flex flex-col-reverse sm:flex-row gap-2">
-            <Button
-              variant="outline"
-              className="rounded-xl gap-1 h-11 sm:h-9"
-              disabled={saving}
-              onClick={() => router.push("/scenarios")}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="rounded-xl gap-1 h-11 sm:h-9"
-              disabled={saving}
-              onClick={handleSave}
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              {isEditMode ? "Update Scenario" : "Save & Start"}
-            </Button>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

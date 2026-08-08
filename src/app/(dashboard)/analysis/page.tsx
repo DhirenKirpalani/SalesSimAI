@@ -97,6 +97,8 @@ function AnalysisContent() {
       .limit(100);
     if (organizationId) {
       query = query.eq("organization_id", organizationId);
+    } else {
+      query = query.is("organization_id", null);
     }
     const { data } = await query;
 

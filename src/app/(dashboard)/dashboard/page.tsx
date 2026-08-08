@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useMediaQuery } from "@/hooks/use-media-query";
 import { createClient } from "@/lib/supabase/client";
 import { PageHeaderLogo } from "@/components/layout/PageHeaderLogo";
 import { StatCard } from "@/components/cards/StatCard";
 import { PerformanceChart } from "@/components/charts/PerformanceChart";
 import { ScoreDistributionChart } from "@/components/charts/ScoreDistributionChart";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -18,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Mic2, Trophy, TrendingUp, Clock, ArrowRight, Zap, Loader2, LucideIcon, ShieldAlert, Lightbulb, Briefcase, Building2, Wallet, Users, CreditCard, ChevronDown, ChevronUp } from "lucide-react";
+import { Mic2, Trophy, TrendingUp, Clock, ArrowRight, Zap } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -80,62 +78,6 @@ function getGreeting(): string {
   return "Good evening";
 }
 
-interface TopListCardProps {
-  title: string;
-  items: string[];
-  icon: LucideIcon;
-  emptyText: string;
-}
-
-function TopListCard({ title, items, icon: Icon, emptyText }: TopListCardProps) {
-  const isMobile = useMediaQuery("(max-width: 640px)");
-  const [collapsed, setCollapsed] = useState(isMobile);
-
-  useEffect(() => {
-    setCollapsed(isMobile);
-  }, [isMobile]);
-
-  return (
-    <Card className="rounded-2xl border bg-card shadow-sm hover:shadow-md transition-shadow">
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary">
-              <Icon className="w-4 h-4" />
-            </div>
-            <h3 className="font-semibold text-sm">{title}</h3>
-          </div>
-          <button
-            onClick={() => setCollapsed((c: boolean) => !c)}
-            className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
-            aria-label={collapsed ? "Expand" : "Collapse"}
-          >
-            {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-          </button>
-        </div>
-        {!collapsed && (
-          <div className="pt-2 max-h-[200px] overflow-y-auto pr-1">
-            {items.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{emptyText}</p>
-            ) : (
-              <ol className="space-y-2.5">
-                {items.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-muted text-muted-foreground text-[10px] font-medium flex items-center justify-center mt-0.5">
-                      {i + 1}
-                    </span>
-                    <span className="text-foreground/90 leading-relaxed">{item}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function DashboardPage() {
   const [sessions, setSessions] = useState<UnifiedSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,44 +85,6 @@ export default function DashboardPage() {
   const [organization, setOrganization] = useState<string | null>(null);
   const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
-  const [intelligence, setIntelligence] = useState<{
-    objections: string[];
-    insights: string[];
-    useCases: string[];
-    industries: string[];
-  }>({ objections: [], insights: [], useCases: [], industries: [] });
-  const [selectedProductType, setSelectedProductType] = useState("payment");
-  const [intelligenceLoading, setIntelligenceLoading] = useState(false);
-
-  const PRODUCT_TYPE_LABELS: Record<string, string> = {
-    payment: "Payment",
-    eor: "EoR",
-    cards: "Cards",
-  };
-
-  async function fetchIntelligence(productType: string) {
-    setIntelligenceLoading(true);
-    try {
-      const res = await fetch(`/api/dashboard/intelligence?productType=${encodeURIComponent(productType)}`);
-      if (!res.ok) throw new Error("Failed to load intelligence");
-      const data = await res.json();
-      setIntelligence({
-        objections: data.objections ?? [],
-        insights: data.insights ?? [],
-        useCases: data.useCases ?? [],
-        industries: data.industries ?? [],
-      });
-    } catch (err) {
-      console.error("[dashboard] intelligence fetch failed:", err);
-    } finally {
-      setIntelligenceLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchIntelligence(selectedProductType);
-  }, [selectedProductType]);
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -196,23 +100,28 @@ export default function DashboardPage() {
         .single();
       const organizationId = profile?.organization_id ?? null;
 
-      const orgFilter = organizationId ? { organization_id: organizationId } : {};
+      const heygenQuery = supabase
+        .from("heygen_sessions")
+        .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
+        .eq("user_id", user.id)
+        .order("started_at", { ascending: false })
+        .limit(50);
+      if (organizationId) heygenQuery.eq("organization_id", organizationId);
+      else heygenQuery.is("organization_id", null);
+
+      const voiceQuery = supabase
+        .from("simulation_sessions")
+        .select("id, scenario_id, scenario_table, scenario_name, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
+        .eq("user_id", user.id)
+        .eq("status", "completed")
+        .order("started_at", { ascending: false })
+        .limit(50);
+      if (organizationId) voiceQuery.eq("organization_id", organizationId);
+      else voiceQuery.is("organization_id", null);
+
       const [{ data: heygenData }, { data: voiceData }] = await Promise.all([
-        supabase
-          .from("heygen_sessions")
-          .select("id, scenario_name, analysis, duration_s, started_at, ended_at")
-          .eq("user_id", user.id)
-          .match(orgFilter)
-          .order("started_at", { ascending: false })
-          .limit(50),
-        supabase
-          .from("simulation_sessions")
-          .select("id, scenario_id, scenario_table, started_at, ended_at, duration_s, simulation_coaching(overall_score)")
-          .eq("user_id", user.id)
-          .eq("status", "completed")
-          .match(orgFilter)
-          .order("started_at", { ascending: false })
-          .limit(50),
+        heygenQuery,
+        voiceQuery,
       ]);
 
       if (profile?.full_name) {
@@ -240,7 +149,7 @@ export default function DashboardPage() {
         const coaching = s.simulation_coaching as { overall_score?: number } | null;
         return {
           id: s.id,
-          scenario_name: "Voice Simulation",
+          scenario_name: s.scenario_name ?? "Practice Session",
           analysis: coaching && typeof coaching.overall_score === "number"
             ? { overall_score: coaching.overall_score }
             : null,
@@ -265,9 +174,9 @@ export default function DashboardPage() {
 
   const completedSessions = sessions.filter((s) => !!s.ended_at);
   const completed = completedSessions.length;
-  const meddicScores = completedSessions.map((s) => s.analysis?.overall_score).filter((n): n is number => typeof n === "number");
-  const avgMeddic = meddicScores.length ? Math.round(meddicScores.reduce((a, b) => a + b, 0) / meddicScores.length) : 0;
-  const bestMeddic = meddicScores.length ? Math.max(...meddicScores) : 0;
+  const allScores = completedSessions.map((s) => s.analysis?.overall_score).filter((n): n is number => typeof n === "number");
+  const avgMeddic = allScores.length ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0;
+  const bestMeddic = allScores.length ? Math.max(...allScores) : 0;
   const totalMins = completedSessions.reduce((sum, s) => sum + formatDurationMins(s.duration_s), 0);
   const recent = sessions.slice(0, 6);
   const trendData = buildTrendData([...completedSessions].reverse());
@@ -310,7 +219,7 @@ export default function DashboardPage() {
             {firstName ? `${getGreeting()}, ${firstName}` : getGreeting()}
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Track your readiness and performance across sales simulations.
+            Track your progress and performance across practice sessions.
           </p>
         </div>
         <Link href="/scenarios" className="w-full sm:w-auto">
@@ -322,93 +231,14 @@ export default function DashboardPage() {
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h2 className="font-semibold text-sm">Sales Intelligence</h2>
-        <div className="flex gap-1 p-1 bg-muted/50 rounded-full w-full sm:w-fit overflow-x-auto no-scrollbar">
-          {([
-            { type: "payment", icon: Wallet },
-            { type: "eor", icon: Users },
-            { type: "cards", icon: CreditCard },
-          ] as const).map(({ type, icon: Icon }) => {
-            const active = selectedProductType === type;
-            return (
-              <button
-                key={type}
-                onClick={() => setSelectedProductType(type)}
-                className={cn(
-                  "inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex-1 sm:flex-none whitespace-nowrap",
-                  active
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background"
-                )}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {PRODUCT_TYPE_LABELS[type]}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-start">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0 }}
-        >
-          <TopListCard
-            title="Top 5 Objections"
-            items={intelligence.objections}
-            icon={ShieldAlert}
-            emptyText={intelligenceLoading ? "Analyzing transcripts..." : "No objections found yet — import or upload transcripts for this product."}
-          />
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.05 }}
-        >
-          <TopListCard
-            title="Top 5 Insights"
-            items={intelligence.insights}
-            icon={Lightbulb}
-            emptyText={intelligenceLoading ? "Analyzing transcripts..." : "No insights found yet — import or upload transcripts for this product."}
-          />
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-        >
-          <TopListCard
-            title="Top 5 Use Cases"
-            items={intelligence.useCases}
-            icon={Briefcase}
-            emptyText={intelligenceLoading ? "Analyzing transcripts..." : "No use cases found yet — import or upload transcripts for this product."}
-          />
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.15 }}
-        >
-          <TopListCard
-            title="Top 5 Industries"
-            items={intelligence.industries}
-            icon={Building2}
-            emptyText={intelligenceLoading ? "Analyzing transcripts..." : "No industries found yet — import or upload transcripts for this product."}
-          />
-        </motion.div>
-      </div>
-
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h2 className="font-semibold text-sm">Performance</h2>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { label: "Simulations Completed", value: completed, icon: Mic2 },
-          { label: "Avg MEDDIC Score", value: avgMeddic, icon: TrendingUp },
-          { label: "Best MEDDIC Score", value: bestMeddic, icon: Trophy },
+          { label: "Sessions Completed", value: completed, icon: Mic2 },
+          { label: "Avg Score", value: avgMeddic, icon: TrendingUp },
+          { label: "Best Score", value: bestMeddic, icon: Trophy },
           { label: "Training Time", value: formatTrainingTime(totalMins), icon: Clock },
         ].map((stat, i) => (
           <motion.div
@@ -493,7 +323,7 @@ export default function DashboardPage() {
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-xs">Scenario</TableHead>
-                  <TableHead className="text-xs">MEDDIC</TableHead>
+                  <TableHead className="text-xs">Score</TableHead>
                   <TableHead className="text-xs">Duration</TableHead>
                   <TableHead className="text-xs">Date</TableHead>
                   <TableHead className="text-xs">Status</TableHead>

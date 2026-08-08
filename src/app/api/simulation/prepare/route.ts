@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
       scenarioName,
       avatarName,
       voiceAvatarImageUrl,
+      avatarImageUrl,
       elevenlabsVoiceId,
       callMode = "voice",
     } = await req.json();
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
         scenario_table: scenarioTable,
         scenario_name: scenario.name ?? scenarioName ?? "Simulation",
         duration_s: (scenario.duration ?? 5) * 60,
-        call_mode: callMode === "text" ? "text" : "voice",
+        call_mode: callMode === "text" ? "text" : callMode === "video" ? "video" : "voice",
         status: "active",
         state: {
           trust_level: 30,
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
           objections_used: [],
           engagement_level: 30,
           avatar_id: avatarId ?? null,
+          avatar_image_url: avatarImageUrl ?? null,
           voice_id: voiceId ?? null,
           avatar_name: avatarName ?? null,
           voice_avatar_image_url: effectiveVoiceAvatarImageUrl,
