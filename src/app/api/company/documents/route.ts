@@ -78,17 +78,18 @@ async function getNextIndex(
 }
 
 async function uploadToOrgFolder(
-  orgId: string,
+  orgId: string | null,
   orgName: string,
+  userId: string,
   productType: string,
   documentType: string,
   fileName: string,
   fileBuffer: Buffer,
   mimeType: string
 ): Promise<string> {
-  const orgFolder = deriveOrgFolderName(orgId, orgName);
-  const index = await getNextIndex(KNOWLEDGE_BASE_BUCKET, orgFolder, productType, documentType);
-  const path = getStoragePath(orgFolder, productType, documentType, index, fileName);
+  const folderKey = orgId ? deriveOrgFolderName(orgId, orgName) : `personal-${userId.toLowerCase()}`;
+  const index = await getNextIndex(KNOWLEDGE_BASE_BUCKET, folderKey, productType, documentType);
+  const path = getStoragePath(folderKey, productType, documentType, index, fileName);
 
   const svc = serviceSupabase();
   const { error } = await svc.storage.from(KNOWLEDGE_BASE_BUCKET).upload(path, fileBuffer, {
@@ -122,15 +123,19 @@ async function requireOrgMember(supabase: Awaited<ReturnType<typeof createClient
     .eq("id", user.id)
     .single();
 
-  if (!profile?.organization_id) return { error: "Not in an organization", status: 400 };
+  const orgId = profile?.organization_id ?? null;
 
-  const { data: org } = await supabase
-    .from("organizations")
-    .select("created_by, name")
-    .eq("id", profile.organization_id)
-    .single();
+  if (orgId) {
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("created_by, name")
+      .eq("id", orgId)
+      .single();
+    return { user, orgId, orgName: org?.name ?? "", userId: user.id };
+  }
 
-  return { user, orgId: profile.organization_id, orgName: org?.name ?? "" };
+  // Personal mode — no org required
+  return { user, orgId: null, orgName: "Personal", userId: user.id };
 }
 
 async function requireAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
@@ -143,18 +148,23 @@ async function requireAdmin(supabase: Awaited<ReturnType<typeof createClient>>) 
     .eq("id", user.id)
     .single();
 
-  if (!profile?.organization_id) return { error: "Not in an organization", status: 400 };
+  const orgId = profile?.organization_id ?? null;
 
-  const { data: org } = await supabase
-    .from("organizations")
-    .select("created_by, name")
-    .eq("id", profile.organization_id)
-    .single();
+  if (orgId) {
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("created_by, name")
+      .eq("id", orgId)
+      .single();
 
-  const isOrgAdmin = org?.created_by === user.id || profile.role === "admin";
-  if (!isOrgAdmin) return { error: "Only admin can manage documents", status: 403 };
+    const isOrgAdmin = org?.created_by === user.id || profile?.role === "admin";
+    if (!isOrgAdmin) return { error: "Only admin can manage documents", status: 403 };
 
-  return { user, orgId: profile.organization_id, orgName: org?.name ?? "" };
+    return { user, orgId, orgName: org?.name ?? "", userId: user.id };
+  }
+
+  // Personal mode — user is always their own admin
+  return { user, orgId: null, orgName: "Personal", userId: user.id };
 }
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -184,30 +194,28 @@ function sha256Text(text: string): string {
 
 async function findExistingFileByHash(
   svc: ReturnType<typeof serviceSupabase>,
-  orgId: string,
+  orgId: string | null,
+  userId: string,
   fileHash: string
 ): Promise<{ id: string; name: string } | null> {
-  const { data, error } = await svc
-    .from("company_documents")
-    .select("id, name")
-    .eq("organization_id", orgId)
-    .eq("file_hash", fileHash)
-    .maybeSingle();
+  let query = svc.from("company_documents").select("id, name").eq("file_hash", fileHash);
+  if (orgId) query = query.eq("organization_id", orgId);
+  else query = query.is("organization_id", null).eq("user_id", userId);
+  const { data, error } = await query.maybeSingle();
   if (error) console.error("[findExistingFileByHash] error:", error);
   return data ?? null;
 }
 
 async function findExistingContentByHash(
   svc: ReturnType<typeof serviceSupabase>,
-  orgId: string,
+  orgId: string | null,
+  userId: string,
   contentHash: string
 ): Promise<{ id: string; name: string } | null> {
-  const { data, error } = await svc
-    .from("company_documents")
-    .select("id, name")
-    .eq("organization_id", orgId)
-    .eq("content_hash", contentHash)
-    .maybeSingle();
+  let query = svc.from("company_documents").select("id, name").eq("content_hash", contentHash);
+  if (orgId) query = query.eq("organization_id", orgId);
+  else query = query.is("organization_id", null).eq("user_id", userId);
+  const { data, error } = await query.maybeSingle();
   if (error) console.error("[findExistingContentByHash] error:", error);
   return data ?? null;
 }
@@ -229,7 +237,8 @@ async function findExistingChunkByHash(
 
 async function findSemanticallySimilarChunks(
   svc: ReturnType<typeof serviceSupabase>,
-  orgId: string,
+  orgId: string | null,
+  userId: string,
   embedding: number[],
   threshold: number,
   limit: number
@@ -240,6 +249,7 @@ async function findSemanticallySimilarChunks(
     match_count: limit,
     filter_org_id: orgId,
     filter_doc_type: null,
+    filter_user_id: orgId ? null : userId,
   });
   if (error) {
     console.error("[findSemanticallySimilarChunks] error:", error);
@@ -266,16 +276,16 @@ async function classifyDocumentType(text: string, fileName: string): Promise<str
       messages: [
         {
           role: "system",
-          content: `You are a document classifier for a B2B fintech sales knowledge base.
+          content: `You are a document classifier for a knowledge base.
 
 Read the file name and text, then classify the document into exactly one bucket:
-- ICP: Ideal Customer Profile, target buyer personas, buyer profiles
-- Value Prop: Value proposition, benefits, ROI, why buy
-- Competitive: Competitive analysis, competitor comparison, battlecards
-- Objection Handling: Objection handling, common objections, rebuttals
+- ICP: Target audience, personas, profiles of who you work with
+- Value Prop: Value proposition, benefits, ROI, why use this
+- Competitive: Competitive analysis, competitor comparison, alternatives
+- Objection Handling: Common questions, concerns, rebuttals, FAQ
 - Product/Pricing: Product features, pricing, packages, tiers
-- Process/Methodology: Sales process, methodology, playbooks, workflows
-- Transcript: Real sales call transcript, meeting transcript, or conversation record
+- Process/Methodology: Processes, methodologies, playbooks, workflows
+- Transcript: Real conversation transcript, meeting transcript, or dialogue record
 
 Respond with only a JSON object:
 {
@@ -345,7 +355,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "documentType is required for manual upload" }, { status: 400 });
     }
 
-    const allowedProductTypes = ["payment", "eor", "cards"];
+    const allowedProductTypes = ["payment", "eor", "cards", "general"];
     if (!allowedProductTypes.includes(productType)) {
       return NextResponse.json({ error: "Invalid productType" }, { status: 400 });
     }
@@ -360,7 +370,7 @@ export async function POST(req: NextRequest) {
     if ("error" in adminCheck) {
       return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status });
     }
-    const { user, orgId, orgName } = adminCheck;
+    const { user, orgId, orgName, userId } = adminCheck;
     const svc = serviceSupabase();
 
     let totalChunks = 0;
@@ -389,7 +399,7 @@ export async function POST(req: NextRequest) {
 
       // ── File-level deduplication ─────────────────────────────────────────────
       const fileHash = sha256Buffer(fileBuffer);
-      const existingFile = await findExistingFileByHash(svc, orgId, fileHash);
+      const existingFile = await findExistingFileByHash(svc, orgId, userId, fileHash);
       if (existingFile) {
         skippedFiles.push({
           name,
@@ -401,7 +411,7 @@ export async function POST(req: NextRequest) {
 
       // ── Content-level deduplication ────────────────────────────────────────
       const contentHash = sha256Text(textContent.trim());
-      const existingContent = await findExistingContentByHash(svc, orgId, contentHash);
+      const existingContent = await findExistingContentByHash(svc, orgId, userId, contentHash);
       if (existingContent) {
         skippedFiles.push({
           name,
@@ -419,7 +429,7 @@ export async function POST(req: NextRequest) {
       // Upload the actual file to the shared knowledge-base bucket under the org's folder
       let filePath: string;
       try {
-        filePath = await uploadToOrgFolder(orgId, orgName, productType, effectiveDocumentType, name, fileBuffer, mimeType);
+        filePath = await uploadToOrgFolder(orgId, orgName, userId, productType, effectiveDocumentType, name, fileBuffer, mimeType);
       } catch (err: any) {
         console.error("[api/company/documents] storage upload error:", err);
         return NextResponse.json({ error: err.message || "Storage upload failed" }, { status: 500 });
@@ -433,6 +443,7 @@ export async function POST(req: NextRequest) {
         .from("company_documents")
         .insert({
           organization_id: orgId,
+          user_id: orgId ? null : userId,
           name: name.trim(),
           content: textContent.trim(),
           doc_type: productType,
@@ -468,6 +479,7 @@ export async function POST(req: NextRequest) {
         const similarChunks = await findSemanticallySimilarChunks(
           svc,
           orgId,
+          userId,
           embedding,
           SEMANTIC_DUPLICATE_THRESHOLD,
           1
@@ -536,7 +548,7 @@ export async function GET(req: NextRequest) {
     if ("error" in adminCheck) {
       return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status });
     }
-    const { orgId } = adminCheck;
+    const { orgId, userId } = adminCheck;
 
     // Use service role to bypass RLS so all org members can read documents
     const svc = serviceSupabase();
@@ -549,8 +561,13 @@ export async function GET(req: NextRequest) {
     
     let query = svc
       .from("company_documents")
-      .select(selectFields, { count: "exact" })
-      .eq("organization_id", orgId);
+      .select(selectFields, { count: "exact" });
+
+    if (orgId) {
+      query = query.eq("organization_id", orgId);
+    } else {
+      query = query.is("organization_id", null).eq("user_id", userId);
+    }
 
     if (documentType) {
       query = query.eq("document_type", documentType);

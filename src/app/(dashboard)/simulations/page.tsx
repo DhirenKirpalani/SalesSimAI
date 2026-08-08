@@ -71,6 +71,8 @@ export default function SimulationsPage() {
       .limit(100);
     if (organizationId) {
       query = query.eq("organization_id", organizationId);
+    } else {
+      query = query.is("organization_id", null);
     }
     const { data, error } = await query;
     if (error) console.error("[SimulationsPage] load error:", error);

@@ -18,7 +18,7 @@ import { useState } from "react";
 import { useRole } from "@/hooks/useRole";
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Scenarios", href: "/scenarios", icon: Library },
+  { label: "Practice", href: "/scenarios", icon: Library },
   { label: "Simulations", href: "/simulations", icon: Mic2 },
   { label: "Analysis", href: "/analysis", icon: BarChart3 },
   { label: "Knowledge Base", href: "/company-knowledge", icon: BookOpen },

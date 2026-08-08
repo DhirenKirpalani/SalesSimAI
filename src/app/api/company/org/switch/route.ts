@@ -8,9 +8,6 @@ import { createClient } from "@/lib/supabase/server";
 export async function POST(req: NextRequest) {
   try {
     const { organizationId } = await req.json();
-    if (!organizationId) {
-      return NextResponse.json({ error: "Organization ID is required" }, { status: 400 });
-    }
 
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -20,36 +17,39 @@ export async function POST(req: NextRequest) {
 
     console.log("[api/company/org/switch POST] switching", { userId: user.id, organizationId });
 
-    // Verify membership (with fallback for pre-migration / legacy orgs)
-    const { data: membership, error: membershipError } = await supabase
-      .from("organization_members")
-      .select("id")
-      .eq("organization_id", organizationId)
-      .eq("user_id", user.id)
-      .maybeSingle();
+    // null = switch to personal mode (no organization)
+    if (organizationId !== null) {
+      // Verify membership (with fallback for pre-migration / legacy orgs)
+      const { data: membership, error: membershipError } = await supabase
+        .from("organization_members")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-    if (membershipError) {
-      console.error("[api/company/org/switch POST] membership lookup error:", membershipError);
+      if (membershipError) {
+        console.error("[api/company/org/switch POST] membership lookup error:", membershipError);
+      }
+      console.log("[api/company/org/switch POST] membership found:", membership);
+
+      let canSwitch = !!membership;
+
+      if (!canSwitch) {
+        // Fallback: check if user is the org creator or if it's their active profile org
+        const [{ data: profile }, { data: org }] = await Promise.all([
+          supabase.from("profiles").select("organization_id").eq("id", user.id).single(),
+          supabase.from("organizations").select("created_by").eq("id", organizationId).single(),
+        ]);
+        console.log("[api/company/org/switch POST] fallback check:", { profile, org });
+        canSwitch = profile?.organization_id === organizationId || org?.created_by === user.id;
+      }
+
+      if (!canSwitch) {
+        return NextResponse.json({ error: "You are not a member of this organization" }, { status: 403 });
+      }
     }
-    console.log("[api/company/org/switch POST] membership found:", membership);
 
-    let canSwitch = !!membership;
-
-    if (!canSwitch) {
-      // Fallback: check if user is the org creator or if it's their active profile org
-      const [{ data: profile }, { data: org }] = await Promise.all([
-        supabase.from("profiles").select("organization_id").eq("id", user.id).single(),
-        supabase.from("organizations").select("created_by").eq("id", organizationId).single(),
-      ]);
-      console.log("[api/company/org/switch POST] fallback check:", { profile, org });
-      canSwitch = profile?.organization_id === organizationId || org?.created_by === user.id;
-    }
-
-    if (!canSwitch) {
-      return NextResponse.json({ error: "You are not a member of this organization" }, { status: 403 });
-    }
-
-    // Update active org on profile
+    // Update active org on profile (null = personal mode)
     const { error: updateErr } = await supabase
       .from("profiles")
       .update({ organization_id: organizationId })

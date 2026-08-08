@@ -370,7 +370,7 @@ export async function POST(req: NextRequest) {
 
     const finalAvatarId = avatarIdOverride ?? scenarioAvatarId ?? AVATAR_ID;
     const finalVoiceId = voiceIdOverride ?? scenarioVoiceId ?? VOICE_ID;
-    const maxSessionDuration = Math.min(scenarioDuration * 60, 1200); // minutes → seconds, capped at 1200s (LiveAvatar API max)
+    const maxSessionDuration = Math.min(scenarioDuration * 60, 120); // minutes → seconds, capped at 120s (LiveAvatar API max)
     const buildToken = (configId: string | undefined) => createSessionToken({
       mode: "FULL",
       avatar_id: finalAvatarId,

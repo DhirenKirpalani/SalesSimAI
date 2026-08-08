@@ -272,7 +272,9 @@ interface SessionConfig {
   scenarioName?: string;
   avatarName?: string;
   voiceAvatarImageUrl?: string;
+  avatarImageUrl?: string;
   elevenlabsVoiceId?: string;
+  callMode?: string;
 }
 
 function useSessionConfig(): SessionConfig & { loading: boolean; error: string | null } {
@@ -292,7 +294,9 @@ function useSessionConfig(): SessionConfig & { loading: boolean; error: string |
         scenarioName: searchParams.get("scenarioName") ?? undefined,
         avatarName: searchParams.get("avatarName") ?? undefined,
         voiceAvatarImageUrl: searchParams.get("voiceAvatarImageUrl") ?? undefined,
+        avatarImageUrl: searchParams.get("avatarImageUrl") ?? undefined,
         elevenlabsVoiceId: searchParams.get("elevenlabsVoiceId") ?? undefined,
+        callMode: searchParams.get("callMode") ?? undefined,
       });
       setLoading(false);
       return;
@@ -334,7 +338,9 @@ function HeyGenTestInner() {
   const scenarioNameParam = sessionConfig.scenarioName;
   const avatarNameParam = sessionConfig.avatarName;
   const voiceAvatarImageUrlParam = sessionConfig.voiceAvatarImageUrl;
+  const avatarImageUrlParam = sessionConfig.avatarImageUrl;
   const elevenlabsVoiceIdParam = sessionConfig.elevenlabsVoiceId;
+  const callModeParam = sessionConfig.callMode;
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -679,6 +685,10 @@ function HeyGenTestInner() {
   }, [transcript]);
 
   useEffect(() => {
+    if (avatarImageUrlParam) {
+      setAvatarImageUrl(avatarImageUrlParam);
+      return;
+    }
     const resolveAvatarId = avatarId ?? scenarioId;
     if (!resolveAvatarId) return;
     fetch(`/api/heygen-test/avatars?page=1&page_size=100`)
@@ -688,11 +698,17 @@ function HeyGenTestInner() {
         if (match?.preview_image_url) setAvatarImageUrl(match.preview_image_url);
       })
       .catch(() => { /* ignore */ });
-  }, [avatarId, scenarioId]);
+  }, [avatarId, scenarioId, avatarImageUrlParam]);
 
   useEffect(() => {
     setVoiceAvatarImageUrl(voiceAvatarImageUrlParam ?? null);
   }, [voiceAvatarImageUrlParam]);
+
+  useEffect(() => {
+    if (callModeParam === "video" || callModeParam === "voice" || callModeParam === "text") {
+      setCallMode(callModeParam);
+    }
+  }, [callModeParam]);
 
   const start = useCallback(async () => {
     const isResume = resumeTimeLeftRef.current !== null;
@@ -1532,7 +1548,7 @@ function HeyGenTestInner() {
             income: persona?.income ?? null,
             education: persona?.education ?? null,
             location: persona?.location ?? null,
-            avatar: (scenario as any).voice_avatar_image_url ?? persona?.avatar ?? null,
+            avatar: persona?.avatar ?? null,
             companySize: persona?.companySize ?? null,
             reportsTo: persona?.reportsTo ?? null,
             decisionRole: persona?.decisionRole ?? null,
@@ -1926,9 +1942,9 @@ function HeyGenTestInner() {
                   {/* Avatar */}
                   <div className="shrink-0 mx-auto sm:mx-0">
                     <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden border-4 border-border shadow-lg bg-muted flex items-center justify-center">
-                      {(personaDetails.avatar ?? voiceAvatarImageUrl ?? avatarImageUrl) ? (
+                      {(personaDetails.avatar ?? (callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? (voiceAvatarImageUrl ?? avatarImageUrl)) ? (
                         <img
-                          src={(personaDetails.avatar ?? voiceAvatarImageUrl ?? avatarImageUrl) ?? undefined}
+                          src={(personaDetails.avatar ?? (callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? (voiceAvatarImageUrl ?? avatarImageUrl)) ?? undefined}
                           alt={personaDetails.name ?? resolvedPersonaName ?? "Buyer"}
                           className="w-full h-full object-cover object-top"
                         />
@@ -2308,9 +2324,9 @@ function HeyGenTestInner() {
                 <span className="absolute inset-0 rounded-full bg-orange-500/30 animate-ping" />
                 <span className="absolute inset-1 rounded-full bg-orange-500/20 animate-pulse" />
                 <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full ring-2 ring-orange-500/40 overflow-hidden bg-gradient-to-br from-orange-500/20 to-orange-600/10 flex items-center justify-center">
-                  {((callMode === "voice" ? voiceAvatarImageUrl : (voiceAvatarImageUrl ?? avatarImageUrl)) ?? undefined) ? (
+                  {((callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? (voiceAvatarImageUrl ?? avatarImageUrl) ?? undefined) ? (
                     <img
-                      src={(callMode === "voice" ? voiceAvatarImageUrl : (voiceAvatarImageUrl ?? avatarImageUrl)) ?? undefined}
+                      src={((callMode === "voice" ? voiceAvatarImageUrl : avatarImageUrl) ?? (voiceAvatarImageUrl ?? avatarImageUrl)) ?? undefined}
                       alt={resolvedPersonaName ?? avatarNameParam ?? "Avatar"}
                       className="w-full h-full object-cover object-top"
                     />

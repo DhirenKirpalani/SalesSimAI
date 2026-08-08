@@ -143,7 +143,7 @@ export interface CustomScenario {
   preset_persona_id: string | null;
   custom_persona: CustomPersona | null;
   scenario_type: string;
-  product_type: "payment" | "eor" | "cards";
+  product_type: string;
   difficulty: "Beginner" | "Intermediate" | "Advanced" | "Expert";
   duration: number;
   context_note: string | null;

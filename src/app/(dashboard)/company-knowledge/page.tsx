@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { UrlChipInput } from "@/components/ui/UrlChipInput";
@@ -28,7 +27,6 @@ import {
   Loader2,
   Upload,
   Trash2,
-  Building2,
   FileText,
   CheckCircle,
   AlertCircle,
@@ -89,9 +87,9 @@ interface Document {
 }
 
 const PRODUCT_TYPE_LABELS: Record<string, string> = {
-  payment: "Payment",
-  eor: "EoR",
-  cards: "Cards",
+  payment: "General",
+  eor: "General",
+  cards: "General",
 };
 
 const PRODUCT_TYPE_COLORS: Record<string, string> = {
@@ -101,12 +99,12 @@ const PRODUCT_TYPE_COLORS: Record<string, string> = {
 };
 
 const DOCUMENT_TYPE_LABELS: Record<string, string> = {
-  icp: "ICP",
-  value_prop: "Value Prop",
-  competitive: "Competitive",
-  objection_handling: "Objection Handling",
-  product_pricing: "Product/Pricing",
-  process_methodology: "Process/Methodology",
+  icp: "Target Audience",
+  value_prop: "Value Proposition",
+  competitive: "Competitive Info",
+  objection_handling: "FAQ & Rebuttals",
+  product_pricing: "Product & Pricing",
+  process_methodology: "Process & Methodology",
   transcript: "Transcript",
 };
 
@@ -182,8 +180,6 @@ export default function CompanyKnowledgePage() {
 
 
   // Create org form
-  const [newOrgName, setNewOrgName] = useState("");
-  const [creatingOrg, setCreatingOrg] = useState(false);
 
   // Settings
   const [logoUrl, setLogoUrl] = useState("");
@@ -319,34 +315,12 @@ export default function CompanyKnowledgePage() {
     }
   }, [isOrgAdmin, org, fetchInvites]);
 
-  // ── Create Org ─────────────────────────────────────────────────────
-  async function handleCreateOrg(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newOrgName.trim()) return;
-    setCreatingOrg(true);
-    try {
-      const res = await fetch("/api/company/org", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newOrgName.trim() }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setOrg(data.organization);
-        setIsOrgAdmin(true);
-        setNewOrgName("");
-        await fetchOrg(); // refresh members list
-      } else {
-        setInviteStatus("error");
-        setInviteMessage(data.error || "Failed to create organization");
-      }
-    } catch {
-      setInviteStatus("error");
-      setInviteMessage("Failed to create organization");
-    } finally {
-      setCreatingOrg(false);
+  // ── Personal mode: treat user as their own admin ──────────────────────
+  useEffect(() => {
+    if (!orgLoading && !org) {
+      setIsOrgAdmin(true);
     }
-  }
+  }, [orgLoading, org]);
 
   // ── Invite Member ────────────────────────────────────────────────────
   async function handleInvite(e: React.FormEvent) {
@@ -730,59 +704,201 @@ export default function CompanyKnowledgePage() {
     );
   }
 
-  // ── No access if not in any org and not an app admin ─────────────────
-  if (!orgLoading && !org && !isAdmin) {
-    return (
-      <div className="max-w-2xl mx-auto py-12 px-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-500" />
-              No Organization
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-muted-foreground">
-              You are not part of an organization yet. Ask your admin to invite you, or create your own.
-            </p>
-            <Button variant="outline" onClick={() => router.push("/dashboard")}>
-              Go to Dashboard
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // ── No Org State ─────────────────────────────────────────────────────
   if (!orgLoading && !org) {
     return (
-      <div className="max-w-2xl mx-auto py-12 px-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="w-5 h-5" />
-              Company Knowledge Base
+      <div className="max-w-3xl mx-auto py-4 sm:py-8 space-y-4 sm:space-y-6 px-4 sm:px-0">
+        {/* Header */}
+        <div>
+          <PageHeaderLogo />
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Knowledge Base</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+            Upload documents to build your personal knowledge base for practice sessions.
+          </p>
+        </div>
+
+        {/* Single Upload Card */}
+        <Card className="rounded-2xl">
+          <CardHeader className="px-4 sm:px-6">
+            <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+              <Upload className="w-4 h-4" />
+              Upload Documents
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <p className="text-muted-foreground">
-              You are not part of an organization yet. Create one to start sharing
-              documents with your team.
+          <CardContent className="space-y-4 px-4 sm:px-6">
+            <p className="text-xs text-muted-foreground">
+              Upload PDF, DOCX, PPTX, TXT, MD, JSON, or CSV files. The AI will automatically classify each file.
             </p>
-            <form onSubmit={handleCreateOrg} className="flex gap-3">
-              <Input
-                placeholder="Organization name (e.g., NorthPay)"
-                value={newOrgName}
-                onChange={(e) => setNewOrgName(e.target.value)}
-                className="flex-1"
-              />
-              <Button type="submit" disabled={creatingOrg || !newOrgName.trim()}>
-                {creatingOrg ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create"}
+            <input
+              ref={bulkFileInputRef}
+              type="file"
+              accept=".pdf,.docx,.pptx,.txt,.md,.json,.csv,.vtt,.srt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+              multiple
+              onChange={handleBulkFilePick}
+              className="hidden"
+            />
+            <div
+              onClick={() => bulkFileInputRef.current?.click()}
+              className={`w-full flex items-center gap-2 px-3 py-3 rounded-lg border border-input bg-background text-sm transition-colors cursor-pointer hover:bg-accent hover:text-accent-foreground min-h-[44px] ${bulkUploading ? "opacity-50" : ""}`}
+            >
+              <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span className="truncate flex-1">
+                {bulkFiles.length === 0 ? "Click to choose files" : `${bulkFiles.length} file(s) selected`}
+              </span>
+              {bulkFiles.length > 0 && (
+                <span
+                  onClick={(e) => { e.stopPropagation(); handleBulkClearFiles(); }}
+                  className="ml-auto text-muted-foreground hover:text-red-500 cursor-pointer shrink-0"
+                >
+                  <X className="w-3 h-3" />
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleBulkUpload}
+                disabled={bulkFiles.length === 0 || bulkUploading}
+                className="min-w-[100px]"
+              >
+                {bulkUploading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-1" />
+                    Upload
+                  </>
+                )}
               </Button>
-            </form>
+
+              {bulkUploadStatus !== "idle" && (
+                <div className={`flex items-center gap-2 text-sm ${bulkUploadStatus === "success" ? "text-green-600" : "text-red-600"}`}>
+                  {bulkUploadStatus === "success" ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                  {bulkUploadMessage}
+                </div>
+              )}
+            </div>
+
+            {bulkUploading && (
+              <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Processing {bulkFiles.length} file(s)...
+                </p>
+                <div className="space-y-1">
+                  {BULK_UPLOAD_STEPS.map((step, idx) => {
+                    const isActive = idx === bulkStepIndex;
+                    const isPast = idx < bulkStepIndex;
+                    return (
+                      <div key={step} className={`flex items-center gap-2 text-xs transition-all duration-300 ${isActive ? "text-foreground font-medium" : isPast ? "text-muted-foreground/60" : "text-muted-foreground/40"}`}>
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] transition-colors duration-300 ${isActive ? "bg-primary text-primary-foreground" : isPast ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                          {isPast ? <CheckCircle className="w-3 h-3" /> : <span>{idx + 1}</span>}
+                        </div>
+                        <span className={isActive ? "animate-pulse" : ""}>{step}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {bulkResults.length > 0 && (
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-medium">AI classification results:</p>
+                {bulkResults.map((r, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs">
+                    <span className="truncate flex-1 pr-2">{r.name}</span>
+                    <Badge variant="outline" className="text-[10px] shrink-0">
+                      {DOCUMENT_TYPE_LABELS[r.document_type] || r.document_type}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        {/* Document List */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="w-4 h-4" />
+              My Documents ({docs.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {docsLoading && docs.length === 0 ? (
+              <div className="space-y-3 animate-pulse py-2">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-transparent">
+                    <div className="flex items-center gap-3 w-1/2">
+                      <div className="w-4 h-4 bg-muted rounded" />
+                      <div className="h-4 bg-muted rounded w-full" />
+                    </div>
+                    <div className="flex items-center gap-3 w-1/3">
+                      <div className="h-5 bg-muted rounded w-16" />
+                      <div className="h-8 bg-muted rounded w-8 ml-auto" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : docs.length === 0 ? (
+              <p className="text-muted-foreground text-sm text-center py-8">
+                No documents uploaded yet. Upload your first document above.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {docs.map((doc) => (
+                  <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <p className="text-sm font-medium truncate">{doc.name}</p>
+                    </div>
+                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                      <Badge className="text-xs bg-blue-100 text-blue-800">
+                        {DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground hidden sm:block">
+                        {new Date(doc.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <Button variant="ghost" size="sm" onClick={() => handleDeleteDoc(doc.file_path)} className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {docsHasMore && (
+              <div className="pt-4 text-center border-t">
+                <Button variant="outline" size="sm" onClick={() => fetchDocs(docsPage + 1)} className="gap-2">
+                  <Loader2 className="w-3.5 h-3.5" />
+                  Load more ({docsTotal - docs.length} remaining)
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Delete Document Dialog */}
+        <Dialog open={deleteDocOpen} onOpenChange={setDeleteDocOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-base">Delete document?</DialogTitle>
+              <DialogDescription>
+                This will permanently remove the document and all its indexed chunks from the knowledge base.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" className="rounded-xl" onClick={() => setDeleteDocOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" className="rounded-xl gap-1" onClick={confirmDeleteDoc}>
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -794,13 +910,13 @@ export default function CompanyKnowledgePage() {
         <PageHeaderLogo />
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Knowledge Base</h1>
         <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-          Manage documents, URLs, and AI-extracted context for {org?.name || "this workspace"}.
+          Manage documents, URLs, and AI-extracted context for {org?.name || "your personal workspace"}.
         </p>
       </div>
 
       <div className="space-y-4">
-          {/* Website Extraction — admin only */}
-          {isOrgAdmin && <Card className="rounded-2xl">
+          {/* Website Extraction — admin only, org only */}
+          {isOrgAdmin && org && <Card className="rounded-2xl">
             <CardHeader className="px-4 sm:px-6">
               <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                 <Sparkles className="w-4 h-4" />
@@ -849,17 +965,15 @@ export default function CompanyKnowledgePage() {
             <CardContent className="space-y-4 px-4 sm:px-6">
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-end">
                 <div className="flex-1 space-y-1.5">
-                  <Label className="text-xs">Product Type</Label>
+                  <Label className="text-xs">Category</Label>
                   <Select value={selectedProductType} onValueChange={(v) => setSelectedProductType(v ?? "payment")}>
                     <SelectTrigger className="w-full h-11 rounded-lg">
-                      <SelectValue placeholder="Select type">
-                        {PRODUCT_TYPE_LABELS[selectedProductType] || "Select type"}
+                      <SelectValue placeholder="Select category">
+                        {PRODUCT_TYPE_LABELS[selectedProductType] || "Select category"}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="payment">Payment</SelectItem>
-                      <SelectItem value="eor">EoR</SelectItem>
-                      <SelectItem value="cards">Cards</SelectItem>
+                      <SelectItem value="payment">General</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -872,12 +986,12 @@ export default function CompanyKnowledgePage() {
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="icp">ICP</SelectItem>
-                      <SelectItem value="value_prop">Value Prop</SelectItem>
-                      <SelectItem value="competitive">Competitive</SelectItem>
-                      <SelectItem value="objection_handling">Objection Handling</SelectItem>
-                      <SelectItem value="product_pricing">Product/Pricing</SelectItem>
-                      <SelectItem value="process_methodology">Process/Methodology</SelectItem>
+                      <SelectItem value="icp">Target Audience</SelectItem>
+                      <SelectItem value="value_prop">Value Proposition</SelectItem>
+                      <SelectItem value="competitive">Competitive Info</SelectItem>
+                      <SelectItem value="objection_handling">FAQ & Rebuttals</SelectItem>
+                      <SelectItem value="product_pricing">Product & Pricing</SelectItem>
+                      <SelectItem value="process_methodology">Process & Methodology</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -962,22 +1076,20 @@ export default function CompanyKnowledgePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-xs text-muted-foreground">
-                Select a product type, upload multiple files, and the AI will classify each file into
+                Upload multiple files, and the AI will classify each file into
                 the right document type automatically.
               </p>
               <div className="flex gap-3 items-end">
                 <div className="flex-1">
-                  <Label className="text-xs mb-1 block">Product Type</Label>
+                  <Label className="text-xs mb-1 block">Category</Label>
                   <Select value={bulkProductType} onValueChange={(v) => setBulkProductType(v ?? "payment")}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select type">
-                        {PRODUCT_TYPE_LABELS[bulkProductType] || "Select type"}
+                      <SelectValue placeholder="Select category">
+                        {PRODUCT_TYPE_LABELS[bulkProductType] || "Select category"}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="payment">Payment</SelectItem>
-                      <SelectItem value="eor">EoR</SelectItem>
-                      <SelectItem value="cards">Cards</SelectItem>
+                      <SelectItem value="payment">General</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1120,21 +1232,19 @@ export default function CompanyKnowledgePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Upload transcripts from real sales calls to enrich your knowledge base. Accepted formats: TXT, VTT, SRT, PDF, DOCX, MD.
+                Upload transcripts from real conversations to enrich your knowledge base. Accepted formats: TXT, VTT, SRT, PDF, DOCX, MD.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
                 <div className="flex-1">
-                  <Label className="text-xs mb-1.5 block">Product Type</Label>
+                  <Label className="text-xs mb-1.5 block">Category</Label>
                   <Select value={transcriptProductType} onValueChange={(v) => setTranscriptProductType(v ?? "payment")}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select type">
-                        {PRODUCT_TYPE_LABELS[transcriptProductType] || "Select type"}
+                      <SelectValue placeholder="Select category">
+                        {PRODUCT_TYPE_LABELS[transcriptProductType] || "Select category"}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="payment">Payment</SelectItem>
-                      <SelectItem value="eor">EoR</SelectItem>
-                      <SelectItem value="cards">Cards</SelectItem>
+                      <SelectItem value="payment">General</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1252,16 +1362,9 @@ export default function CompanyKnowledgePage() {
                       </div>
                       <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                         <div className="flex items-center gap-2 sm:flex-col sm:gap-1 sm:items-end">
-                          <Badge
-                            className={`text-xs ${
-                              PRODUCT_TYPE_COLORS[doc.doc_type] || "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {PRODUCT_TYPE_LABELS[doc.doc_type] || doc.doc_type}
-                          </Badge>
-                          <span className="text-[10px] text-muted-foreground">
+                          <Badge className="text-xs bg-blue-100 text-blue-800">
                             {DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type}
-                          </span>
+                          </Badge>
                         </div>
                         <div className="text-right hidden sm:block">
                           <p className="text-xs text-muted-foreground">

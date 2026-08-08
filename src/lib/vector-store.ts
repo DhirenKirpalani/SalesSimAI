@@ -175,11 +175,12 @@ interface CompanyDocChunk {
  */
 export async function queryCompanyDocuments(
   queryText: string,
-  organizationId: string,
+  organizationId: string | null,
   opts?: {
     docType?: string;
     limit?: number;
     minSimilarity?: number;
+    userId?: string;
   }
 ): Promise<CompanyDocChunk[]> {
   const supabase = await createClient();
@@ -191,6 +192,7 @@ export async function queryCompanyDocuments(
     match_count: opts?.limit ?? 5,
     filter_org_id: organizationId,
     filter_doc_type: opts?.docType ?? null,
+    filter_user_id: organizationId ? null : (opts?.userId ?? null),
   });
 
   if (error) {
@@ -208,7 +210,7 @@ export async function queryCompanyDocuments(
  */
 export async function buildCompanyRagContextWithClient(
   queryText: string,
-  organizationId: string,
+  organizationId: string | null,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabaseClient: any,
   opts?: {
@@ -217,6 +219,7 @@ export async function buildCompanyRagContextWithClient(
     minSimilarity?: number;
     maxCharsPerDoc?: number;
     maxTotalChars?: number;
+    userId?: string;
   }
 ): Promise<string> {
   try {
@@ -227,6 +230,7 @@ export async function buildCompanyRagContextWithClient(
       match_count: opts?.limit ?? 5,
       filter_org_id: organizationId,
       filter_doc_type: opts?.docType ?? null,
+      filter_user_id: organizationId ? null : (opts?.userId ?? null),
     });
     if (error) {
       console.error("[buildCompanyRagContextWithClient] RPC error:", error);
